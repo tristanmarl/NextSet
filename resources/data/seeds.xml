@@ -1,0 +1,44 @@
+<jsonDataResources xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://developer.garmin.com/downloads/connect-iq/resources.xsd">
+  <jsonData id="Seeds">
+    {
+      "exercises": [
+        {"id":"seated-row-machine","name":"Seated Row Machine","loadType":"weight","unit":"kg","increment100":500,"defaultRestSec":120},
+        {"id":"machine-chest-press","name":"Machine Chest Press","loadType":"weight","unit":"kg","increment100":500,"defaultRestSec":120},
+        {"id":"reverse-pec-deck","name":"Reverse Pec Deck","loadType":"weight","unit":"kg","increment100":500,"defaultRestSec":60},
+        {"id":"machine-shoulder-press","name":"Machine Shoulder Press","loadType":"weight","unit":"kg","increment100":500,"defaultRestSec":120},
+        {"id":"assisted-pull-up","name":"Assisted Pull-up","loadType":"assistance","unit":"kg","increment100":500,"defaultRestSec":120},
+        {"id":"assisted-dip","name":"Assisted Dip","loadType":"assistance","unit":"kg","increment100":500,"defaultRestSec":75},
+        {"id":"machine-lateral-raise","name":"Machine Lateral Raise","loadType":"weight","unit":"kg","increment100":500,"defaultRestSec":60},
+        {"id":"machine-preacher-curl","name":"Machine Preacher Curl","loadType":"weight","unit":"kg","increment100":500,"defaultRestSec":75},
+        {"id":"leg-press","name":"Leg Press","loadType":"weight","unit":"kg","increment100":500,"defaultRestSec":150},
+        {"id":"lying-leg-curl","name":"Lying Leg Curl","loadType":"weight","unit":"kg","increment100":500,"defaultRestSec":90},
+        {"id":"single-leg-machine-hip-thrust","name":"Single-leg Machine Hip Thrust","loadType":"weight","unit":"kg","increment100":500,"defaultRestSec":90,"notes":"One set = both sides; load is machine setting."},
+        {"id":"leg-extension","name":"Leg Extension","loadType":"weight","unit":"kg","increment100":500,"defaultRestSec":60},
+        {"id":"hip-abduction-machine","name":"Hip Abduction Machine","loadType":"weight","unit":"kg","increment100":500,"defaultRestSec":60},
+        {"id":"hyperextension","name":"Hyperextension","loadType":"bodyweight","unit":null,"increment100":null,"defaultRestSec":60},
+        {"id":"dead-bug","name":"Dead Bug","loadType":"timed","unit":null,"increment100":null,"defaultRestSec":60}
+      ],
+      "templates": [
+        {"id":"upper","revision":1,"name":"Upper","entries":[
+          {"entryId":"upper-row","exerciseId":"seated-row-machine","workingSetCount":3,"targetRepsMin":9,"targetRepsMax":9,"startingLoad100":5500},
+          {"entryId":"upper-chest","exerciseId":"machine-chest-press","workingSetCount":3,"targetRepsMin":8,"targetRepsMax":8,"startingLoad100":6500},
+          {"entryId":"upper-rear-delt","exerciseId":"reverse-pec-deck","workingSetCount":2,"targetRepsMin":11,"targetRepsMax":11,"startingLoad100":4000},
+          {"entryId":"upper-shoulder","exerciseId":"machine-shoulder-press","workingSetCount":2,"targetRepsMin":8,"targetRepsMax":8,"startingLoad100":4500},
+          {"entryId":"upper-pull-up","exerciseId":"assisted-pull-up","workingSetCount":2,"targetRepsMin":10,"targetRepsMax":10,"startingLoad100":3000},
+          {"entryId":"upper-dip","exerciseId":"assisted-dip","workingSetCount":2,"targetRepsMin":10,"targetRepsMax":10,"startingLoad100":3000},
+          {"entryId":"upper-lateral","exerciseId":"machine-lateral-raise","workingSetCount":2,"targetRepsMin":10,"targetRepsMax":10,"startingLoad100":4000},
+          {"entryId":"upper-curl","exerciseId":"machine-preacher-curl","workingSetCount":3,"targetRepsMin":12,"targetRepsMax":12,"startingLoad100":3000}
+        ]},
+        {"id":"lower","revision":1,"name":"Lower","entries":[
+          {"entryId":"lower-leg-press","exerciseId":"leg-press","workingSetCount":4,"targetRepsMin":9,"targetRepsMax":9,"startingLoad100":21300},
+          {"entryId":"lower-curl","exerciseId":"lying-leg-curl","workingSetCount":2,"targetRepsMin":10,"targetRepsMax":10,"startingLoad100":5000},
+          {"entryId":"lower-hip-thrust","exerciseId":"single-leg-machine-hip-thrust","workingSetCount":2,"targetRepsMin":10,"targetRepsMax":10,"startingLoad100":6000},
+          {"entryId":"lower-extension","exerciseId":"leg-extension","workingSetCount":2,"targetRepsMin":10,"targetRepsMax":10,"startingLoad100":5500},
+          {"entryId":"lower-abduction","exerciseId":"hip-abduction-machine","workingSetCount":2,"targetRepsMin":10,"targetRepsMax":10,"startingLoad100":7500},
+          {"entryId":"lower-hyperextension","exerciseId":"hyperextension","workingSetCount":2,"targetRepsMin":10,"targetRepsMax":10},
+          {"entryId":"lower-dead-bug","exerciseId":"dead-bug","workingSetCount":3,"targetDurationSec":35}
+        ]}
+      ]
+    }
+  </jsonData>
+</jsonDataResources>
