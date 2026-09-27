@@ -32,7 +32,6 @@ class HistoryView extends WatchUi.View {
         var caption = UiFormat.captionFont();
         if (_sessions.size() == 0) {
             UiFormat.drawLine(dc, "No saved workouts", height / 2 - 30, Graphics.FONT_SMALL);
-            UiFormat.drawLine(dc, "BACK: HOME", height - 100, caption);
             return;
         }
         if (_selected >= _sessions.size()) {
@@ -40,7 +39,7 @@ class HistoryView extends WatchUi.View {
         }
         var y = UiFormat.drawLine(dc, "HISTORY  " + (_selected + 1).toString() + "/" +
             _sessions.size().toString(), 40, Graphics.FONT_XTINY) + 12;
-        var footerY = height - 100;
+        var footerY = height - 28;
         var rowHeight = dc.getFontHeight(Graphics.FONT_XTINY) + dc.getFontHeight(caption) + 8;
         var visible = (footerY - y) / rowHeight;
         if (visible < 1) {
@@ -62,8 +61,6 @@ class HistoryView extends WatchUi.View {
             dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
             y += rowHeight;
         }
-        footerY = UiFormat.drawLine(dc, "UP/DOWN: CHOOSE", footerY, caption) + 4;
-        UiFormat.drawLine(dc, "START: OPEN", footerY, caption);
     }
 
     private function drawDetail(dc as Dc) as Void {
@@ -83,7 +80,7 @@ class HistoryView extends WatchUi.View {
                 y, caption) + 4;
             y = UiFormat.drawLine(dc, dateAndElapsed(record), y, caption) + 10;
         }
-        var footerY = height - 100;
+        var footerY = height - 28;
         var rowHeight = dc.getFontHeight(caption) + 4;
         _detailVisible = (footerY - y) / rowHeight;
         if (_detailVisible < 1) {
@@ -101,13 +98,6 @@ class HistoryView extends WatchUi.View {
         for (var i = _detailOffset; i < end; i++) {
             y = UiFormat.drawLine(dc, _detailLines[i] as String, y, caption) + 4;
         }
-        var scrollHint = "UP/DOWN: SCROLL";
-        if (_detailLines.size() > _detailVisible) {
-            scrollHint = "UP/DOWN: " + (_detailOffset + 1).toString() + "-" +
-                end.toString() + "/" + _detailLines.size().toString();
-        }
-        footerY = UiFormat.drawLine(dc, scrollHint, footerY, caption) + 4;
-        UiFormat.drawLine(dc, "BACK: LIST", footerY, caption);
     }
 
     private function listSummary(record as Dictionary) as String {

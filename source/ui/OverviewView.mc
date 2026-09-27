@@ -4,11 +4,16 @@ import Toybox.WatchUi;
 
 class OverviewView extends WatchUi.View {
     private var _selectedIndex as Number = 0;
+    private var _seenNextSetSequence as Number = 0;
 
     public function initialize() {
         View.initialize();
         var session = getApp().controller().session();
         if (session != null) {
+            var current = session as Dictionary;
+            if (current["nextSetSequence"] instanceof Number) {
+                _seenNextSetSequence = current["nextSetSequence"] as Number;
+            }
             var exercises = (session as Dictionary)["exercises"] as Array;
             for (var i = 0; i < exercises.size(); i++) {
                 if (SessionLogic.nextSlot(exercises[i] as Dictionary) >= 0) {
@@ -33,37 +38,42 @@ class OverviewView extends WatchUi.View {
         if (exercises.size() == 0) {
             return;
         }
+        if (current["nextSetSequence"] instanceof Number &&
+            current["nextSetSequence"] != _seenNextSetSequence) {
+            _seenNextSetSequence = current["nextSetSequence"] as Number;
+            var selected = exercises[_selectedIndex] as Dictionary;
+            if (SessionLogic.nextSlot(selected) < 0) {
+                for (var offset = 1; offset <= exercises.size(); offset++) {
+                    var candidateIndex = (_selectedIndex + offset) % exercises.size();
+                    if (SessionLogic.nextSlot(exercises[candidateIndex] as Dictionary) >= 0) {
+                        _selectedIndex = candidateIndex;
+                        break;
+                    }
+                }
+            }
+        }
         if (_selectedIndex >= exercises.size()) {
             _selectedIndex = 0;
         }
-        var caption = UiFormat.captionFont();
-        var totals = SessionLogic.totals(current);
-        var y = UiFormat.drawLine(dc, current["templateName"] + " " +
-            totals["done"].toString() + "/" + totals["planned"].toString(),
-            40, Graphics.FONT_XTINY) + 8;
-        var rest = UiFormat.restStatus(current);
-        // Reserve the status row so rest expiry never moves the selection.
-        if (rest != null) {
-            UiFormat.drawLine(dc, rest as String, y, caption);
-        }
-        y += dc.getFontHeight(caption) + 20;
-
         var focused = exercises[_selectedIndex] as Dictionary;
         var focusTitle = focused["name"] as String;
-        var focusFont = Graphics.FONT_TINY;
-        if (UiFormat.safeText(dc, focusTitle, y, focusFont) != focusTitle) {
-            focusFont = Graphics.FONT_XTINY;
+        var titleFont = Graphics.FONT_SMALL;
+        var countFont = Graphics.FONT_LARGE;
+        var gap = 10;
+        var titleHeight = dc.getFontHeight(titleFont);
+        var blockHeight = titleHeight + gap + dc.getFontHeight(countFont);
+        var titleY = (dc.getHeight() - blockHeight) / 2;
+        if (!Model.sameString(UiFormat.safeText(dc, focusTitle, titleY, titleFont), focusTitle)) {
+            titleFont = Graphics.FONT_XTINY;
+            titleHeight = dc.getFontHeight(titleFont);
+            blockHeight = titleHeight + gap + dc.getFontHeight(countFont);
+            titleY = (dc.getHeight() - blockHeight) / 2;
         }
-        y = UiFormat.drawLine(dc, focusTitle, y, focusFont) + 4;
-        y = UiFormat.drawLine(dc, UiFormat.progress(focused), y, Graphics.FONT_XTINY) + 14;
-        if (exercises.size() > 1) {
-            var above = (_selectedIndex + exercises.size() - 1) % exercises.size();
-            var below = (_selectedIndex + 1) % exercises.size();
-            y = UiFormat.drawLine(dc, "UP: " + exercises[above]["name"], y, caption) + 8;
-            y = UiFormat.drawLine(dc, "DOWN: " + exercises[below]["name"], y, caption) + 16;
-        }
-        y = UiFormat.drawLine(dc, "START: OPEN", y, caption) + 6;
-        UiFormat.drawLine(dc, "BACK: ACTIONS", y, caption);
+        UiFormat.drawLine(dc, focusTitle, titleY, titleFont);
+        var countY = titleY + titleHeight + gap;
+        var count = SessionLogic.completedCount(focused).toString() + "/" +
+            focused["plannedSetCount"].toString() + " sets";
+        UiFormat.drawLine(dc, count, countY, countFont);
     }
 
     public function moveSelection(direction as Number) as Void {

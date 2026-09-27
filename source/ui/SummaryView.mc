@@ -29,7 +29,7 @@ class SummaryView extends WatchUi.View {
             y = UiFormat.drawLine(dc, "ACTIVE " + duration(session["activeSec"] as Number),
                 y, caption) + 16;
         }
-        UiFormat.drawLine(dc, "START: HOME", y, Graphics.FONT_XTINY);
+        UiFormat.drawLine(dc, "START: DONE", y, Graphics.FONT_XTINY);
     }
 
     private function duration(totalSeconds as Number) as String {

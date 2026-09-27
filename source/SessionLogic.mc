@@ -283,18 +283,33 @@ module SessionLogic {
             session["restGeneration"] as Number : 0;
         var restGeneration = currentRestGeneration + 1;
         candidate["restGeneration"] = restGeneration;
-        candidate["rest"] = RestClock.create(
+        candidate["rest"] = nextSlot(changedExercise) >= 0 ? RestClock.create(
             restGeneration,
             entryId,
             slotIndex,
             now,
             changedExercise["restSec"] as Number
-        );
+        ) : null;
         var pointer = {};
         pointer["entryId"] = entryId;
         pointer["slot"] = slotIndex;
         candidate["lastCompleted"] = pointer;
         return candidate;
+    }
+
+    function updateFollowingLoads(exercise as Dictionary, slotIndex as Number,
+                                  load100 as Number) as Void {
+        var slots = exercise["slots"] as Array;
+        for (var i = slotIndex + 1; i < slots.size(); i++) {
+            if (slots[i]["completed"] != null) {
+                continue;
+            }
+            var following = copyDictionary(slots[i] as Dictionary);
+            var draft = copyDictionary(following["draft"] as Dictionary);
+            draft["load100"] = load100;
+            following["draft"] = draft;
+            slots[i] = following;
+        }
     }
 
     function correctSet(session as Dictionary, entryId as String, slotIndex as Number,
@@ -314,7 +329,10 @@ module SessionLogic {
         var changedExercise = state["exercise"] as Dictionary;
         var slot = state["slot"] as Dictionary;
         var completed = copyDictionary(slot["completed"] as Dictionary);
-        if (Model.sameString(changedExercise["loadType"], "weight") || Model.sameString(changedExercise["loadType"], "assistance")) {
+        var loadable = Model.sameString(changedExercise["loadType"], "weight") ||
+            Model.sameString(changedExercise["loadType"], "assistance");
+        var loadChanged = loadable && completed["load100"] != actual["load100"];
+        if (loadable) {
             completed["load100"] = actual["load100"];
             completed["reps"] = actual["reps"];
         } else if (Model.sameString(changedExercise["loadType"], "bodyweight")) {
@@ -326,6 +344,9 @@ module SessionLogic {
         completed["updatedAt"] = now;
         applyActual(changedExercise, slot, actual);
         slot["completed"] = completed;
+        if (loadChanged) {
+            updateFollowingLoads(changedExercise, slotIndex, actual["load100"] as Number);
+        }
         return candidate;
     }
 
@@ -362,14 +383,47 @@ module SessionLogic {
             return null;
         }
         var state = slotCandidate(session, index, slotIndex);
+        var changedExercise = state["exercise"] as Dictionary;
         var slot = state["slot"] as Dictionary;
         var draft = slot["draft"] as Dictionary;
         draft[field] = value;
+        if (Model.sameString(field, "load100")) {
+            updateFollowingLoads(changedExercise, slotIndex, value);
+        }
         if (Model.sameString(type, "timed") && Model.sameString(field, "durationSec")) {
             draft["measuredSec"] = 0;
             draft["durationEdited"] = true;
             draft["targetAlertConsumed"] = false;
         }
+        return state["session"] as Dictionary;
+    }
+
+    function addSet(session as Dictionary, entryId as String) as Dictionary? {
+        var index = exerciseIndex(session, entryId);
+        if (index < 0 || totals(session)["planned"] >= Model.MAX_SETS_PER_WORKOUT) {
+            return null;
+        }
+        var exercise = (session["exercises"] as Array)[index] as Dictionary;
+        var sourceSlots = exercise["slots"] as Array;
+        if (sourceSlots.size() == 0 || sourceSlots.size() >= Model.MAX_SETS) {
+            return null;
+        }
+
+        var state = exerciseCandidate(session, index);
+        var changedExercise = state["exercise"] as Dictionary;
+        var slots = changedExercise["slots"] as Array;
+        var draft = copyDictionary(sourceSlots[sourceSlots.size() - 1]["draft"] as Dictionary);
+        if (Model.sameString(exercise["loadType"], "timed")) {
+            draft["measuredSec"] = 0;
+            draft["durationEdited"] = false;
+            draft["targetAlertConsumed"] = false;
+        }
+        var newSlot = {};
+        newSlot["draft"] = draft;
+        newSlot["completed"] = null;
+        slots.add(newSlot);
+        changedExercise["plannedSetCount"] = (exercise["plannedSetCount"] as Number) + 1;
+        changedExercise["closedEarly"] = false;
         return state["session"] as Dictionary;
     }
 

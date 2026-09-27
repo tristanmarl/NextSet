@@ -41,10 +41,9 @@ class NumberEditView extends WatchUi.View {
         y = UiFormat.drawLine(dc, fieldLabel(), y, Graphics.FONT_SMALL) + 6;
         y = UiFormat.drawLine(dc, displayValue(), y, Graphics.FONT_LARGE) + 10;
         if (isLoadField() || _configKind != null) {
-            y = UiFormat.drawLine(dc, stepLabel() + "  MENU: CHANGE", y, caption) + 4;
+            y = UiFormat.drawLine(dc, stepLabel() + " · MENU step", y, caption) + 4;
         }
-        y = UiFormat.drawLine(dc, "UP/DOWN: ADJUST", y, caption) + 4;
-        y = UiFormat.drawLine(dc, "START: SAVE  BACK: CANCEL", y, caption) + 4;
+        y = UiFormat.drawLine(dc, "UP/DOWN change · START save", y, caption) + 4;
         if (_error != null) {
             dc.setColor(Graphics.COLOR_YELLOW, Graphics.COLOR_BLACK);
             UiFormat.drawLine(dc, _error as String, y, caption);

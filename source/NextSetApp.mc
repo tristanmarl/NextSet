@@ -63,7 +63,7 @@ class NextSetApp extends Application.AppBase {
         _suppressFirstAlert = false;
         if (vibrate && _controller.vibrationEnabled() && Attention has :vibrate) {
             try {
-                Attention.vibrate([new Attention.VibeProfile(50, 500)]);
+                Attention.vibrate([new Attention.VibeProfile(100, 1000)]);
             } catch (error) {
             }
         }

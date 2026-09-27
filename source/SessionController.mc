@@ -556,13 +556,14 @@ class SessionController {
             return false;
         }
         var candidate = null;
-        var shouldAlert = false;
+        var restAlert = false;
+        var timedAlert = false;
         if (_session["rest"] instanceof Dictionary) {
             var rest = RestClock.expire(_session["rest"] as Dictionary, now);
             if (rest != null) {
                 candidate = SessionLogic.copyDictionary(_session as Dictionary);
                 candidate["rest"] = rest;
-                shouldAlert = true;
+                restAlert = true;
             }
         }
         var run = _session["timedRun"];
@@ -579,12 +580,12 @@ class SessionController {
                     var nextRun = SessionLogic.copyDictionary(run as Dictionary);
                     nextRun["targetAlertConsumed"] = true;
                     candidate["timedRun"] = nextRun;
-                    shouldAlert = true;
+                    timedAlert = true;
                 }
             }
         }
         if (candidate != null) {
-            return commit(candidate as Dictionary) && shouldAlert && canVibrate;
+            return commit(candidate as Dictionary) && (restAlert || (timedAlert && canVibrate));
         }
         checkpoint(now);
         return false;
@@ -771,6 +772,14 @@ class SessionController {
         }
         fresh["timedRun"] = null;
         return commit(fresh);
+    }
+
+    public function addSet(entryId as String) as Boolean {
+        if (!isWorkoutRunning()) {
+            return false;
+        }
+        var candidate = SessionLogic.addSet(_session as Dictionary, entryId);
+        return candidate != null && commit(candidate as Dictionary);
     }
 
     public function updateDraft(entryId as String, slot as Number, field as String, value as Number) as Boolean {

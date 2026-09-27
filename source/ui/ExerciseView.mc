@@ -7,6 +7,10 @@ import Toybox.WatchUi;
 class ExerciseView extends WatchUi.View {
     private var _entryId as String;
     private var _message as String? = null;
+    private var _loadTapLeft as Number = -1;
+    private var _loadTapRight as Number = -1;
+    private var _loadTapTop as Number = -1;
+    private var _loadTapBottom as Number = -1;
 
     public function initialize(entryId as String) {
         _entryId = entryId;
@@ -18,11 +22,15 @@ class ExerciseView extends WatchUi.View {
     }
 
     public function showMessage(message as String) as Void {
-        _message = message;
+        _message = message.length() == 0 ? null : message;
         WatchUi.requestUpdate();
     }
 
     public function onUpdate(dc as Dc) as Void {
+        _loadTapLeft = -1;
+        _loadTapRight = -1;
+        _loadTapTop = -1;
+        _loadTapBottom = -1;
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
         dc.clear();
         var session = getApp().controller().session();
@@ -40,56 +48,120 @@ class ExerciseView extends WatchUi.View {
         var current = exercise as Dictionary;
         var slot = SessionLogic.nextSlot(current);
         var planned = current["plannedSetCount"] as Number;
+        var loadType = current["loadType"] as String;
+        var tappableLoad = Model.sameString(loadType, "weight") ||
+            Model.sameString(loadType, "assistance");
         var caption = UiFormat.captionFont();
-        var title = current["name"] as String;
-        var titleFont = Graphics.FONT_XTINY;
-        if (UiFormat.safeText(dc, title, 56, titleFont) != title) {
-            titleFont = caption;
-        }
-        var y = UiFormat.drawLine(dc, title, 56, titleFont) + 2;
+        var titleFont = Graphics.FONT_MEDIUM;
+        var titleLines = UiFormat.wrapTitle(dc, current["name"] as String, titleFont,
+            dc.getWidth() * 0.72);
+        var titleHeight = dc.getFontHeight(titleFont);
+        var setFont = Graphics.FONT_SMALL;
+        var setHeight = dc.getFontHeight(setFont);
+        var valueFont = Graphics.FONT_MEDIUM;
+        var valueHeight = dc.getFontHeight(valueFont);
+        var mainHeight = titleLines.size() * titleHeight + 5 + setHeight + 8 + valueHeight;
         if (slot < 0) {
+            mainHeight = titleLines.size() * titleHeight + 8 + dc.getFontHeight(Graphics.FONT_SMALL) +
+                4 + dc.getFontHeight(Graphics.FONT_SMALL);
+        }
+        var y = (dc.getHeight() - mainHeight) / 2;
+        for (var i = 0; i < titleLines.size(); i++) {
+            y = UiFormat.drawLine(dc, titleLines[i] as String, y, titleFont) + 1;
+        }
+        if (slot < 0) {
+            y += 7;
             y = UiFormat.drawLine(dc, current["closedEarly"] ? "Finished early" :
-                "Exercise complete", y + 28, Graphics.FONT_SMALL) + 8;
-            y = UiFormat.drawLine(dc, UiFormat.progress(current), y, Graphics.FONT_SMALL) + 8;
-        } else {
-            y = UiFormat.drawLine(dc, "NEXT SET " + (slot + 1).toString() + "/" +
-                planned.toString(), y, caption) + 2;
-            var last = UiFormat.lastLine(current, slot);
-            if (last != null) {
-                y = UiFormat.drawLine(dc, last as String, y, caption) + 2;
+                "Complete", y, Graphics.FONT_SMALL) + 4;
+            UiFormat.drawLine(dc, UiFormat.progress(current), y, Graphics.FONT_SMALL);
+            return;
+        }
+
+        y += 4;
+        y = UiFormat.drawLine(dc, "Set " + (slot + 1).toString() + "/" +
+            planned.toString(), y, setFont) + 7;
+        var value = exerciseLine(session as Dictionary, current, slot);
+        var valueY = y;
+        var visibleValue = UiFormat.safeText(dc, value, valueY, valueFont);
+        if (!Model.sameString(visibleValue, value)) {
+            valueFont = Graphics.FONT_SMALL;
+            valueHeight = dc.getFontHeight(valueFont);
+            visibleValue = UiFormat.safeText(dc, value, valueY, valueFont);
+        }
+        var valueWidth = dc.getTextWidthInPixels(visibleValue, valueFont);
+        var lineLeft = (dc.getWidth() - valueWidth) / 2;
+        var tapLoadWidth = 0;
+        if (tappableLoad) {
+            var draft = ((current["slots"] as Array)[slot] as Dictionary)["draft"] as Dictionary;
+            var loadLabel = UiFormat.load100(draft["load100"] as Number) + " kg";
+            if (Model.sameString(loadType, "assistance")) {
+                loadLabel += " assist";
             }
-            var value = exerciseLine(session as Dictionary, current, slot);
-            var valueFont = Graphics.FONT_LARGE;
-            if (UiFormat.safeText(dc, value, y, valueFont) != value) {
-                valueFont = Graphics.FONT_SMALL;
-            }
-            if (UiFormat.safeText(dc, value, y, valueFont) != value) {
-                valueFont = Graphics.FONT_XTINY;
-            }
-            y = UiFormat.drawLine(dc, value, y, valueFont) + 4;
+            tapLoadWidth = dc.getTextWidthInPixels(loadLabel, valueFont);
+            _loadTapLeft = lineLeft - 10;
+            _loadTapRight = lineLeft + tapLoadWidth + 10;
+            _loadTapTop = valueY - 3;
+            _loadTapBottom = valueY + valueHeight + 3;
+        }
+        y = UiFormat.drawLine(dc, value, valueY, valueFont) + 6;
+        if (tappableLoad) {
+            dc.setColor(Graphics.COLOR_GREEN, Graphics.COLOR_BLACK);
+            dc.drawLine(lineLeft, valueY + valueHeight - 2, lineLeft + tapLoadWidth,
+                valueY + valueHeight - 2);
+            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+        }
+
+        var last = UiFormat.lastLine(current, slot);
+        if (last != null) {
+            y = UiFormat.drawLine(dc, last as String, y, caption) + 2;
+        }
+        var restStatus = UiFormat.restStatus(session as Dictionary);
+        if (restStatus != null) {
+            dc.setColor(Graphics.COLOR_YELLOW, Graphics.COLOR_BLACK);
+            y = UiFormat.drawLine(dc, restStatus as String, y, caption) + 2;
+            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+        }
+        if (current["notes"] instanceof String) {
+            y = UiFormat.drawLine(dc, current["notes"] as String, y, caption) + 2;
         }
         if (_message != null) {
             y = UiFormat.drawLine(dc, _message as String, y, caption) + 2;
         }
-        var restStatus = UiFormat.restStatus(session as Dictionary);
-        if (restStatus != null) {
-            y = UiFormat.drawLine(dc, restStatus as String, y, caption) + 2;
+
+        var timed = Model.sameString(loadType, "timed");
+        var run = (session as Dictionary)["timedRun"];
+        var isRunning = run instanceof Dictionary &&
+            Model.sameString(run["entryId"], _entryId) && run["slot"] == slot;
+        var draft = ((current["slots"] as Array)[slot] as Dictionary)["draft"] as Dictionary;
+        var measured = draft["measuredSec"] instanceof Number && draft["measuredSec"] > 0;
+        var manuallyEdited = draft["durationEdited"] == true;
+        var cue = timed ? (isRunning ? "START finish" :
+            (measured ? "START resume" :
+            (manuallyEdited ? "START log" : "START begin"))) : "ADJUST · START LOG";
+        UiFormat.drawLine(dc, cue, y + 2, caption);
+    }
+
+    public function tapLoadAt(x as Number, y as Number) as Boolean {
+        if (_loadTapLeft < 0 || x < _loadTapLeft || x > _loadTapRight ||
+            y < _loadTapTop || y > _loadTapBottom) {
+            return false;
         }
-        if (current["notes"] != null) {
-            y = UiFormat.drawLine(dc, current["notes"] as String, y, caption) + 2;
+        var session = getApp().controller().session();
+        if (session == null) {
+            return false;
         }
-        if (slot >= 0) {
-            var timed = Model.sameString(current["loadType"], "timed");
-            var run = (session as Dictionary)["timedRun"];
-            var isRunning = run instanceof Dictionary &&
-                Model.sameString(run["entryId"], _entryId) && run["slot"] == slot;
-            var adjustment = isRunning ? "RUNNING: MENU TO EDIT" :
-                (timed ? "UP/DOWN: MANUAL SEC" : "UP/DOWN: REPS");
-            y = UiFormat.drawLine(dc, adjustment, y + 4, caption) + 2;
-            y = UiFormat.drawLine(dc, timed ? "START: START / STOP" : "START: LOG",
-                y, caption) + 2;
+        var exercise = UiFormat.exercise(session as Dictionary, _entryId);
+        if (exercise == null) {
+            return false;
         }
-        UiFormat.drawLine(dc, "MENU: ACTIONS", y, caption);
+        var current = exercise as Dictionary;
+        var slot = SessionLogic.nextSlot(current);
+        if (slot < 0 || (!Model.sameString(current["loadType"], "weight") &&
+            !Model.sameString(current["loadType"], "assistance"))) {
+            return false;
+        }
+        Navigator.numberEdit(_entryId, slot, "load100", false);
+        return true;
     }
 
     private function exerciseLine(session as Dictionary, exercise as Dictionary,
@@ -199,12 +271,57 @@ class ExerciseView extends WatchUi.View {
             saved = controller.completeDraft(_entryId, slot, now);
         }
         if (saved) {
-            _message = "Saved set " + (slot + 1).toString();
+            afterSetSaved();
         } else {
             _message = getApp().controller().errorMessage() == null ? "Set not saved" : "Save failed";
+            WatchUi.requestUpdate();
         }
-        WatchUi.requestUpdate();
         return saved;
+    }
+
+    public function logPausedTimed() as Void {
+        var session = getApp().controller().session();
+        if (session == null) {
+            return;
+        }
+        var exercise = UiFormat.exercise(session as Dictionary, _entryId);
+        if (exercise == null) {
+            return;
+        }
+        var slot = SessionLogic.nextSlot(exercise as Dictionary);
+        if (slot < 0) {
+            return;
+        }
+        var draft = ((exercise as Dictionary)["slots"] as Array)[slot]["draft"] as Dictionary;
+        if (!(draft["measuredSec"] instanceof Number) || draft["measuredSec"] <= 0) {
+            return;
+        }
+        if (getApp().controller().completeTimed(_entryId, slot, Time.now().value())) {
+            afterSetSaved();
+        } else {
+            _message = "Set not saved";
+            WatchUi.requestUpdate();
+        }
+    }
+
+    private function afterSetSaved() as Void {
+        _message = null;
+        var session = getApp().controller().session();
+        if (session == null) {
+            WatchUi.requestUpdate();
+            return;
+        }
+        var exercise = UiFormat.exercise(session as Dictionary, _entryId);
+        if (exercise == null || SessionLogic.nextSlot(exercise as Dictionary) >= 0) {
+            WatchUi.requestUpdate();
+            return;
+        }
+        var totals = SessionLogic.totals(session as Dictionary);
+        WatchUi.popView(WatchUi.SLIDE_DOWN);
+        WatchUi.requestUpdate();
+        if (totals["planned"] > 0 && totals["done"] == totals["planned"]) {
+            Navigator.workoutComplete();
+        }
     }
 }
 
@@ -254,6 +371,8 @@ class ExerciseDelegate extends WatchUi.BehaviorDelegate {
     }
 
     public function onTap(event as ClickEvent) as Boolean {
+        var coordinates = event.getCoordinates();
+        _view.tapLoadAt(coordinates[0], coordinates[1]);
         return true;
     }
 

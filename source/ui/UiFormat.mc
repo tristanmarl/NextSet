@@ -51,6 +51,35 @@ module UiFormat {
         return text;
     }
 
+    function wrapTitle(dc as Dc, value as String, font as Graphics.FontType,
+                       maxWidth as Numeric) as Array {
+        if (dc.getTextWidthInPixels(value, font) <= maxWidth) {
+            return [value];
+        }
+        var splitAt = -1;
+        var bestDifference = 999999;
+        for (var i = 1; i < value.length() - 1; i++) {
+            if (!Model.sameString(value.substring(i, i + 1), " ")) {
+                continue;
+            }
+            var first = value.substring(0, i);
+            var second = value.substring(i + 1, value.length());
+            var firstWidth = dc.getTextWidthInPixels(first, font);
+            var secondWidth = dc.getTextWidthInPixels(second, font);
+            if (firstWidth <= maxWidth && secondWidth <= maxWidth) {
+                var difference = (firstWidth - secondWidth).abs();
+                if (difference < bestDifference) {
+                    splitAt = i;
+                    bestDifference = difference;
+                }
+            }
+        }
+        if (splitAt < 0) {
+            return [fitText(dc, value, font, maxWidth)];
+        }
+        return [value.substring(0, splitAt), value.substring(splitAt + 1, value.length())];
+    }
+
     function load100(value as Number) as String {
         var whole = value / 100;
         var fraction = value % 100;
@@ -80,9 +109,6 @@ module UiFormat {
         if (!(rest instanceof Dictionary)) {
             return null;
         }
-        if (Model.sameString(rest["state"], "expired")) {
-            return "Rest finished";
-        }
         var paused = Model.sameString(rest["state"], "paused");
         if (!paused && !Model.sameString(rest["state"], "running")) {
             return null;
@@ -99,13 +125,13 @@ module UiFormat {
         var draft = slots[slotIndex]["draft"] as Dictionary;
         var type = exercise["loadType"];
         if (Model.sameString(type, "weight")) {
-            return load100(draft["load100"] as Number) + " kg  x  " + draft["reps"].toString();
+            return load100(draft["load100"] as Number) + " kg × " + draft["reps"].toString();
         }
         if (Model.sameString(type, "assistance")) {
-            return load100(draft["load100"] as Number) + " kg assist  x  " + draft["reps"].toString();
+            return load100(draft["load100"] as Number) + " kg assist × " + draft["reps"].toString();
         }
         if (Model.sameString(type, "bodyweight")) {
-            return "Bodyweight  x  " + draft["reps"].toString();
+            return "Bodyweight × " + draft["reps"].toString();
         }
         return draft["durationSec"].toString() + " sec";
     }

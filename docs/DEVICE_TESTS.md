@@ -10,6 +10,7 @@ The app currently keeps workouts in local app storage. The working tree includes
 
 ## Evidence recorded
 
+- **UX implementation build and smoke review (2026-09-27):** signed `fr965` production build compiled and relaunched in the API 5.2.0 simulator. Home, exercise overview, and a two-line long exercise title were inspected; the active workout was left intact. This did not exercise complete workout paths or physical haptics.
 - **Simulator launch and UI (2026-09-27):** the fresh production build launched against the FR965 simulator definition (Connect IQ SDK 9.2.0, API 5.2.0). Home, overview, and exercise screens were inspected. Overview labels and the exercise screen fit without visible clipping, including long exercise names. This is simulator-only visual evidence.
 - **Persistence smoke check:** an active Upper workout with one completed set survived an app relaunch in the simulator. This does not establish capacity, corruption recovery, forced-restart behavior, or hardware reliability.
 - **Automated tests (2026-09-27):** the expanded simulator test target reported 17/17 passing, with 0 failures and 0 errors. `monkeydo` returned exit code 1 after printing the passing summary, including for an isolated passing test; investigate the runner status before relying on its exit code in CI.
