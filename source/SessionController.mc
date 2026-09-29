@@ -67,6 +67,15 @@ class SessionController {
 
     private var _config as Dictionary? = null;
 
+    private function defaultRoutines() as Array {
+        var routines = Catalog.routineTemplates(null);
+        if (routines.size() == 0) {
+            routines.add({"id" => "routine-1", "name" => "Routine 1",
+                "revision" => 1, "entries" => []});
+        }
+        return routines;
+    }
+
     private function defaultConfig() as Dictionary {
         var settings = {
             "defaultRestSec" => 90,
@@ -78,7 +87,7 @@ class SessionController {
             "settings" => settings,
             "templateOverrides" => {},
             "incrementOverrides" => {},
-            "routines" => Catalog.routineTemplates(null),
+            "routines" => defaultRoutines(),
             "routineNextEntrySeq" => 1
         };
     }
@@ -129,6 +138,9 @@ class SessionController {
         }
         if (schemaVersion == null || schemaVersion < 2) {
             var routines = Catalog.routineTemplates(config as Dictionary);
+            if (routines.size() == 0) {
+                routines = defaultRoutines();
+            }
             var seedFields = ["workingSetCount", "targetRepsMin", "targetRepsMax",
                 "targetDurationSec", "startingLoad100", "restSec"];
             for (var t = 0; t < routines.size(); t++) {

@@ -4,7 +4,7 @@ NextSet is an offline strength-training log for the Garmin Forerunner 965 (Conne
 
 ## Features
 
-- Routines: Upper and Lower are built in. Create, rename, and delete routines (up to 8, at least one kept), with up to 12 exercises and 60 sets per routine. Edit sets, rep range, starting load, load increment, and rest per exercise; reorder, replace, and remove exercises. Exercises come from the Garmin exercise list (category browser, plus Recent and Used shortcuts) with weight, assistance, bodyweight, or timed tracking.
+- Routines: production installs start with an empty routine. Create, rename, and delete routines (up to 8, at least one kept), with up to 12 exercises and 60 sets per routine. Edit sets, rep range, starting load, load increment, and rest per exercise; reorder, replace, and remove exercises. Exercises come from the Garmin exercise list (category browser, plus Recent and Used shortcuts) with weight, assistance, bodyweight, or timed tracking.
 - Workout: one press logs a set; UP/DOWN adjusts reps and the load can be edited. Sets are prefilled from your last performance. A rest timer vibrates when rest ends, and timed sets have their own timer. You can correct or delete the last set, add a set, skip or replace an exercise for the day, then finish (or cancel) the workout.
 - Safety: workout state is checkpointed to storage, so a workout survives leaving the app or a crash and resumes on the next launch.
 - History: the last four finished workouts, with per-set details.
@@ -39,9 +39,13 @@ monkeydo bin/NextSet-tests.prg fr965 -t
 
 # Release build; publish it as the GitHub release asset NextSet-<version>.prg
 monkeyc -r -f monkey.jungle -d fr965 -o bin/NextSet-release.prg -y "$KEY"
+
+# Personal sideload build with the private Upper/Lower seeds
+monkeyc -f monkey.local.jungle -d fr965 -o bin/NextSet-local.prg -y "$KEY"
 ```
 
 See [docs/TOOLCHAIN.md](docs/TOOLCHAIN.md) for details.
+See [docs/PRIVATE_ROUTINE_RELEASE_PLAN.md](docs/PRIVATE_ROUTINE_RELEASE_PLAN.md) for the beta and public package split.
 
 ## Known limitations
 

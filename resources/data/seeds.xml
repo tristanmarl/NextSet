@@ -18,27 +18,7 @@
         {"id":"hyperextension","name":"Hyperextension","loadType":"bodyweight","unit":null,"increment100":null,"defaultRestSec":60,"garminCategory":"HYPEREXTENSION","garminCode":"HYPEREXTENSION"},
         {"id":"dead-bug","name":"Dead Bug","loadType":"timed","unit":null,"increment100":null,"defaultRestSec":60,"garminCategory":"HIP_STABILITY","garminCode":"DEAD_BUG","isBodyWeight":true}
       ],
-      "templates": [
-        {"id":"upper","revision":1,"name":"Upper","entries":[
-          {"entryId":"upper-row","exerciseId":"seated-row-machine","workingSetCount":3,"targetRepsMin":9,"targetRepsMax":9,"startingLoad100":5500},
-          {"entryId":"upper-chest","exerciseId":"machine-chest-press","workingSetCount":3,"targetRepsMin":8,"targetRepsMax":8,"startingLoad100":6500},
-          {"entryId":"upper-rear-delt","exerciseId":"reverse-pec-deck","workingSetCount":2,"targetRepsMin":11,"targetRepsMax":11,"startingLoad100":4000},
-          {"entryId":"upper-shoulder","exerciseId":"machine-shoulder-press","workingSetCount":2,"targetRepsMin":8,"targetRepsMax":8,"startingLoad100":4500},
-          {"entryId":"upper-pull-up","exerciseId":"assisted-pull-up","workingSetCount":2,"targetRepsMin":10,"targetRepsMax":10,"startingLoad100":3000},
-          {"entryId":"upper-dip","exerciseId":"assisted-dip","workingSetCount":2,"targetRepsMin":10,"targetRepsMax":10,"startingLoad100":3000},
-          {"entryId":"upper-lateral","exerciseId":"machine-lateral-raise","workingSetCount":2,"targetRepsMin":10,"targetRepsMax":10,"startingLoad100":4000},
-          {"entryId":"upper-curl","exerciseId":"machine-preacher-curl","workingSetCount":3,"targetRepsMin":12,"targetRepsMax":12,"startingLoad100":3000}
-        ]},
-        {"id":"lower","revision":1,"name":"Lower","entries":[
-          {"entryId":"lower-leg-press","exerciseId":"leg-press","workingSetCount":4,"targetRepsMin":9,"targetRepsMax":9,"startingLoad100":21300},
-          {"entryId":"lower-curl","exerciseId":"lying-leg-curl","workingSetCount":2,"targetRepsMin":10,"targetRepsMax":10,"startingLoad100":5000},
-          {"entryId":"lower-hip-thrust","exerciseId":"single-leg-machine-hip-thrust","workingSetCount":2,"targetRepsMin":10,"targetRepsMax":10,"startingLoad100":6000},
-          {"entryId":"lower-extension","exerciseId":"leg-extension","workingSetCount":2,"targetRepsMin":10,"targetRepsMax":10,"startingLoad100":5500},
-          {"entryId":"lower-abduction","exerciseId":"hip-abduction-machine","workingSetCount":2,"targetRepsMin":10,"targetRepsMax":10,"startingLoad100":7500},
-          {"entryId":"lower-hyperextension","exerciseId":"hyperextension","workingSetCount":2,"targetRepsMin":10,"targetRepsMax":10},
-          {"entryId":"lower-dead-bug","exerciseId":"dead-bug","workingSetCount":3,"targetDurationSec":35}
-        ]}
-      ]
+      "templates": []
     }
   </jsonData>
 </jsonDataResources>
