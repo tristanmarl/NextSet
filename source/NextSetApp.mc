@@ -15,6 +15,8 @@ class NextSetApp extends Application.AppBase {
     private var _finishPending as Boolean = false;
     private var _startRoutineId as String? = null;
     private var _suppressFirstAlert as Boolean = false;
+    private var _afterEntryTemplateId as String? = null;
+    private var _afterEntryMessage as String? = null;
 
     public function initialize() {
         AppBase.initialize();
@@ -113,6 +115,27 @@ class NextSetApp extends Application.AppBase {
             return;
         }
         finishWorkoutStart(_controller.commitWorkoutStart(Time.now().value()));
+    }
+
+    // TextPicker closes itself after its delegate returns, taking any view pushed or
+    // switched meanwhile with it; run the follow-up navigation from a one-shot timer.
+    public function afterTextEntry(templateId as String?, message as String?) as Void {
+        _afterEntryTemplateId = templateId;
+        _afterEntryMessage = message;
+        _startTimer.start(method(:runAfterTextEntry), 250, false);
+    }
+
+    public function runAfterTextEntry() as Void {
+        var templateId = _afterEntryTemplateId;
+        var message = _afterEntryMessage;
+        _afterEntryTemplateId = null;
+        _afterEntryMessage = null;
+        if (templateId != null) {
+            Navigator.editTemplate(templateId as String);
+        }
+        if (message != null) {
+            Navigator.feedback(message as String);
+        }
     }
 
     public function requestWorkoutFinish(outcome as String) as Void {

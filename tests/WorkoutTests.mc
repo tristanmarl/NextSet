@@ -1,6 +1,7 @@
 import Toybox.Application;
 import Toybox.Lang;
 import Toybox.Test;
+import Toybox.Time;
 
 function check(logger as Test.Logger, condition as Boolean, message as String) as Boolean {
     if (!condition) {
@@ -428,4 +429,50 @@ function testRenameRoutineAndRepsRange(logger as Test.Logger) as Boolean {
             "duplicate, blank and unknown-routine renames must be rejected") &&
         check(logger, raisedBoth, "raising min reps above max must raise max with it") &&
         check(logger, !lowered, "max reps below min must still be rejected");
+}
+
+(:test)
+function testDeleteAnyRoutineAndDefaultRestForNewExercise(logger as Test.Logger) as Boolean {
+    var store = new Store();
+    clearConfigKeys();
+    var controller = new SessionController(store);
+    var restSaved = controller.updateNumericConfig("setting", "", "", "defaultRestSec", 45);
+    var definition = {"id" => "g-test-lift", "name" => "Test Lift", "category" => "CURL",
+        "code" => "BARBELL_BICEPS_CURL", "isBodyWeight" => false};
+    var entryId = controller.addRoutineExercise("upper", definition, "weight");
+    var entry = entryId == null ? null : controller.templateEntry("upper", entryId as String);
+    var restOk = restSaved && entry != null && entry["restSec"] == 45 && entry["defaultRestSec"] == 45;
+    var deletedUpper = controller.deleteRoutine("upper");
+    var deletedLower = controller.deleteRoutine("lower");
+    var remaining = controller.routineTemplates().size();
+    clearConfigKeys();
+    return check(logger, restOk, "a new exercise must use the configured default rest") &&
+        check(logger, deletedUpper, "the built-in Upper routine must be deletable") &&
+        check(logger, !deletedLower && remaining == 1, "the last routine must be kept");
+}
+
+(:test)
+function testLegacyPausedSessionResumesActive(logger as Test.Logger) as Boolean {
+    var store = new Store();
+    Application.Storage.deleteValue("active.a");
+    Application.Storage.deleteValue("active.b");
+    var now = Time.now().value();
+    var session = Catalog.createSession("upper", "legacy-1", 1, now - 100, null, null) as Dictionary;
+    var clock = WorkoutClock.start(now - 100);
+    var keys = clock.keys();
+    for (var i = 0; i < keys.size(); i++) {
+        session[keys[i]] = clock[keys[i]];
+    }
+    session["status"] = "paused";
+    session["pauseStartedAt"] = now - 50;
+    session["lastCheckpointAt"] = now - 50;
+    var stored = store.commitPair("active", session);
+    var controller = new SessionController(store);
+    var resumed = controller.session();
+    var ok = stored && resumed != null && controller.isWorkoutRunning() &&
+        resumed["pauseStartedAt"] == null && resumed["pausedSec"] >= 49;
+    Application.Storage.deleteValue("active.a");
+    Application.Storage.deleteValue("active.b");
+    return check(logger, stored, "the paused fixture must be a valid stored session") &&
+        check(logger, ok, "a saved paused session must load as an active, running session");
 }

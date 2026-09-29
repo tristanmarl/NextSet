@@ -75,9 +75,8 @@ class OverviewView extends WatchUi.View {
         }
         UiFormat.drawLine(dc, focusTitle, titleY, titleFont);
         var countY = titleY + dc.getFontHeight(titleFont) + gap;
-        var count = getApp().controller().isWorkoutPaused() ? "WORKOUT PAUSED" :
-            (SessionLogic.completedCount(focused).toString() + "/" +
-             focused["plannedSetCount"].toString() + " sets");
+        var count = SessionLogic.completedCount(focused).toString() + "/" +
+            focused["plannedSetCount"].toString() + " sets";
         UiFormat.drawLine(dc, count, countY, countFont);
         var y = countY + dc.getFontHeight(countFont) + 3;
         if (nextSlot >= 0) {
@@ -111,10 +110,6 @@ class OverviewView extends WatchUi.View {
     }
 
     public function openSelection() as Void {
-        if (getApp().controller().isWorkoutPaused()) {
-            Navigator.resumeWorkout();
-            return;
-        }
         var session = getApp().controller().session();
         if (session == null) {
             return;
@@ -123,16 +118,6 @@ class OverviewView extends WatchUi.View {
         if (_selectedIndex < exercises.size()) {
             Navigator.exercise((exercises[_selectedIndex] as Dictionary)["entryId"] as String);
         }
-    }
-
-    public function selectedEntryId() as String? {
-        var session = getApp().controller().session();
-        if (session == null) {
-            return null;
-        }
-        var exercises = (session as Dictionary)["exercises"] as Array;
-        return _selectedIndex < exercises.size() ?
-            (exercises[_selectedIndex] as Dictionary)["entryId"] as String : null;
     }
 }
 
@@ -167,12 +152,7 @@ class OverviewDelegate extends WatchUi.BehaviorDelegate {
     }
 
     public function onMenu() as Boolean {
-        var entryId = _view.selectedEntryId();
-        if (entryId != null) {
-            Navigator.actionsForOverview(entryId as String);
-        } else {
-            Navigator.actions();
-        }
+        Navigator.actions();
         return true;
     }
 

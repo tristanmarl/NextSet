@@ -109,14 +109,13 @@ module UiFormat {
         if (!(rest instanceof Dictionary)) {
             return null;
         }
-        var paused = Model.sameString(rest["state"], "paused");
-        if (!paused && !Model.sameString(rest["state"], "running")) {
+        if (!Model.sameString(rest["state"], "running")) {
             return null;
         }
         var seconds = RestClock.remaining(rest as Dictionary, Time.now().value());
         var minutes = seconds / 60;
         var remainder = seconds % 60;
-        return (paused ? "REST PAUSED " : "REST ") + minutes.toString() + ":" +
+        return "REST " + minutes.toString() + ":" +
             (remainder < 10 ? "0" : "") + remainder.toString();
     }
 

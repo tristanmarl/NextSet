@@ -25,8 +25,9 @@ class RoutineListDelegate extends WatchUi.Menu2InputDelegate {
         }
     }
 
+    // Home rebuilds its routine data in onShow, so it is current after edits.
     public function onBack() as Void {
-        Navigator.home();
+        WatchUi.popView(WatchUi.SLIDE_DOWN);
     }
 }
 
@@ -38,11 +39,12 @@ class RoutineNameDelegate extends WatchUi.TextPickerDelegate {
     public function onTextEntered(text as String, changed as Boolean) as Boolean {
         var controller = getApp().controller();
         var id = controller.createRoutine(text);
+        // The picker closes itself after this returns; navigate once it is gone.
         if (id != null) {
-            Navigator.editTemplate(id as String);
+            getApp().afterTextEntry(id as String, null);
         } else {
             var error = controller.errorMessage();
-            Navigator.feedback(error == null ? "Routine could not be created" : error as String);
+            getApp().afterTextEntry(null, error == null ? "Routine could not be created" : error as String);
         }
         return true;
     }
@@ -63,10 +65,10 @@ class RoutineRenameDelegate extends WatchUi.TextPickerDelegate {
     public function onTextEntered(text as String, changed as Boolean) as Boolean {
         var controller = getApp().controller();
         if (controller.renameRoutine(_templateId, text)) {
-            Navigator.editTemplate(_templateId);
+            getApp().afterTextEntry(_templateId, null);
         } else {
             var error = controller.errorMessage();
-            Navigator.feedback(error == null ? "Routine could not be renamed" : error as String);
+            getApp().afterTextEntry(null, error == null ? "Routine could not be renamed" : error as String);
         }
         return true;
     }
@@ -91,6 +93,7 @@ class DeleteRoutineDelegate extends WatchUi.Menu2InputDelegate {
         }
         var controller = getApp().controller();
         if (controller.deleteRoutine(_templateId)) {
+            WatchUi.popView(WatchUi.SLIDE_DOWN);
             Navigator.routineList();
         } else {
             var error = controller.errorMessage();
@@ -121,7 +124,7 @@ class RoutineSetupDelegate extends WatchUi.Menu2InputDelegate {
         } else if (Model.sameString(id, "delete_routine")) {
             Navigator.confirmDeleteRoutine(_templateId);
         } else {
-            Navigator.routineEntryOptions(_templateId, id);
+            Navigator.routineEntryOptions(_templateId, id, null, false);
         }
     }
 
@@ -142,9 +145,7 @@ class RoutineEntryDelegate extends WatchUi.Menu2InputDelegate {
 
     public function onSelect(item as MenuItem) as Void {
         var id = item.getId() as String;
-        if (Model.sameString(id, "mapping")) {
-            Navigator.mappingDetails(_templateId, _entryId);
-        } else if (Model.sameString(id, "edit_values")) {
+        if (Model.sameString(id, "edit_values")) {
             Navigator.templateEntryFields(_templateId, _entryId, false);
         } else if (Model.sameString(id, "replace")) {
             WatchUi.popView(WatchUi.SLIDE_DOWN);
@@ -152,8 +153,8 @@ class RoutineEntryDelegate extends WatchUi.Menu2InputDelegate {
         } else if (Model.sameString(id, "move_up") || Model.sameString(id, "move_down")) {
             var direction = Model.sameString(id, "move_up") ? -1 : 1;
             var saved = getApp().controller().moveRoutineEntry(_templateId, _entryId, direction);
-            WatchUi.popView(WatchUi.SLIDE_DOWN);
-            Navigator.editTemplate(_templateId);
+            // Rebuild the entry menu in place with the same move item focused, so START repeats the move.
+            Navigator.routineEntryOptions(_templateId, _entryId, id, true);
             if (!saved) {
                 var error = getApp().controller().errorMessage();
                 Navigator.feedback(error == null ? "Routine change could not be saved" : error as String);
@@ -166,8 +167,10 @@ class RoutineEntryDelegate extends WatchUi.Menu2InputDelegate {
         }
     }
 
+    // Values, order and exercise may have changed; rebuild the routine view underneath.
     public function onBack() as Void {
         WatchUi.popView(WatchUi.SLIDE_DOWN);
+        Navigator.editTemplate(_templateId);
     }
 }
 
@@ -381,8 +384,9 @@ class GarminTrackingDelegate extends WatchUi.Menu2InputDelegate {
                     "Exercise change could not be saved" : controller.errorMessage() as String);
             } else {
                 // Ask for real values right away (sets, reps, starting load); BACK returns to the routine.
-                Navigator.templateEntryFields(_templateId,
-                    (_entryId != null ? _entryId : addedEntryId) as String, false);
+                var target = (_entryId != null ? _entryId : addedEntryId) as String;
+                Navigator.routineEntryOptions(_templateId, target, null, false);
+                Navigator.templateEntryFields(_templateId, target, false);
             }
         } else if (!saved) {
             Navigator.feedback(controller.errorMessage() == null ?
@@ -398,23 +402,6 @@ class GarminTrackingDelegate extends WatchUi.Menu2InputDelegate {
         } else {
             Navigator.garminQuickList(_templateId, _entryId, _mode, _source);
         }
-    }
-}
-
-class TemplateEntryMenuDelegate extends WatchUi.Menu2InputDelegate {
-    private var _templateId as String;
-
-    public function initialize(templateId as String) {
-        _templateId = templateId;
-        Menu2InputDelegate.initialize();
-    }
-
-    public function onSelect(item as MenuItem) as Void {
-        Navigator.templateEntryFields(_templateId, item.getId() as String, false);
-    }
-
-    public function onBack() as Void {
-        WatchUi.popView(WatchUi.SLIDE_DOWN);
     }
 }
 
@@ -436,74 +423,5 @@ class TemplateFieldMenuDelegate extends WatchUi.Menu2InputDelegate {
 
     public function onBack() as Void {
         WatchUi.popView(WatchUi.SLIDE_DOWN);
-    }
-}
-
-class MappingDetailView extends WatchUi.View {
-    private var _templateId as String;
-    private var _entryId as String;
-
-    private var _entry as Dictionary?;
-    private var _exercise as Dictionary?;
-
-    public function initialize(templateId as String, entryId as String) {
-        _templateId = templateId;
-        _entryId = entryId;
-        View.initialize();
-        _entry = getApp().controller().templateEntry(templateId, entryId);
-        _exercise = _entry == null ? null : Catalog.exerciseForEntry(_entry as Dictionary);
-    }
-
-    public function onUpdate(dc as Dc) as Void {
-        dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
-        dc.clear();
-        var entry = _entry;
-        var exercise = _exercise;
-        if (entry == null || exercise == null) {
-            UiFormat.drawLine(dc, "Mapping unavailable", dc.getHeight() / 2,
-                Graphics.FONT_SMALL);
-            return;
-        }
-        var current = entry as Dictionary;
-        var definition = exercise as Dictionary;
-        var mapped = Catalog.garminName(current["garminCategory"] as String,
-            current["garminCode"] as String);
-        var caption = UiFormat.captionFont();
-        var lines = ["NEXTSET", definition["name"] as String, "GARMIN", mapped];
-        var fonts = [Graphics.FONT_XTINY, caption, Graphics.FONT_XTINY, caption];
-        var gap = [4, 8, 4, 0];
-        var totalHeight = 0;
-        for (var i = 0; i < lines.size(); i++) {
-            totalHeight += dc.getFontHeight(fonts[i] as Graphics.FontType) + gap[i];
-        }
-        var y = (dc.getHeight() - totalHeight) / 2;
-        for (var i = 0; i < lines.size(); i++) {
-            var font = fonts[i] as Graphics.FontType;
-            if (i == 1 || i == 3) {
-                var wrapped = UiFormat.wrapTitle(dc, lines[i] as String, font, dc.getWidth() * 0.72);
-                for (var j = 0; j < wrapped.size(); j++) {
-                    y = UiFormat.drawLine(dc, wrapped[j] as String, y, font);
-                }
-            } else {
-                y = UiFormat.drawLine(dc, lines[i] as String, y, font);
-            }
-            y += gap[i] as Number;
-        }
-    }
-}
-
-class MappingDetailDelegate extends WatchUi.BehaviorDelegate {
-    public function initialize() {
-        BehaviorDelegate.initialize();
-    }
-
-    public function onBack() as Boolean {
-        WatchUi.popView(WatchUi.SLIDE_DOWN);
-        return true;
-    }
-
-    public function onSelect() as Boolean {
-        WatchUi.popView(WatchUi.SLIDE_DOWN);
-        return true;
     }
 }

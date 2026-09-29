@@ -192,3 +192,27 @@ Information (section 3)
 Housekeeping
 - `UX_REVIEW.md`: replaced the stray data-URI line with the original blank line; `git diff` for the file is now empty.
 - Removed `NumberEditView`'s private `copyDictionary` duplicate.
+
+## Second pass (2026-09-29)
+
+Findings from the first watch test, and what was done. All UI or logic only; no stored schema changed. Unit tests pass (29/29); the app launches in the simulator (buttons not driven).
+
+Bugs
+- Creating or renaming a routine left the Routines list stale: `TextPicker` closes itself after its delegate returns and took the freshly switched view with it. Both delegates now call `NextSetApp.afterTextEntry`, which navigates from a one-shot timer with a public callback once the picker is gone.
+- Other stale views: the Routines list now closes with a plain pop and `HomeView` reloads its routines and last-done data in `onShow`; the routine view is rebuilt whenever the entry menu closes (covers edit values, reorder, replace and add); delete pops its confirm before rebuilding the list. This also removes the extra Home screen the old `Navigator.home()` calls left on the stack.
+- Rest-end vibration: dropped from this pass, as the cause was the watch's own vibration setting. The code path is unchanged.
+
+Workout simplification
+- "Exit, continue later" and the exit confirm are removed. `onStop` still saves the segment; reopening resumes.
+- Cancel discards the recording through the durable "discarding" stage, writes no history, and does not touch the last-performance cache, then tombstones the active record. The History CANCELLED label stays for old records.
+- "Skip for today" is "Skip exercise". When nothing unfinished remains and a set is logged, the "Workout complete" prompt appears.
+- One exercise menu: Workout menu is Finish and Cancel only; Skip, Replace exercise (swap at 0 sets, alternative otherwise), Skip rest, Edit last set (now including "Delete set") live in the Exercise menu. Home menu no longer lists Resume.
+- Pause is removed (menu items, `pauseWorkout`/`resumeWorkout`/`isWorkoutPaused`, "WORKOUT PAUSED", paused rest text). A saved session with status "paused" resumes as active when loaded (`WorkoutClock.resume`, rest resumed). Summary shows elapsed time only.
+- Skip rest appears only in the Exercise menu.
+
+Routines
+- New exercises use Settings > Default rest, labelled "(new exercises)"; existing entries are unchanged.
+- After Move up/down the entry menu is rebuilt in place with the move item focused (`Menu2.setFocus`), so repeated START keeps moving the entry.
+- The Garmin name screen is gone; the name is the sublabel of "Replace exercise".
+- Any routine can be deleted while at least one remains; "Delete routine" is hidden for the last one.
+- After adding or replacing an exercise the entry menu opens with Edit values on top of it, so one extra BACK reaches the routine view (which is rebuilt on the way).

@@ -14,36 +14,33 @@ module Err {
     const ROUTINE_LIMIT_REACHED = 9;
     const ROUTINE_NAME_ALREADY_EXISTS = 10;
     const ROUTINE_COULD_NOT_BE_CREATED = 11;
-    const UPPER_AND_LOWER_ROUTINES_ARE_KEPT = 12;
-    const ROUTINE_NOT_FOUND = 13;
-    const ACTIVITY_STATE_SAVE_FAILED = 14;
-    const ACTIVITY_RESUME_FAILED = 15;
-    const ACTIVITY_SAVE_FAILED = 16;
-    const ACTIVITY_RECORDING_FAILED_TO_START_STATE_SAVE_FAILED = 17;
-    const ACTIVITY_RECORDING_FAILED_TO_START = 18;
-    const ACTIVITY_STATE_SAVE_AND_DISCARD_FAILED = 19;
-    const FITSTATE = 20;
-    const FAILED = 21;
-    const ACTIVITY_PAUSE_FAILED = 22;
-    const SAVE_FAILED_RETRY_BEFORE_CONTINUING = 23;
-    const TIMED_SET_RECOVERY_FAILED = 24;
-    const RECOVERY_SAVE_FAILED = 25;
-    const HISTORY_NEEDS_NEWER_APP = 26;
-    const HISTORY_SAVE_FAILED = 27;
-    const PREVIOUS_PERFORMANCE_SAVE_FAILED = 28;
-    const WORKOUT_ARCHIVE_SAVED_RETRY_FINISH = 29;
-    const ACTIVITY_RESULT_UNKNOWN = 30;
-    const ACTIVITY_DISCARD_FAILED = 31;
-    const WORKOUT_IS_ALREADY_STARTING = 32;
-    const WORKOUT_CANNOT_START = 33;
-    const ROUTINE_HAS_NO_EXERCISES = 34;
-    const WORKOUT_COULD_NOT_BE_CREATED = 35;
-    const COULD_NOT_RESERVE_WORKOUT_ID = 36;
-    const EXERCISE_CHOICE_INVALID = 37;
-    const FINISH_OR_PAUSE_THE_CURRENT_SET_FIRST = 38;
-    const WORKOUT_IS_ALREADY_FINISHING = 39;
-    const LOG_A_SET_BEFORE_SAVING = 40;
-    const ACTIVITY_SAVED_HISTORY_UPDATE_FAILED = 41;
+    const ROUTINE_NOT_FOUND = 12;
+    const ACTIVITY_STATE_SAVE_FAILED = 13;
+    const ACTIVITY_RESUME_FAILED = 14;
+    const ACTIVITY_SAVE_FAILED = 15;
+    const ACTIVITY_RECORDING_FAILED_TO_START_STATE_SAVE_FAILED = 16;
+    const ACTIVITY_RECORDING_FAILED_TO_START = 17;
+    const ACTIVITY_STATE_SAVE_AND_DISCARD_FAILED = 18;
+    const SAVE_FAILED_RETRY_BEFORE_CONTINUING = 19;
+    const TIMED_SET_RECOVERY_FAILED = 20;
+    const RECOVERY_SAVE_FAILED = 21;
+    const HISTORY_NEEDS_NEWER_APP = 22;
+    const HISTORY_SAVE_FAILED = 23;
+    const PREVIOUS_PERFORMANCE_SAVE_FAILED = 24;
+    const WORKOUT_ARCHIVE_SAVED_RETRY_FINISH = 25;
+    const ACTIVITY_RESULT_UNKNOWN = 26;
+    const ACTIVITY_DISCARD_FAILED = 27;
+    const WORKOUT_IS_ALREADY_STARTING = 28;
+    const WORKOUT_CANNOT_START = 29;
+    const ROUTINE_HAS_NO_EXERCISES = 30;
+    const WORKOUT_COULD_NOT_BE_CREATED = 31;
+    const COULD_NOT_RESERVE_WORKOUT_ID = 32;
+    const EXERCISE_CHOICE_INVALID = 33;
+    const FINISH_OR_PAUSE_THE_CURRENT_SET_FIRST = 34;
+    const WORKOUT_IS_ALREADY_FINISHING = 35;
+    const LOG_A_SET_BEFORE_SAVING = 36;
+    const ACTIVITY_SAVED_HISTORY_UPDATE_FAILED = 37;
+    const AT_LEAST_ONE_ROUTINE_IS_KEPT = 38;
 
     const MESSAGES = [
         null,
@@ -58,7 +55,6 @@ module Err {
         "Routine limit reached",
         "Routine name already exists",
         "Routine could not be created",
-        "Upper and Lower routines are kept",
         "Routine not found",
         "Activity state save failed",
         "Activity resume failed",
@@ -66,16 +62,13 @@ module Err {
         "Activity recording failed to start; state save failed",
         "Activity recording failed to start",
         "Activity state save and discard failed",
-        "fitState",
-        "failed",
-        "Activity pause failed",
         "Save failed. Retry before continuing.",
         "Timed set recovery failed",
         "Recovery save failed",
         "History needs newer app",
         "History save failed",
         "Previous performance save failed",
-        "Workout archive saved; retry finish",
+        "Workout not closed; retry finish",
         "Activity result unknown",
         "Activity discard failed",
         "Workout is already starting",
@@ -87,7 +80,8 @@ module Err {
         "Finish or pause the current set first",
         "Workout is already finishing",
         "Log a set before saving",
-        "Activity saved; history update failed"
+        "Activity saved; history update failed",
+        "At least one routine is required"
     ];
 
     function message(code as Number) as String? {

@@ -27,9 +27,8 @@ class SummaryView extends WatchUi.View {
         var fonts = [Graphics.FONT_SMALL, Graphics.FONT_LARGE];
         var gaps = [8, 8];
         var caption = UiFormat.captionFont();
-        if (session["elapsedSec"] instanceof Number && session["activeSec"] instanceof Number) {
-            lines.add(duration(session["elapsedSec"] as Number) + " · " +
-                duration(session["activeSec"] as Number) + " active");
+        if (session["elapsedSec"] instanceof Number) {
+            lines.add(duration(session["elapsedSec"] as Number));
             fonts.add(caption);
             gaps.add(8);
         }

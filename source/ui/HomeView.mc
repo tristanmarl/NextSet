@@ -15,10 +15,21 @@ class HomeView extends WatchUi.View {
 
     public function initialize() {
         View.initialize();
+    }
+
+    // Also runs when a menu or the routine editor closes, so routine changes show up.
+    public function onShow() as Void {
+        reload();
+    }
+
+    private function reload() as Void {
+        _lastDone = {};
         loadLastDone();
         _routines = getApp().controller().routineTemplates();
         if (_routines.size() == 0) {
             _routineIndex = -1;
+        } else if (_routineIndex < 0 || _routineIndex >= _routines.size()) {
+            _routineIndex = 0;
         }
     }
 
@@ -63,7 +74,7 @@ class HomeView extends WatchUi.View {
         var gaps = [6];
         if (active) {
             var session = controller.session() as Dictionary;
-            lines.add(controller.isWorkoutPaused() ? "WORKOUT PAUSED" : "WORKOUT ACTIVE");
+            lines.add("WORKOUT ACTIVE");
             fonts.add(Graphics.FONT_SMALL);
             gaps.add(5);
             lines.add(session["templateName"] as String);

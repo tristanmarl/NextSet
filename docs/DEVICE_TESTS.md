@@ -89,3 +89,13 @@ A short start/log/save path and saved Strength FIT were recorded on the FR965. T
 - [ ] **PENDING** Routines: add and replace an exercise open Edit values; rename a routine (duplicate and blank names rejected); `Reps 8–12` edits min then max, and raising min above max raises max.
 - [ ] **PENDING** Home shows `N ex · M sets · last Day`; check the caption is not clipped with long routine names. Exercise `target 8–12` caption appears only when there is room.
 - [ ] **PENDING** Summary and History wording (Workout saved, cancelled, Garmin activities count).
+
+## Second UX pass (2026-09-29) — PENDING
+
+- [ ] **PENDING** Create a routine, then rename it: after the picker closes you land on the editor, and BACK shows the new or renamed name in the Routines list; a single BACK from Home exits.
+- [ ] **PENDING** Reorder: START on Move down/up repeatedly keeps moving the same entry with the move item focused; the routine view shows the new order after BACK.
+- [ ] **PENDING** Cancel a workout: the recording is discarded, History gets no new entry, and last-time prefills are unchanged. Kill the app mid-cancel and reopen to check it finishes discarding.
+- [ ] **PENDING** Skip the last unfinished exercise with at least one set logged: the Workout complete prompt appears.
+- [ ] **PENDING** Load a session that was saved as paused (from the previous build) and confirm it resumes as an active workout with rest and timed set intact.
+- [ ] **PENDING** Delete Upper and Lower; the last routine cannot be deleted. New exercise uses the Settings default rest.
+- [ ] **PENDING** Exercise menu: Edit last set > Delete set confirms and removes the set; Replace exercise swaps at 0 sets and adds an alternative otherwise.

@@ -37,7 +37,7 @@ class SessionController {
         } else if (_store.recoveredEarlierGeneration()) {
             _errorCode = Err.RECOVERED_EARLIER_CHECKPOINT;
         }
-        if (isWorkoutRunning()) {
+        if (hasActiveSession()) {
             recoverRunningSession(Time.now().value());
         }
     }
@@ -621,10 +621,6 @@ class SessionController {
         if (!configurationEditable()) {
             return false;
         }
-        if (Model.sameString(templateId, "upper") || Model.sameString(templateId, "lower")) {
-            _errorCode = Err.UPPER_AND_LOWER_ROUTINES_ARE_KEPT;
-            return false;
-        }
         var config = readConfig();
         if (config == null) {
             return false;
@@ -633,6 +629,10 @@ class SessionController {
         var index = routineIndexIn(routines, templateId);
         if (index < 0) {
             _errorCode = Err.ROUTINE_NOT_FOUND;
+            return false;
+        }
+        if (routines.size() <= 1) {
+            _errorCode = Err.AT_LEAST_ONE_ROUTINE_IS_KEPT;
             return false;
         }
         var kept = [];
@@ -646,7 +646,7 @@ class SessionController {
 
     private function makeRoutineEntry(templateId as String, entryId as String,
                                       definition as Dictionary, loadType as String,
-                                      previous as Dictionary?) as Dictionary? {
+                                      previous as Dictionary?, defaultRest as Number) as Dictionary? {
         var exerciseId = definition["id"];
         var name = definition["name"];
         var category = definition["category"];
@@ -671,7 +671,7 @@ class SessionController {
             "increment100" => loadable ? (previous != null &&
                 Model.inRange(previous["increment100"], 25, 10000, false) ?
                 previous["increment100"] : 500) : null,
-            "defaultRestSec" => 90,
+            "defaultRestSec" => defaultRest,
             "workingSetCount" => previous != null && previous["workingSetCount"] instanceof Number ?
                 previous["workingSetCount"] : 3,
             "targetRepsMin" => timed ? null : 10,
@@ -679,7 +679,7 @@ class SessionController {
             "targetDurationSec" => timed ? 30 : null,
             "startingLoad100" => loadable ? 0 : null,
             "restSec" => previous != null && previous["restSec"] instanceof Number ?
-                previous["restSec"] : 90,
+                previous["restSec"] : defaultRest,
             "notes" => previous == null ? null : previous["notes"]
         };
         if (previous != null && !timed && !Model.sameString(previous["loadType"], "timed") &&
@@ -723,7 +723,8 @@ class SessionController {
         }
         var nextSeq = config["routineNextEntrySeq"] as Number;
         var entryId = templateId + "-new-" + nextSeq.toString();
-        var added = makeRoutineEntry(templateId, entryId, definition, loadType, null);
+        var added = makeRoutineEntry(templateId, entryId, definition, loadType, null,
+            defaultRestSec());
         if (added == null) {
             return null;
         }
@@ -755,7 +756,8 @@ class SessionController {
         }
         var routine = routines[routineIndex] as Dictionary;
         var previous = (routine["entries"] as Array)[index] as Dictionary;
-        var replacement = makeRoutineEntry(templateId, entryId, definition, loadType, previous);
+        var replacement = makeRoutineEntry(templateId, entryId, definition, loadType, previous,
+            defaultRestSec());
         if (replacement == null) {
             return false;
         }
@@ -919,10 +921,6 @@ class SessionController {
              Model.sameString(_session["status"], "paused"));
     }
 
-    public function isWorkoutPaused() as Boolean {
-        return _session != null && Model.sameString(_session["status"], "paused");
-    }
-
     public function isWorkoutRunning() as Boolean {
         return !_recoveryBlocked && _session != null && Model.sameString(_session["status"], "active");
     }
@@ -1063,73 +1061,6 @@ class SessionController {
         _errorCode = Model.sameString(candidate["fitState"], "failed") ?
             Err.ACTIVITY_SAVE_FAILED : Err.NONE;
         return Model.sameString(candidate["fitState"], "segment_saved");
-    }
-
-    public function pauseWorkout(now as Number) as Boolean {
-        if (!isWorkoutRunning()) {
-            return false;
-        }
-        var candidate = WorkoutClock.pause(_session as Dictionary, now);
-        if (candidate == null) {
-            return false;
-        }
-        var next = candidate as Dictionary;
-        var run = next["timedRun"];
-        if (run instanceof Dictionary) {
-            var pausedTimed = SessionLogic.pauseTimed(next, run["entryId"] as String,
-                run["slot"] as Number, now);
-            if (pausedTimed == null) {
-                return false;
-            }
-            next = pausedTimed as Dictionary;
-        }
-        var rest = next["rest"];
-        if (rest instanceof Dictionary && Model.sameString(rest["state"], "running")) {
-            next["rest"] = RestClock.pause(rest as Dictionary, now);
-        }
-        next["status"] = "paused";
-        if (_recorder.hasSession()) {
-            next["fitState"] = "paused";
-        }
-        if (!commit(next)) {
-            return false;
-        }
-        if (_recorder.hasSession() && !_recorder.pause()) {
-            _errorCode = Err.ACTIVITY_PAUSE_FAILED;
-            var corrected = SessionLogic.copyDictionary(_session as Dictionary);
-            corrected["fitState"] = "recording";
-            if (!_store.commitPair("active", corrected)) {
-                _errorCode = Err.ACTIVITY_STATE_SAVE_FAILED;
-                return false;
-            }
-            _session = corrected;
-            return false;
-        }
-        return true;
-    }
-
-    public function resumeWorkout(now as Number) as Boolean {
-        if (!isWorkoutPaused()) {
-            return false;
-        }
-        var candidate = WorkoutClock.resume(_session as Dictionary, now);
-        if (candidate == null) {
-            return false;
-        }
-        var next = candidate as Dictionary;
-        var rest = next["rest"];
-        if (rest instanceof Dictionary && Model.sameString(rest["state"], "paused")) {
-            var resumedRest = RestClock.resume(rest as Dictionary, now);
-            if (resumedRest == null) {
-                return false;
-            }
-            next["rest"] = resumedRest;
-        }
-        next["status"] = "active";
-        if (!commit(next)) {
-            return false;
-        }
-        return ensureRecordingSegment();
     }
 
     public function checkpoint(now as Number) as Boolean {
@@ -1300,6 +1231,18 @@ class SessionController {
     private function recoverRunningSession(now as Number) as Void {
         var source = _session as Dictionary;
         var candidate = SessionLogic.copyDictionary(source);
+        if (Model.sameString(candidate["status"], "paused")) {
+            // Workout pause no longer exists; sessions saved as paused resume as active.
+            var resumed = WorkoutClock.resume(candidate, now);
+            if (resumed != null) {
+                candidate = resumed as Dictionary;
+            }
+            var pausedRest = candidate["rest"];
+            if (pausedRest instanceof Dictionary && Model.sameString(pausedRest["state"], "paused")) {
+                candidate["rest"] = RestClock.resume(pausedRest as Dictionary, now);
+            }
+            candidate["status"] = "active";
+        }
         var run = candidate["timedRun"];
         if (run instanceof Dictionary) {
             var savedAt = candidate["lastCheckpointAt"] instanceof Number ?
@@ -1465,7 +1408,8 @@ class SessionController {
         }
         var ended = SessionLogic.copyDictionary(frozen);
         ended["status"] = outcome;
-        if (!_historySaved) {
+        // A cancelled workout is discarded, not archived: no history, no last-performance update.
+        if (Model.sameString(outcome, "completed") && !_historySaved) {
             var target = historySlot(ended);
             if (target < 0) {
                 _errorCode = Err.HISTORY_NEEDS_NEWER_APP;
@@ -1718,7 +1662,7 @@ class SessionController {
             }
         }
         var entry = makeRoutineEntry(source["templateId"] as String, entryId,
-            definition, loadType, previous);
+            definition, loadType, previous, defaultRestSec());
         if (entry == null) {
             _errorCode = Err.EXERCISE_CHOICE_INVALID;
             return null;

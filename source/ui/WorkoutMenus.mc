@@ -8,59 +8,13 @@ import Toybox.Timer;
 import Toybox.WatchUi;
 
 class ActionsMenuDelegate extends WatchUi.Menu2InputDelegate {
-    private var _entryId as String?;
-    private var _fromExercise as Boolean;
-
-    public function initialize(entryId as String?, fromExercise as Boolean) {
-        _entryId = entryId;
-        _fromExercise = fromExercise;
+    public function initialize() {
         Menu2InputDelegate.initialize();
     }
 
     public function onSelect(item as MenuItem) as Void {
         var id = item.getId() as String;
-        var controller = getApp().controller();
-        if (Model.sameString(id, "pause")) {
-            if (controller.pauseWorkout(Time.now().value())) {
-                getApp().stopTimer();
-                WatchUi.popView(WatchUi.SLIDE_DOWN);
-                if (_fromExercise) {
-                    WatchUi.popView(WatchUi.SLIDE_DOWN);
-                }
-                WatchUi.requestUpdate();
-            } else {
-                Navigator.feedback("Pause could not be saved");
-            }
-        } else if (Model.sameString(id, "resume")) {
-            if (controller.resumeWorkout(Time.now().value())) {
-                getApp().startTimer(true);
-                WatchUi.popView(WatchUi.SLIDE_DOWN);
-                WatchUi.requestUpdate();
-            } else {
-                Navigator.feedback("Resume could not be saved");
-            }
-        } else if (Model.sameString(id, "exit_segment")) {
-            Navigator.confirmExit();
-        } else if (Model.sameString(id, "skip_today") && _entryId != null) {
-            if (controller.closeExercise(_entryId as String, true)) {
-                WatchUi.popView(WatchUi.SLIDE_DOWN);
-                WatchUi.requestUpdate();
-            } else {
-                Navigator.feedback("Exercise unchanged; save failed");
-            }
-        } else if (Model.sameString(id, "rest_skip")) {
-            if (controller.restAction("skip", Time.now().value())) {
-                WatchUi.popView(WatchUi.SLIDE_DOWN);
-                WatchUi.requestUpdate();
-            } else {
-                Navigator.feedback("Rest unchanged; save failed");
-            }
-        } else if ((Model.sameString(id, "swap_today") || Model.sameString(id, "add_alt")) &&
-                   _entryId != null) {
-            WatchUi.popView(WatchUi.SLIDE_DOWN);
-            Navigator.garminCategoryPage((controller.session() as Dictionary)["templateId"] as String,
-                _entryId, 0, Model.sameString(id, "swap_today") ? "active_swap" : "active_add", true);
-        } else if (Model.sameString(id, "finish")) {
+        if (Model.sameString(id, "finish")) {
             getApp().requestWorkoutFinish("completed");
         } else if (Model.sameString(id, "abort")) {
             Navigator.confirm(id);
@@ -126,7 +80,7 @@ class ExerciseMenuDelegate extends WatchUi.Menu2InputDelegate {
         }
         if (Model.sameString(id, "edit_last")) {
             WatchUi.popView(WatchUi.SLIDE_DOWN);
-            Navigator.correctionMenu(_entryId);
+            Navigator.correctionMenu(_entryId, _view, _fromOverview);
             return;
         }
         if (Model.sameString(id, "log_timed")) {
@@ -167,13 +121,14 @@ class ExerciseMenuDelegate extends WatchUi.Menu2InputDelegate {
             return;
         }
         if (Model.sameString(id, "workout")) {
-            Navigator.actionMenu(null, true);
+            Navigator.actions();
             return;
         }
         if (Model.sameString(id, "skip_today")) {
             if (controller.closeExercise(_entryId, true)) {
                 WatchUi.popView(WatchUi.SLIDE_DOWN);
                 WatchUi.requestUpdate();
+                Navigator.promptIfWorkoutDone();
             } else {
                 Navigator.feedback("Exercise unchanged; save failed");
             }
@@ -187,10 +142,7 @@ class ExerciseMenuDelegate extends WatchUi.Menu2InputDelegate {
         }
         var session = controller.session() as Dictionary;
         var exercise = UiFormat.exercise(session, _entryId) as Dictionary;
-        if (Model.sameString(id, "undo")) {
-            Navigator.confirmUndo(_entryId, UiFormat.lastSlot(exercise), _view, _fromOverview);
-            return;
-        } else if (Model.sameString(id, "reopen")) {
+        if (Model.sameString(id, "reopen")) {
             if (!controller.closeExercise(_entryId, false)) {
                 _view.showMessage("Save failed - exercise unchanged");
             }
@@ -225,7 +177,7 @@ class UndoConfirmMenuDelegate extends WatchUi.Menu2InputDelegate {
             return;
         }
         if (!getApp().controller().undoSet(_entryId, _slot)) {
-            _view.showMessage("Undo not saved");
+            _view.showMessage("Set not deleted");
         }
         WatchUi.popView(WatchUi.SLIDE_DOWN);
         WatchUi.popView(WatchUi.SLIDE_DOWN);
@@ -243,9 +195,13 @@ class UndoConfirmMenuDelegate extends WatchUi.Menu2InputDelegate {
 
 class CorrectionMenuDelegate extends WatchUi.Menu2InputDelegate {
     private var _entryId as String;
+    private var _view as ExerciseView;
+    private var _fromOverview as Boolean;
 
-    public function initialize(entryId as String) {
+    public function initialize(entryId as String, view as ExerciseView, fromOverview as Boolean) {
         _entryId = entryId;
+        _view = view;
+        _fromOverview = fromOverview;
         Menu2InputDelegate.initialize();
     }
 
@@ -254,6 +210,10 @@ class CorrectionMenuDelegate extends WatchUi.Menu2InputDelegate {
         var exercise = UiFormat.exercise(session, _entryId) as Dictionary;
         var slot = UiFormat.lastSlot(exercise);
         var id = item.getId() as String;
+        if (Model.sameString(id, "corr_delete")) {
+            Navigator.confirmUndo(_entryId, slot, _view, _fromOverview);
+            return;
+        }
         var field = Model.sameString(id, "corr_load") ? "load100" :
             (Model.sameString(id, "corr_reps") ? "reps" : "durationSec");
         WatchUi.popView(WatchUi.SLIDE_DOWN);
