@@ -1312,42 +1312,6 @@ class SessionController {
         return rebuilt;
     }
 
-    private function archivedSession(ended as Dictionary) as Dictionary {
-        var archive = {};
-        var fields = ["id", "sessionSeq", "templateId", "templateRevision", "templateName",
-            "startedAt", "endedAt", "status", "completionKind", "elapsedSec", "activeSec",
-            "fitState", "fitSegments", "fitUnknownSegments"];
-        for (var i = 0; i < fields.size(); i++) {
-            var field = fields[i] as String;
-            if (ended.hasKey(field)) {
-                archive[field] = ended[field];
-            }
-        }
-        var exercises = ended["exercises"] as Array;
-        var archivedExercises = [];
-        for (var i = 0; i < exercises.size(); i++) {
-            var source = exercises[i] as Dictionary;
-            var exercise = {
-                "entryId" => source["entryId"],
-                "exerciseId" => source["exerciseId"],
-                "name" => source["name"],
-                "loadType" => source["loadType"],
-                "loadUnit" => source["loadUnit"],
-                "plannedSetCount" => source["plannedSetCount"],
-                "closedEarly" => source["closedEarly"]
-            };
-            var slots = source["slots"] as Array;
-            var archivedSlots = [];
-            for (var j = 0; j < slots.size(); j++) {
-                archivedSlots.add({"completed" => (slots[j] as Dictionary)["completed"]});
-            }
-            exercise["slots"] = archivedSlots;
-            archivedExercises.add(exercise);
-        }
-        archive["exercises"] = archivedExercises;
-        return archive;
-    }
-
     public function advanceFinalization() as Boolean {
         if (!hasPendingFinalization()) {
             return false;
@@ -1416,7 +1380,7 @@ class SessionController {
                 return false;
             }
             if (!_historyAlreadyWritten &&
-                !_store.commitPair("history" + target.toString(), archivedSession(ended))) {
+                !_store.commitPair("history" + target.toString(), SessionLogic.archivedSession(ended))) {
                 _errorCode = Err.HISTORY_SAVE_FAILED;
                 return false;
             }
@@ -1428,7 +1392,7 @@ class SessionController {
         if (Model.sameString(outcome, "completed") && !_cacheSaved) {
             var cache = readLastCache();
             if (!_store.hasUnsupportedRecord()) {
-                var nextCache = LastPerformance.merge(cache, archivedSession(ended));
+                var nextCache = LastPerformance.merge(cache, SessionLogic.archivedSession(ended));
                 if (!_store.commitPair("last", nextCache)) {
                     _errorCode = Err.PREVIOUS_PERFORMANCE_SAVE_FAILED;
                     return false;
@@ -1854,7 +1818,7 @@ class SessionController {
         if (_pendingHistory != null) {
             var target = historySlot(_pendingHistory as Dictionary);
             if (target < 0 || !_store.commitPair("history" + target.toString(),
-                archivedSession(_pendingHistory as Dictionary))) {
+                SessionLogic.archivedSession(_pendingHistory as Dictionary))) {
                 _errorCode = Err.ACTIVITY_SAVED_HISTORY_UPDATE_FAILED;
                 return false;
             }
@@ -1873,7 +1837,7 @@ class SessionController {
         ended["fitState"] = "saved";
         var target = historySlot(ended);
         if (target < 0 || !_store.commitPair("history" + target.toString(),
-            archivedSession(ended))) {
+            SessionLogic.archivedSession(ended))) {
             _pendingHistory = ended;
             _fitSavedInMemory = true;
             _errorCode = Err.ACTIVITY_SAVED_HISTORY_UPDATE_FAILED;

@@ -540,4 +540,40 @@ module SessionLogic {
         }
         return {"done" => done, "planned" => planned};
     }
+
+    function archivedSession(ended as Dictionary) as Dictionary {
+        var archive = {};
+        var fields = ["id", "sessionSeq", "templateId", "templateRevision", "templateName",
+            "startedAt", "endedAt", "status", "completionKind", "elapsedSec", "activeSec",
+            "fitState", "fitSegments", "fitUnknownSegments"];
+        for (var i = 0; i < fields.size(); i++) {
+            var field = fields[i] as String;
+            if (ended.hasKey(field)) {
+                archive[field] = ended[field];
+            }
+        }
+        var exercises = ended["exercises"] as Array;
+        var archivedExercises = [];
+        for (var i = 0; i < exercises.size(); i++) {
+            var source = exercises[i] as Dictionary;
+            var exercise = {
+                "entryId" => source["entryId"],
+                "exerciseId" => source["exerciseId"],
+                "name" => source["name"],
+                "loadType" => source["loadType"],
+                "loadUnit" => source["loadUnit"],
+                "plannedSetCount" => source["plannedSetCount"],
+                "closedEarly" => source["closedEarly"]
+            };
+            var slots = source["slots"] as Array;
+            var archivedSlots = [];
+            for (var j = 0; j < slots.size(); j++) {
+                archivedSlots.add({"completed" => (slots[j] as Dictionary)["completed"]});
+            }
+            exercise["slots"] = archivedSlots;
+            archivedExercises.add(exercise);
+        }
+        archive["exercises"] = archivedExercises;
+        return archive;
+    }
 }

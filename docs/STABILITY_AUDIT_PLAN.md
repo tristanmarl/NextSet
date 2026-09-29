@@ -159,3 +159,17 @@ OpenMTP bundles the `kalam` MTP library (`/Applications/OpenMTP.app/Contents/Res
 - Structure (verbatim class moves): `HomeView`, `StartingWorkoutView`, `FinishingWorkoutView`, `FinishingWorkoutDelegate` to `source/ui/HomeView.mc`; routine-editor, Garmin-picker and mapping classes to `source/ui/RoutineEditor.mc`; workout action/exercise/undo/correction menus to `source/ui/WorkoutMenus.mc`. `module Navigator` and the confirm/feedback/home classes stay in `Navigator.mc`.
 - Exit guard: root BACK during a workout already opens the Actions menu (no direct exit), and its exit item goes through `ExitConfirmView`. No new routing was needed; the confirm text now says the workout continues next time and the Garmin activity so far is saved separately. FIT behaviour (`onStop` saves the segment) is unchanged.
 - Results: app and test builds successful, 26/26 tests pass. Device verification pending (see `docs/DEVICE_TESTS.md`).
+
+## Storage headroom (2026-09-29)
+
+`testWorstCaseStorageCommits` builds worst-case payloads through the real code path (12 entries, 60 sets, 64-byte names, 160-byte notes, every set completed at maximum values) and commits them to real simulator Storage. All four commit and reload. Estimated serialized size (type and length headers included, a rough figure) against the 32 KB per-value limit:
+
+| Domain | Estimate |
+| --- | --- |
+| `active` (finalizing, prefilled from a full last-performance cache) | about 24.4 KB |
+| `history0` (archived session) | about 10.2 KB |
+| `last` (cache) | about 3.2 KB |
+| `config`, 8 routines x 12 entries, maximum-length strings and notes | about 63.5 KB (over) |
+| `config`, 8 x 12 with typical strings (30-char names, no notes) | about 38 KB (over) |
+
+The simulator does not enforce the per-value limit (`testStorageValueLimitProbe` stored about 1 MB in one value), so passing commits prove validation and logic only. The size estimate is asserted for `active`, `history0` and `last`. It is only reported for `config`. On a watch, a config over 32 KB would make `commitPair("config", ...)` fail (the `setValue` exception is caught and reported as "Settings save failed"). Limits have not been changed.

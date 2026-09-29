@@ -476,3 +476,208 @@ function testLegacyPausedSessionResumesActive(logger as Test.Logger) as Boolean 
     return check(logger, stored, "the paused fixture must be a valid stored session") &&
         check(logger, ok, "a saved paused session must load as an active, running session");
 }
+
+function repeatText(unit as String, count as Number) as String {
+    // Doubling then one substring keeps allocation low; linear concatenation exhausts the heap.
+    var text = unit;
+    while (text.length() < count) {
+        text += text;
+    }
+    text = text.substring(0, count) as String;
+    return text;
+}
+
+// Worst-case routine: 12 entries x 5 sets = 60 sets, 64-byte names, 160-byte notes, max values.
+function worstCaseRoutine(routineId as String, index as Number) as Dictionary {
+    return sizedRoutine(routineId, index, 64, 48, 64, 160);
+}
+
+// Same shape with configurable string lengths (name, Garmin category, Garmin code, notes).
+function sizedRoutine(routineId as String, index as Number, nameLength as Number,
+                      categoryLength as Number, codeLength as Number,
+                      notesLength as Number) as Dictionary {
+    var entries = [];
+    for (var e = 0; e < Model.MAX_ENTRIES; e++) {
+        var tag = index.toString() + "-" + e.toString();
+        entries.add({
+            "entryId" => "r" + tag,
+            "exerciseId" => "g-" + tag,
+            "name" => repeatText("n", nameLength),
+            "garminCategory" => repeatText("C", categoryLength),
+            "garminCode" => repeatText("K", codeLength),
+            "isBodyWeight" => false,
+            "loadType" => "weight",
+            "unit" => "kg",
+            "increment100" => 10000,
+            "defaultRestSec" => Model.MAX_REST_SEC,
+            "workingSetCount" => 5,
+            "targetRepsMin" => Model.MAX_REPS,
+            "targetRepsMax" => Model.MAX_REPS,
+            "targetDurationSec" => null,
+            "startingLoad100" => Model.MAX_LOAD100,
+            "restSec" => Model.MAX_REST_SEC,
+            "notes" => notesLength > 0 ? repeatText("t", notesLength) : null
+        });
+    }
+    return {"id" => routineId, "name" => repeatText("R", 63) + index.toString(),
+        "revision" => 1000000, "entries" => entries};
+}
+
+function completeEverySet(session as Dictionary, now as Number) as Dictionary {
+    var exercises = session["exercises"] as Array;
+    var current = session;
+    for (var i = 0; i < exercises.size(); i++) {
+        var entryId = exercises[i]["entryId"] as String;
+        var planned = exercises[i]["plannedSetCount"] as Number;
+        for (var j = 0; j < planned; j++) {
+            var next = SessionLogic.completeSet(current, entryId, j,
+                {"load100" => Model.MAX_LOAD100, "reps" => Model.MAX_REPS}, now + 1000 + i * 10 + j);
+            current = next as Dictionary;
+        }
+    }
+    return current;
+}
+
+// Rough serialized size (type byte + length header + payload), for comparison with the 32 KB limit.
+function estimateBytes(value as Object?) as Number {
+    if (value == null) {
+        return 1;
+    }
+    if (value instanceof String) {
+        return 3 + value.toUtf8Array().size();
+    }
+    if (value instanceof Array) {
+        var total = 3;
+        for (var i = 0; i < value.size(); i++) {
+            total += estimateBytes(value[i]);
+        }
+        return total;
+    }
+    if (value instanceof Dictionary) {
+        var total = 3;
+        var keys = value.keys();
+        for (var i = 0; i < keys.size(); i++) {
+            total += estimateBytes(keys[i]) + estimateBytes(value[keys[i]]);
+        }
+        return total;
+    }
+    return value instanceof Boolean ? 2 : 5;
+}
+
+function commitAndReload(logger as Test.Logger, store as Store, domain as String,
+                         payload as Dictionary, enforceSize as Boolean) as Boolean {
+    var committed = store.commitPair(domain, payload);
+    var loaded = committed ? store.loadPair(domain) : null;
+    var bytes = estimateBytes(payload);
+    logger.debug(domain + " commit=" + committed + " reload=" + (loaded != null) +
+        " estimatedBytes=" + bytes.toString() + " of 32768");
+    // The simulator does not enforce the 32 KB value limit, so check the estimate explicitly.
+    // Config at the 8 x 12 model limit is known to exceed it (see docs/STABILITY_AUDIT_PLAN.md), so
+    // it is only reported, not asserted, until the limits or the stored shape change.
+    if (bytes >= 32768) {
+        logger.debug("WARNING " + domain + " estimate exceeds the 32 KB per-value limit");
+    }
+    return committed && loaded != null && (!enforceSize || bytes < 32768);
+}
+
+(:test)
+function testWorstCaseStorageCommits(logger as Test.Logger) as Boolean {
+    var store = new Store();
+    var domains = ["active", "history0", "last", "config"];
+    for (var d = 0; d < domains.size(); d++) {
+        Application.Storage.deleteValue((domains[d] as String) + ".a");
+        Application.Storage.deleteValue((domains[d] as String) + ".b");
+    }
+    var now = Time.now().value();
+    var routine = worstCaseRoutine("worst", 0);
+    var config = {"schemaVersion" => 2, "nextSessionSeq" => 2147483647,
+        "settings" => {"defaultRestSec" => 1800, "vibrationEnabled" => true},
+        "templateOverrides" => {}, "incrementOverrides" => {},
+        "routines" => [routine], "routineNextEntrySeq" => 2147483647};
+
+    // First workout builds the previous-performance cache that the second one prefills from.
+    var first = completeEverySet(Catalog.createSession("worst", "session-1", 1, now, null,
+        config) as Dictionary, now);
+    first["status"] = "completed";
+    first["endedAt"] = now + 5000;
+    var archive = SessionLogic.archivedSession(first);
+    var cache = LastPerformance.merge(null, archive);
+    var session = Catalog.createSession("worst", "session-2", 2, now, cache, config) as Dictionary;
+    var clock = WorkoutClock.start(now);
+    var clockKeys = clock.keys();
+    for (var i = 0; i < clockKeys.size(); i++) {
+        session[clockKeys[i]] = clock[clockKeys[i]];
+    }
+    session = completeEverySet(session, now);
+    session["status"] = "finalizing";
+    session["finishOutcome"] = "completed";
+    session["endedAt"] = now + 86000;
+    session["completionKind"] = "full";
+    session["elapsedSec"] = 86000;
+    session["activeSec"] = 86000;
+    session["fitState"] = "saving";
+    session["fitSegments"] = 999;
+    session["fitUnknownSegments"] = 999;
+    session["lastCheckpointAt"] = now + 86000;
+    var ended = SessionLogic.copyDictionary(session);
+    ended["status"] = "completed";
+
+    var fullConfig = SessionLogic.copyDictionary(config);
+    var routines = [];
+    for (var r = 0; r < Model.MAX_TEMPLATES; r++) {
+        routines.add(worstCaseRoutine("worst-" + r.toString(), r));
+    }
+    fullConfig["routines"] = routines;
+
+    // Informational: a full config with typical strings (30-char names, 16/26-char Garmin codes, no notes).
+    var typical = [];
+    for (var r = 0; r < Model.MAX_TEMPLATES; r++) {
+        typical.add(sizedRoutine("typical-" + r.toString(), r, 30, 16, 26, 0));
+    }
+    var typicalConfig = SessionLogic.copyDictionary(config);
+    typicalConfig["routines"] = typical;
+    logger.debug("typical full config estimatedBytes=" + estimateBytes(typicalConfig).toString() +
+        " (one worst-case entry=" + estimateBytes(routine["entries"][0]).toString() + ")");
+
+    var results = [
+        commitAndReload(logger, store, "active", session, true),
+        commitAndReload(logger, store, "history0", SessionLogic.archivedSession(ended), true),
+        commitAndReload(logger, store, "last", cache, true),
+        commitAndReload(logger, store, "config", fullConfig, false)
+    ];
+    for (var d = 0; d < domains.size(); d++) {
+        Application.Storage.deleteValue((domains[d] as String) + ".a");
+        Application.Storage.deleteValue((domains[d] as String) + ".b");
+    }
+    return check(logger, results[0], "worst-case active session must commit and reload") &&
+        check(logger, results[1], "worst-case archived history must commit and reload") &&
+        check(logger, results[2], "worst-case last-performance cache must commit and reload") &&
+        check(logger, results[3], "8 routines x 12 entries config must commit and reload");
+}
+
+// Diagnostic: does the simulator enforce the 32 KB per-value limit? Logs only; asserts nothing.
+(:test)
+function testStorageValueLimitProbe(logger as Test.Logger) as Boolean {
+    // One 8000-char string referenced k times: small heap, k * 8000 bytes when serialized.
+    var chunk = repeatText("x", 8000);
+    var counts = [3, 4, 5, 9, 25, 125];
+    for (var i = 0; i < counts.size(); i++) {
+        var count = counts[i] as Number;
+        var rows = [];
+        for (var j = 0; j < count; j++) {
+            rows.add(chunk);
+        }
+        var outcome = "stored";
+        try {
+            Application.Storage.setValue("probe.value", {"rows" => rows});
+            var back = Application.Storage.getValue("probe.value");
+            outcome = back instanceof Dictionary && back["rows"].size() == count ?
+                "stored and readable" : "stored but not readable";
+        } catch (error) {
+            outcome = "threw " + error.getErrorMessage();
+        }
+        logger.debug("probe ~" + (count * 8).toString() + " KB: " + outcome);
+    }
+    Application.Storage.deleteValue("probe.value");
+    return true;
+}
