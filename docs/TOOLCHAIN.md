@@ -16,21 +16,20 @@ monkeyc -f monkey.jungle -d fr965 -o bin/NextSet.prg -y "$HOME/.garmin-keys/Next
 
 Add the Connect IQ SDK's `bin` directory to `PATH` before running the build command.
 
-Tests (31 tests, all passing on 2026-09-29; `monkeydo` may still exit 1 after a passing summary):
+Tests (35 tests, all passing on 2026-09-29; `monkeydo` may still exit 1 after a passing summary):
 
 ```sh
 monkeyc --unit-test -f tests.jungle -d fr965 -o bin/NextSet-tests.prg -y "$HOME/.garmin-keys/NextSetDeveloperKey.der"
 monkeydo bin/NextSet-tests.prg fr965 -t
 ```
 
-Release build for sideloading, and the store package (the manifest version is 1.0.0):
+Release build (manifest version 0.2.0). NextSet is not published to the Connect IQ store; the `-r` build is sideloaded and attached to a GitHub release as `NextSet-<version>.prg`:
 
 ```sh
 monkeyc -r -f monkey.jungle -d fr965 -o bin/NextSet-release.prg -y "$HOME/.garmin-keys/NextSetDeveloperKey.der"
-monkeyc -e -r -f monkey.jungle -o bin/NextSet.iq -y "$HOME/.garmin-keys/NextSetDeveloperKey.der"
 ```
 
-`-r` strips debug information and `-e` creates the `.iq` package for the products in the manifest. Output files under `bin/` are ignored by git.
+`-r` strips debug information. Output files under `bin/` are ignored by git. Sideloaded updates must be signed with the same key.
 
 ## Current evidence
 

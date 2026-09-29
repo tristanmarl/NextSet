@@ -6,6 +6,7 @@ class SessionController {
     private var _recorder as StrengthRecorder;
     private var _session as Dictionary? = null;
     private var _errorCode as Number = Err.NONE;
+    private var _stored as Boolean = false;
     private var _recoveryBlocked as Boolean = false;
     private var _activeUnsupported as Boolean = false;
     private var _activeCorrupt as Boolean = false;
@@ -72,7 +73,7 @@ class SessionController {
             "vibrationEnabled" => true
         };
         return {
-            "schemaVersion" => 2,
+            "schemaVersion" => 3,
             "nextSessionSeq" => 1,
             "settings" => settings,
             "templateOverrides" => {},
@@ -98,6 +99,8 @@ class SessionController {
             return null;
         }
         if (stored == null) {
+            // Nothing stored yet: seed routines are written together with the config on the first save.
+            _stored = false;
             return defaultConfig();
         }
         var config = SessionLogic.copyDictionary(stored as Dictionary);
@@ -106,13 +109,23 @@ class SessionController {
             return null;
         }
         var schemaVersion = config["schemaVersion"];
-        if (schemaVersion instanceof Number && schemaVersion > 2) {
+        if (schemaVersion instanceof Number && schemaVersion > 3) {
             _errorCode = Err.UPDATE_APP_TO_RESUME;
             return null;
         }
         if (schemaVersion != null && (!(schemaVersion instanceof Number) || schemaVersion < 1)) {
             _errorCode = Err.SAVED_SETTINGS_ARE_DAMAGED;
             return null;
+        }
+        var legacy = !(schemaVersion instanceof Number && schemaVersion >= 3);
+        if (!legacy) {
+            var routines = loadRoutines(config["routineIds"] as Array);
+            config.remove("routineIds");
+            if (routines.size() == 0) {
+                _errorCode = Err.SAVED_SETTINGS_ARE_DAMAGED;
+                return null;
+            }
+            config["routines"] = routines;
         }
         if (schemaVersion == null || schemaVersion < 2) {
             var routines = Catalog.routineTemplates(config as Dictionary);
@@ -170,12 +183,6 @@ class SessionController {
             config["templateOverrides"] = {};
             config["routineNextEntrySeq"] = 1;
             config["schemaVersion"] = 2;
-            // Migration is safe during an active session; it preserves the old
-            // numeric values before marking the config as v2.
-            if (!_store.commitPair("config", config as Dictionary)) {
-                _errorCode = Err.SETTINGS_MIGRATION_SAVE_FAILED;
-                return null;
-            }
         }
         if (!(config["settings"] instanceof Dictionary)) {
             config["settings"] = {"defaultRestSec" => 90, "vibrationEnabled" => true};
@@ -201,11 +208,117 @@ class SessionController {
             _errorCode = Err.SAVED_SETTINGS_ARE_DAMAGED;
             return null;
         }
-        if (!validRoutineList(config["routines"] as Array)) {
-            _errorCode = Err.SAVED_SETTINGS_ARE_DAMAGED;
-            return null;
+        if (legacy) {
+            if (!validRoutineList(config["routines"] as Array)) {
+                _errorCode = Err.SAVED_SETTINGS_ARE_DAMAGED;
+                return null;
+            }
+            // v1/v2 -> v3, safe during an active session. Routine keys are written first and the
+            // v3 config last, so an interrupted run leaves the old config in place and is redone.
+            config["schemaVersion"] = 3;
+            if (!writeAll(config)) {
+                _errorCode = Err.SETTINGS_MIGRATION_SAVE_FAILED;
+                return null;
+            }
+        } else {
+            _stored = true;
         }
         return config;
+    }
+
+    // Routines listed by the config, each from its own pair. A missing or corrupt routine is
+    // dropped and reported as damaged settings, so one bad record cannot block the others.
+    private function loadRoutines(ids as Array) as Array {
+        var routines = [];
+        for (var i = 0; i < ids.size(); i++) {
+            var routine = _store.loadPair("routine." + (ids[i] as String));
+            if (routine == null || !Model.sameString(routine["id"], ids[i])) {
+                _errorCode = Err.SAVED_SETTINGS_ARE_DAMAGED;
+                continue;
+            }
+            routines.add(routine);
+        }
+        return routines;
+    }
+
+    private function routineIdsOf(routines as Array) as Array {
+        var ids = [];
+        for (var i = 0; i < routines.size(); i++) {
+            ids.add((routines[i] as Dictionary)["id"]);
+        }
+        return ids;
+    }
+
+    private function containsId(ids as Array, id as String) as Boolean {
+        for (var i = 0; i < ids.size(); i++) {
+            if (Model.sameString(ids[i], id)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // The stored config: everything except the routines, plus their ordered ids.
+    private function configOnly(config as Dictionary, ids as Array) as Dictionary {
+        var result = SessionLogic.copyDictionary(config);
+        result.remove("routines");
+        result["routineIds"] = ids;
+        result["schemaVersion"] = 3;
+        return result;
+    }
+
+    // Every routine, then the config; used for migration and the first save of a default config.
+    private function writeAll(config as Dictionary) as Boolean {
+        var routines = config["routines"] as Array;
+        for (var i = 0; i < routines.size(); i++) {
+            var routine = routines[i] as Dictionary;
+            if (!_store.commitPair("routine." + (routine["id"] as String), routine)) {
+                return false;
+            }
+        }
+        if (!_store.commitPair("config", configOnly(config, routineIdsOf(routines)))) {
+            return false;
+        }
+        _stored = true;
+        return true;
+    }
+
+    // Persists only what changed. Order keeps storage consistent if interrupted: a new routine
+    // is written before the config that references it, config before edits to an existing routine
+    // (a skipped sequence number is harmless), and a deleted routine's keys are removed last.
+    // On failure the cache is dropped so the next read reflects what is actually stored.
+    private function writeParts(next as Dictionary, routineId as String?, writeConfig as Boolean) as Boolean {
+        var routines = next["routines"] as Array;
+        var previousRoutines = _config == null ? [] : (_config as Dictionary)["routines"] as Array;
+        var previousIds = routineIdsOf(previousRoutines);
+        var ids = routineIdsOf(routines);
+        var ok = true;
+        if (!_stored) {
+            ok = writeAll(next);
+        } else {
+            var index = routineId == null ? -1 : routineIndexIn(routines, routineId as String);
+            var isNew = index >= 0 && !containsId(previousIds, routineId as String);
+            if (isNew) {
+                ok = _store.commitPair("routine." + (routineId as String), routines[index] as Dictionary);
+            }
+            if (ok && writeConfig) {
+                ok = _store.commitPair("config", configOnly(next, ids));
+            }
+            if (ok && index >= 0 && !isNew) {
+                ok = _store.commitPair("routine." + (routineId as String), routines[index] as Dictionary);
+            }
+        }
+        if (!ok) {
+            _config = null;
+            return false;
+        }
+        for (var i = 0; i < previousIds.size(); i++) {
+            if (!containsId(ids, previousIds[i] as String)) {
+                _store.deletePair("routine." + (previousIds[i] as String));
+            }
+        }
+        _config = SessionLogic.copyDictionary(next);
+        return true;
     }
 
     private function validRoutineName(name as String) as Boolean {
@@ -233,15 +346,21 @@ class SessionController {
         return true;
     }
 
+    // Config-only save: settings, sequence numbers and overrides.
     private function saveConfig(config as Dictionary) as Boolean {
+        return saveParts(config, null, true);
+    }
+
+    // routineId names the one routine that changed (or was created or deleted);
+    // writeConfig is true when the config itself changed too.
+    private function saveParts(config as Dictionary, routineId as String?, writeConfig as Boolean) as Boolean {
         if (!configurationEditable()) {
             return false;
         }
-        if (!_store.commitPair("config", config)) {
+        if (!writeParts(config, routineId, writeConfig)) {
             _errorCode = Err.SETTINGS_SAVE_FAILED;
             return false;
         }
-        _config = SessionLogic.copyDictionary(config);
         _errorCode = Err.NONE;
         return true;
     }
@@ -497,8 +616,7 @@ class SessionController {
             edited["targetRepsMax"] < value) {
             edited["targetRepsMax"] = value;
         }
-        next["routines"] = routines;
-        return saveConfig(next);
+        return saveRoutines(next, routines, parentId, false);
     }
 
     private function copyRoutines(config as Dictionary) as Array {
@@ -536,14 +654,22 @@ class SessionController {
         return -1;
     }
 
-    private function saveRoutines(config as Dictionary, routines as Array) as Boolean {
-        if (!validRoutineList(routines)) {
+    // Validates only the changed routine (the list size and ids are cheap checks).
+    private function saveRoutines(config as Dictionary, routines as Array, routineId as String,
+                                  writeConfig as Boolean) as Boolean {
+        var index = routineIndexIn(routines, routineId);
+        var valid = routines.size() >= 1 && routines.size() <= Model.MAX_TEMPLATES;
+        if (valid && index >= 0) {
+            var routine = routines[index] as Dictionary;
+            valid = Catalog.validRoutine(routine) && validRoutineName(routine["name"] as String);
+        }
+        if (!valid) {
             _errorCode = Err.ROUTINE_LIST_IS_INVALID;
             return false;
         }
         var next = SessionLogic.copyDictionary(config);
         next["routines"] = routines;
-        return saveConfig(next);
+        return saveParts(next, routineId, writeConfig);
     }
 
     public function createRoutine(name as String) as String? {
@@ -583,7 +709,7 @@ class SessionController {
         routines.add(routine);
         var next = SessionLogic.copyDictionary(config as Dictionary);
         next["routineNextEntrySeq"] = sequence + 1;
-        if (!saveRoutines(next, routines)) {
+        if (!saveRoutines(next, routines, id, true)) {
             return null;
         }
         return id;
@@ -614,7 +740,7 @@ class SessionController {
             }
         }
         routines[index]["name"] = name;
-        return saveRoutines(config as Dictionary, routines);
+        return saveRoutines(config as Dictionary, routines, templateId, false);
     }
 
     public function deleteRoutine(templateId as String) as Boolean {
@@ -641,7 +767,7 @@ class SessionController {
                 kept.add(routines[i]);
             }
         }
-        return saveRoutines(config as Dictionary, kept);
+        return saveRoutines(config as Dictionary, kept, templateId, true);
     }
 
     private function makeRoutineEntry(templateId as String, entryId as String,
@@ -734,8 +860,7 @@ class SessionController {
         if (!Catalog.validRoutine(routine)) {
             return null;
         }
-        nextConfig["routines"] = routines;
-        return saveConfig(nextConfig) ? entryId : null;
+        return saveRoutines(nextConfig, routines, templateId, true) ? entryId : null;
     }
 
     public function replaceRoutineExercise(templateId as String, entryId as String,
@@ -766,7 +891,7 @@ class SessionController {
         if (total > Model.MAX_SETS_PER_WORKOUT || !Catalog.validRoutine(routine)) {
             return false;
         }
-        return saveRoutines(config as Dictionary, routines);
+        return saveRoutines(config as Dictionary, routines, templateId, false);
     }
 
     public function moveRoutineEntry(templateId as String, entryId as String,
@@ -792,7 +917,7 @@ class SessionController {
         var swap = entries[index];
         entries[index] = entries[target];
         entries[target] = swap;
-        return saveRoutines(config as Dictionary, routines);
+        return saveRoutines(config as Dictionary, routines, templateId, false);
     }
 
     public function removeRoutineEntry(templateId as String, entryId as String) as Boolean {
@@ -817,7 +942,7 @@ class SessionController {
             }
         }
         routines[routineIndex]["entries"] = kept;
-        return saveRoutines(config as Dictionary, routines);
+        return saveRoutines(config as Dictionary, routines, templateId, false);
     }
 
     public function recentGarminExercises() as Array {
@@ -1476,12 +1601,11 @@ class SessionController {
         var sequence = config["nextSessionSeq"] as Number;
         var nextConfig = SessionLogic.copyDictionary(config as Dictionary);
         nextConfig["nextSessionSeq"] = sequence + 1;
-        if (!_store.commitPair("config", nextConfig)) {
+        if (!writeParts(nextConfig, null, true)) {
             _errorCode = Err.COULD_NOT_RESERVE_WORKOUT_ID;
             cancelWorkoutStart();
             return false;
         }
-        _config = nextConfig;
         _pendingStartConfig = null;
         _startSequenceReserved = true;
         _errorCode = Err.NONE;

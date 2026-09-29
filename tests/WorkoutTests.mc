@@ -251,9 +251,16 @@ function testOverrideSetCeiling(logger as Test.Logger) as Boolean {
 }
 
 function clearConfigKeys() as Void {
-    var keys = ["config.a", "config.b"];
-    for (var i = 0; i < keys.size(); i++) {
-        Application.Storage.deleteValue(keys[i]);
+    var domains = ["config", "routine.upper", "routine.lower", "routine.worst"];
+    for (var i = 1; i <= 12; i++) {
+        domains.add("routine.routine-" + i.toString());
+    }
+    for (var i = 0; i < Model.MAX_TEMPLATES; i++) {
+        domains.add("routine.worst-" + i.toString());
+    }
+    for (var i = 0; i < domains.size(); i++) {
+        Application.Storage.deleteValue((domains[i] as String) + ".a");
+        Application.Storage.deleteValue((domains[i] as String) + ".b");
     }
 }
 
@@ -572,22 +579,18 @@ function commitAndReload(logger as Test.Logger, store as Store, domain as String
     logger.debug(domain + " commit=" + committed + " reload=" + (loaded != null) +
         " estimatedBytes=" + bytes.toString() + " of 32768");
     // The simulator does not enforce the 32 KB value limit, so check the estimate explicitly.
-    // Config at the 8 x 12 model limit is known to exceed it (see docs/STABILITY_AUDIT_PLAN.md), so
-    // it is only reported, not asserted, until the limits or the stored shape change.
-    if (bytes >= 32768) {
-        logger.debug("WARNING " + domain + " estimate exceeds the 32 KB per-value limit");
-    }
     return committed && loaded != null && (!enforceSize || bytes < 32768);
 }
 
 (:test)
 function testWorstCaseStorageCommits(logger as Test.Logger) as Boolean {
     var store = new Store();
-    var domains = ["active", "history0", "last", "config"];
+    var domains = ["active", "history0", "last"];
     for (var d = 0; d < domains.size(); d++) {
         Application.Storage.deleteValue((domains[d] as String) + ".a");
         Application.Storage.deleteValue((domains[d] as String) + ".b");
     }
+    clearConfigKeys();
     var now = Time.now().value();
     var routine = worstCaseRoutine("worst", 0);
     var config = {"schemaVersion" => 2, "nextSessionSeq" => 2147483647,
@@ -622,37 +625,34 @@ function testWorstCaseStorageCommits(logger as Test.Logger) as Boolean {
     var ended = SessionLogic.copyDictionary(session);
     ended["status"] = "completed";
 
-    var fullConfig = SessionLogic.copyDictionary(config);
-    var routines = [];
+    // Config v3 holds only settings and 8 routine ids of the maximum length; each routine has its own key.
+    var ids = [];
     for (var r = 0; r < Model.MAX_TEMPLATES; r++) {
-        routines.add(worstCaseRoutine("worst-" + r.toString(), r));
+        ids.add(repeatText("i", 39) + r.toString());
     }
-    fullConfig["routines"] = routines;
-
-    // Informational: a full config with typical strings (30-char names, 16/26-char Garmin codes, no notes).
-    var typical = [];
-    for (var r = 0; r < Model.MAX_TEMPLATES; r++) {
-        typical.add(sizedRoutine("typical-" + r.toString(), r, 30, 16, 26, 0));
-    }
-    var typicalConfig = SessionLogic.copyDictionary(config);
-    typicalConfig["routines"] = typical;
-    logger.debug("typical full config estimatedBytes=" + estimateBytes(typicalConfig).toString() +
-        " (one worst-case entry=" + estimateBytes(routine["entries"][0]).toString() + ")");
+    var configV3 = {"schemaVersion" => 3, "nextSessionSeq" => 2147483647,
+        "settings" => {"defaultRestSec" => 1800, "vibrationEnabled" => true},
+        "templateOverrides" => {}, "incrementOverrides" => {},
+        "routineIds" => ids, "routineNextEntrySeq" => 2147483647};
 
     var results = [
         commitAndReload(logger, store, "active", session, true),
         commitAndReload(logger, store, "history0", SessionLogic.archivedSession(ended), true),
         commitAndReload(logger, store, "last", cache, true),
-        commitAndReload(logger, store, "config", fullConfig, false)
+        commitAndReload(logger, store, "routine.worst", routine, true),
+        commitAndReload(logger, store, "config", configV3, true)
     ];
+    var configSmall = estimateBytes(configV3) < 4096;
     for (var d = 0; d < domains.size(); d++) {
         Application.Storage.deleteValue((domains[d] as String) + ".a");
         Application.Storage.deleteValue((domains[d] as String) + ".b");
     }
+    clearConfigKeys();
     return check(logger, results[0], "worst-case active session must commit and reload") &&
         check(logger, results[1], "worst-case archived history must commit and reload") &&
         check(logger, results[2], "worst-case last-performance cache must commit and reload") &&
-        check(logger, results[3], "8 routines x 12 entries config must commit and reload");
+        check(logger, results[3], "a worst-case 12-entry routine must commit under 32 KB") &&
+        check(logger, results[4] && configSmall, "config v3 must commit and stay small");
 }
 
 // Diagnostic: does the simulator enforce the 32 KB per-value limit? Logs only; asserts nothing.
@@ -680,4 +680,111 @@ function testStorageValueLimitProbe(logger as Test.Logger) as Boolean {
     }
     Application.Storage.deleteValue("probe.value");
     return true;
+}
+
+function v2ConfigPayload() as Dictionary {
+    return {"schemaVersion" => 2, "nextSessionSeq" => 5,
+        "settings" => {"defaultRestSec" => 75, "vibrationEnabled" => true},
+        "templateOverrides" => {}, "incrementOverrides" => {},
+        "routines" => Catalog.routineTemplates(null), "routineNextEntrySeq" => 1};
+}
+
+(:test)
+function testMigrateV2ConfigToRoutineKeys(logger as Test.Logger) as Boolean {
+    var store = new Store();
+    clearConfigKeys();
+    var stored = store.commitPair("config", v2ConfigPayload());
+    var expected = Catalog.routineTemplates(null);
+    var controller = new SessionController(new Store());
+    var routines = controller.routineTemplates();
+    var sameRoutines = routines.size() == expected.size();
+    for (var i = 0; sameRoutines && i < expected.size(); i++) {
+        var left = routines[i] as Dictionary;
+        var right = expected[i] as Dictionary;
+        sameRoutines = left["id"].equals(right["id"]) && left["name"].equals(right["name"]) &&
+            (left["entries"] as Array).size() == (right["entries"] as Array).size() &&
+            (left["entries"] as Array)[0]["exerciseId"].equals((right["entries"] as Array)[0]["exerciseId"]);
+    }
+    var keysExist = Application.Storage.getValue("routine.upper.a") != null &&
+        Application.Storage.getValue("routine.lower.a") != null;
+    var reloaded = new Store();
+    var config = reloaded.loadPair("config");
+    var v3 = config != null && config["schemaVersion"] == 3 && config["routines"] == null &&
+        config["routineIds"] instanceof Array && config["routineIds"].size() == 2 &&
+        config["nextSessionSeq"] == 5 && controller.defaultRestSec() == 75;
+    clearConfigKeys();
+    return check(logger, stored, "v2 fixture must be a valid stored config") &&
+        check(logger, sameRoutines, "migrated routines must equal the v2 routines") &&
+        check(logger, keysExist, "migration must write one key pair per routine") &&
+        check(logger, v3, "migration must leave a v3 config with routineIds and no routines");
+}
+
+(:test)
+function testInterruptedMigrationIsRedone(logger as Test.Logger) as Boolean {
+    var store = new Store();
+    clearConfigKeys();
+    var stored = store.commitPair("config", v2ConfigPayload());
+    // Interrupted after the first routine key: config is still v2.
+    var seeds = Catalog.routineTemplates(null);
+    var partial = store.commitPair("routine.upper", seeds[0] as Dictionary);
+    var controller = new SessionController(new Store());
+    var loaded = controller.routineTemplates().size() == 2;
+    var config = new Store().loadPair("config");
+    var migrated = config != null && config["schemaVersion"] == 3 &&
+        Application.Storage.getValue("routine.lower.a") != null;
+    clearConfigKeys();
+    return check(logger, stored && partial, "fixtures must store") &&
+        check(logger, loaded, "a load after an interrupted migration must still succeed") &&
+        check(logger, migrated, "the next load must finish the migration");
+}
+
+(:test)
+function testRoutineRoundTripThroughFreshController(logger as Test.Logger) as Boolean {
+    clearConfigKeys();
+    var first = new SessionController(new Store());
+    var created = first.createRoutine("Trip A");
+    var renamed = created != null && first.renameRoutine(created as String, "Trip B");
+    var entryId = ((first.routineTemplates()[0] as Dictionary)["entries"] as Array)[0]["entryId"] as String;
+    var edited = first.updateNumericConfig("template", "upper", entryId, "restSec", 33);
+    var second = new SessionController(new Store());
+    var names = "";
+    var routines = second.routineTemplates();
+    for (var i = 0; i < routines.size(); i++) {
+        names += (routines[i] as Dictionary)["name"] as String + "|";
+    }
+    var seen = renamed && edited && routines.size() == 3 && names.find("Trip B|") != null &&
+        (second.templateEntry("upper", entryId) as Dictionary)["restSec"] == 33;
+    var deleted = second.deleteRoutine("upper");
+    var third = new SessionController(new Store());
+    var gone = deleted && third.routineTemplates().size() == 2 &&
+        Application.Storage.getValue("routine.upper.a") == null &&
+        Application.Storage.getValue("routine.upper.b") == null;
+    var lower = third.routineTemplates().size() == 2 &&
+        Application.Storage.getValue("routine.lower.a") != null;
+    clearConfigKeys();
+    return check(logger, created != null && seen, "create, rename and edit must persist across controllers") &&
+        check(logger, gone, "delete must persist and remove the routine keys") &&
+        check(logger, lower, "other routine keys must stay");
+}
+
+(:test)
+function testMissingRoutineKeyIsDroppedWithError(logger as Test.Logger) as Boolean {
+    clearConfigKeys();
+    var first = new SessionController(new Store());
+    var saved = first.updateNumericConfig("setting", "", "", "defaultRestSec", 61);
+    Application.Storage.deleteValue("routine.lower.a");
+    Application.Storage.deleteValue("routine.lower.b");
+    var second = new SessionController(new Store());
+    var remaining = second.routineTemplates();
+    var damaged = second.errorCode() == Err.SAVED_SETTINGS_ARE_DAMAGED;
+    var others = remaining.size() == 1 && remaining[0]["id"].equals("upper") &&
+        second.defaultRestSec() == 61;
+    Application.Storage.deleteValue("routine.upper.a");
+    Application.Storage.deleteValue("routine.upper.b");
+    var third = new SessionController(new Store());
+    var none = third.routineTemplates().size() == 0;
+    clearConfigKeys();
+    return check(logger, saved, "the first save must write config and routines") &&
+        check(logger, damaged && others, "a missing routine is dropped, the rest stay usable, error is reported") &&
+        check(logger, none, "with every routine missing the settings are unusable");
 }

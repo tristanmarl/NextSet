@@ -162,14 +162,14 @@ OpenMTP bundles the `kalam` MTP library (`/Applications/OpenMTP.app/Contents/Res
 
 ## Storage headroom (2026-09-29)
 
-`testWorstCaseStorageCommits` builds worst-case payloads through the real code path (12 entries, 60 sets, 64-byte names, 160-byte notes, every set completed at maximum values) and commits them to real simulator Storage. All four commit and reload. Estimated serialized size (type and length headers included, a rough figure) against the 32 KB per-value limit:
+The simulator does not enforce the 32 KB per-value limit (`testStorageValueLimitProbe` stored about 1 MB in one value), so `testWorstCaseStorageCommits` builds worst-case payloads through the real code path and compares a rough serialized-size estimate (type and length headers included) with 32,768 bytes. Estimates:
 
 | Domain | Estimate |
 | --- | --- |
-| `active` (finalizing, prefilled from a full last-performance cache) | about 24.4 KB |
+| `active` (finalizing, 60 sets all completed, prefilled from a full cache) | about 24.4 KB |
 | `history0` (archived session) | about 10.2 KB |
 | `last` (cache) | about 3.2 KB |
-| `config`, 8 routines x 12 entries, maximum-length strings and notes | about 63.5 KB (over) |
-| `config`, 8 x 12 with typical strings (30-char names, no notes) | about 38 KB (over) |
+| `routine.<id>`, 12 entries with 64-byte names, 160-byte notes, Garmin strings at maximum length | about 7.9 KB |
+| `config` v3 with 8 maximum-length routine ids | about 0.5 KB |
 
-The simulator does not enforce the per-value limit (`testStorageValueLimitProbe` stored about 1 MB in one value), so passing commits prove validation and logic only. The size estimate is asserted for `active`, `history0` and `last`. It is only reported for `config`. On a watch, a config over 32 KB would make `commitPair("config", ...)` fail (the `setValue` exception is caught and reported as "Settings save failed"). Limits have not been changed.
+Before this change one `config` holding 8 x 12 entries was estimated at about 38 KB (typical strings) to 63.5 KB (maximum strings), over the limit. Config `schemaVersion` 3 fixes that by storing each routine in its own `routine.<id>` domain. Migration from v1/v2 runs on load: routine keys first, v3 config last, so an interrupted run is redone. The total storage available to the app has not been verified (8 routines at worst case with two generations each is about 127 KB), and typical use is far smaller.

@@ -1,6 +1,6 @@
 # NextSet
 
-NextSet is an offline strength-training log for the Garmin Forerunner 965 (Connect IQ watch app, version 1.0.0). It logs sets with button-only navigation and records a Garmin Strength activity while you train. No phone connection is needed.
+NextSet is an offline strength-training log for the Garmin Forerunner 965 (Connect IQ watch app, version 0.2.0, FR965 only). It logs sets with button-only navigation and records a Garmin Strength activity while you train. No phone connection is needed.
 
 ## Features
 
@@ -11,9 +11,19 @@ NextSet is an offline strength-training log for the Garmin Forerunner 965 (Conne
 - Garmin activity: a Strength activity is recorded for the workout and saved when it finishes. Leaving the app saves the segment so far; reopening starts a new recording.
 - Settings: default rest for new exercises, vibration on or off.
 
-## Build, test, package
+## Install (sideload)
 
-Install Connect IQ SDK 9.2.0 and put its `bin` directory on `PATH`. Every `monkeyc` call needs the developer key (keep it out of the repository):
+NextSet is distributed on GitHub only, as a `.prg` file attached to each release (`NextSet-<version>.prg`, for example `NextSet-0.2.0.prg`). It only supports the Forerunner 965.
+
+1. Download the `.prg` from GitHub Releases.
+2. Connect the FR965 to your computer by USB. On macOS use OpenMTP (or Android File Transfer); on Windows the watch shows up as a normal drive.
+3. Copy the file to `GARMIN/APPS` on the watch.
+4. Unplug the watch. NextSet appears in the apps list.
+5. To update, copy the new file over the old one. Your routines and history stay on the watch.
+
+## Build, test, release
+
+Install Connect IQ SDK 9.2.0 and put its `bin` directory on `PATH`. Every `monkeyc` call needs the developer key (keep it out of the repository; reuse the same key for every release):
 
 ```sh
 KEY="$HOME/.garmin-keys/NextSetDeveloperKey.der"
@@ -27,20 +37,15 @@ monkeydo bin/NextSet.prg fr965
 monkeyc --unit-test -f tests.jungle -d fr965 -o bin/NextSet-tests.prg -y "$KEY"
 monkeydo bin/NextSet-tests.prg fr965 -t
 
-# Release sideload build and store package
+# Release build; publish it as the GitHub release asset NextSet-<version>.prg
 monkeyc -r -f monkey.jungle -d fr965 -o bin/NextSet-release.prg -y "$KEY"
-monkeyc -e -r -f monkey.jungle -o bin/NextSet.iq -y "$KEY"
 ```
 
 See [docs/TOOLCHAIN.md](docs/TOOLCHAIN.md) for details.
-
-## Sideload
-
-Connect the watch by USB and copy `bin/NextSet-release.prg` to `GARMIN/APPS/`, renamed to `NextSet.prg`. Sideloaded builds must be signed with the same key each time. The first install of a build signed with a new key needs the old NextSet removed first.
 
 ## Known limitations
 
 - The recorded FIT file has no per-exercise or per-set rows. Set details stay in NextSet's own history.
 - How the activity appears in Garmin Connect (activity type, duration, heart rate, exercise names) has not been verified on a physical watch.
 - Only the FR965 is supported, and device testing is still pending; see [docs/DEVICE_TESTS.md](docs/DEVICE_TESTS.md).
-- The simulator does not enforce the 32 KB storage limit per value. A routine config at the 8 x 12 limit can exceed it on a real watch; see [docs/STABILITY_AUDIT_PLAN.md](docs/STABILITY_AUDIT_PLAN.md).
+- The simulator does not enforce the 32 KB storage limit per value, so size is checked by estimate; each routine is stored separately to stay under it (see [docs/STABILITY_AUDIT_PLAN.md](docs/STABILITY_AUDIT_PLAN.md)).

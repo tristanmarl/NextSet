@@ -14,13 +14,33 @@ class Store {
         Application.Storage.setValue(key, value);
     }
 
+    // Ordered ids of the routines stored under routine.<id>; ids are lowercase letters, digits, "-".
+    private function validRoutineIds(value as Object?) as Boolean {
+        if (!(value instanceof Array) || (value as Array).size() < 1 ||
+            (value as Array).size() > Model.MAX_TEMPLATES) {
+            return false;
+        }
+        var ids = value as Array;
+        for (var i = 0; i < ids.size(); i++) {
+            if (!Model.validId(ids[i])) {
+                return false;
+            }
+            for (var j = 0; j < i; j++) {
+                if (Model.sameString(ids[j], ids[i])) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
     private function validConfig(payload as Dictionary) as Boolean {
         var version = payload["schemaVersion"];
-        if (version instanceof Number && version > 2) {
+        if (version instanceof Number && version > 3) {
             _futureRecord = true;
             return false;
         }
-        if ((version != null && !(version == 1 || version == 2)) ||
+        if ((version != null && !(version == 1 || version == 2 || version == 3)) ||
             !Model.inRange(payload["nextSessionSeq"], 1, 2147483647, false) ||
             (payload["settings"] != null && !(payload["settings"] instanceof Dictionary)) ||
             (payload["templateOverrides"] != null &&
@@ -32,6 +52,9 @@ class Store {
             return false;
         }
         if (version == 2 && !(payload["routines"] instanceof Array)) {
+            return false;
+        }
+        if (version == 3 && !validRoutineIds(payload["routineIds"])) {
             return false;
         }
         if (payload["routines"] != null) {
@@ -93,6 +116,9 @@ class Store {
     }
 
     private function validPayload(domain as String, payload as Dictionary) as Boolean {
+        if (domain.length() > 8 && Model.sameString(domain.substring(0, 8), "routine.")) {
+            return Catalog.validRoutine(payload) && Model.validNonblankText(payload["name"], 64);
+        }
         if (Model.sameString(domain, "config")) {
             return validConfig(payload);
         }
@@ -242,6 +268,17 @@ class Store {
         return {"id" => payload["id"], "sessionSeq" => payload["sessionSeq"],
             "templateId" => payload["templateId"], "endedAt" => payload["endedAt"],
             "status" => payload["status"]};
+    }
+
+    // Removes both generations of a domain (a leftover key is harmless, so failures are ignored).
+    public function deletePair(domain as String) as Void {
+        var generations = ["a", "b"];
+        for (var i = 0; i < generations.size(); i++) {
+            try {
+                Application.Storage.deleteValue(domain + "." + generations[i]);
+            } catch (error) {
+            }
+        }
     }
 
     public function commitPair(domain as String, payload as Dictionary) as Boolean {
