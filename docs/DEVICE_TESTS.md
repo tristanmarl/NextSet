@@ -109,3 +109,10 @@ A short start/log/save path and saved Strength FIT were recorded on the FR965. T
 - [ ] **PENDING** Leave the app mid-workout and reopen: the second saved activity also carries laps and summary fields.
 - [ ] **PENDING** Confirm logging a set stays instant (no visible delay from the lap calls) and that a 60-set workout still finishes without a watchdog error.
 - [ ] **PENDING** If a FIT file can be pulled from `GARMIN/Activity`, parse its lap messages and developer field definitions to compare with the app's history.
+
+## 0.2.2 beta and fēnix build (2026-09-29)
+
+- **Signed packages:** public `bin/NextSet-0.2.2-public.iq` built all seven Garmin hardware entries from the FR965 and selected fēnix 8/9 manifest targets. Private `bin/NextSet-0.2.2-private-beta.iq` built for FR965 only with a separate beta app ID. A scan of every packaged `.prg` found `upper-row` and `lower-leg-press` only in the beta binary; neither package contains the test markers checked. No signing key was packaged.
+- **Simulator tests:** signed FR965 target reported 37/37 passed, 0 failures, 0 errors. `monkeydo` returned 1 after the passing summary. The initial simulator connection failed; quitting and relaunching the simulator resolved it.
+- **Startup UI:** public FR965 showed `Routine 1`, `0 ex · 0 sets`, and an add-exercise prompt. Private beta FR965 showed Upper with 8 exercises and 19 sets. Public fēnix 9 Pro 51 mm showed the empty starter routine on its 466×466 display without visible clipping. Screenshots: `NextSet-public-fr965-0.2.2.png`, `NextSet-private-beta-fr965-0.2.2.png`, `NextSet-public-fenix9pro51mm-0.2.2.png` in this directory. Other fēnix targets compiled but have no UI or physical-watch check yet.
+- **Pending physical beta check:** install the beta through Connect IQ Store, log a short workout, sync, and inspect the developer fields in Garmin Connect. The simulator and package inspection do not establish Connect rendering.

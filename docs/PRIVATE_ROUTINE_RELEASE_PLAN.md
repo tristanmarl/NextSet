@@ -22,7 +22,7 @@ This recovers the original two defaults only; it cannot reconstruct later edits 
 
 ## Beta and public release sequence
 
-1. Create `manifest.beta.xml` with a fresh app UUID; keep the production UUID in `manifest.xml`.
+1. Keep the FR965-only alternate UUID in `manifest.beta.xml` separate from the production UUID in `manifest.xml`.
 2. Build/export the private beta with `monkey.beta.jungle`, then upload it as a developer beta. Confirm the developer account can install it and see the FIT developer fields in Garmin Connect.
 3. Keep the production `.iq` build on `monkey.jungle`; inspect the package for `Upper`, `Lower`, seed entry IDs, and starting-load values before submission.
 4. After beta/device checks pass, submit the production package and listing through the Connect IQ Store review flow. Do not reuse the beta app ID for the public listing.

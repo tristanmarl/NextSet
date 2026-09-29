@@ -1,6 +1,6 @@
 # NextSet
 
-NextSet is an offline strength-training log for the Garmin Forerunner 965 (Connect IQ watch app, version 0.2.1, FR965 only). It logs sets with button-only navigation and records a Garmin Strength activity while you train. No phone connection is needed.
+NextSet is an offline strength-training log for the Garmin Forerunner 965 and selected AMOLED fēnix 8/9 models (Connect IQ watch app, version 0.2.2). It logs sets with button-only navigation and records a Garmin Strength activity while you train. No phone connection is needed.
 
 ## Features
 
@@ -13,7 +13,7 @@ NextSet is an offline strength-training log for the Garmin Forerunner 965 (Conne
 
 ## Install (sideload)
 
-NextSet is distributed on GitHub only, as a `.prg` file attached to each release (`NextSet-<version>.prg`, for example `NextSet-0.2.1.prg`). It only supports the Forerunner 965.
+The current GitHub release is 0.2.1 as an FR965 `.prg`. Version 0.2.2 is being prepared for a private FR965 Connect IQ beta and a public package supporting FR965, fēnix 8 47/51 mm AMOLED, fēnix 8 Pro 47/51 mm AMOLED, fēnix 9 47/51 mm, and fēnix 9 Pro 47/51 mm. Smaller 43 mm and Solar displays are excluded.
 
 1. Download the `.prg` from GitHub Releases.
 2. Connect the FR965 to your computer by USB. On macOS use OpenMTP (or Android File Transfer); on Windows the watch shows up as a normal drive.
@@ -37,7 +37,13 @@ monkeydo bin/NextSet.prg fr965
 monkeyc --unit-test -f tests.jungle -d fr965 -o bin/NextSet-tests.prg -y "$KEY"
 monkeydo bin/NextSet-tests.prg fr965 -t
 
-# Release build; publish it as the GitHub release asset NextSet-<version>.prg
+# Public release package (no personal routines)
+monkeyc -e -r -f monkey.jungle -o bin/NextSet-public.iq -y "$KEY"
+
+# FR965-only private Store beta (Upper/Lower included; alternate app ID)
+monkeyc -e -r -f monkey.beta.jungle -o bin/NextSet-private-beta.iq -y "$KEY"
+
+# FR965 sideload build from public resources
 monkeyc -r -f monkey.jungle -d fr965 -o bin/NextSet-release.prg -y "$KEY"
 
 # Personal sideload build with the private Upper/Lower seeds
@@ -49,7 +55,7 @@ See [docs/PRIVATE_ROUTINE_RELEASE_PLAN.md](docs/PRIVATE_ROUTINE_RELEASE_PLAN.md)
 
 ## Known limitations
 
-- Connect IQ cannot write native strength set rows. Garmin Connect does not display developer fields from this sideloaded app, so its activity can look empty even when the FIT file contains set laps. Lap values are not rewritten when a set is corrected or deleted afterwards. NextSet's own history is the complete record.
+- Connect IQ cannot write native strength set rows. Garmin Connect does not display developer fields from a sideloaded build, so its activity can look empty even when the FIT file contains set laps. The private Store beta can test developer-field visibility. Lap values are not rewritten when a set is corrected or deleted afterwards. NextSet's own history is the complete record.
 - The 0.2.1 FIT lap and summary values have not yet been verified on a physical watch.
-- Only the FR965 is supported, and device testing is still pending; see [docs/DEVICE_TESTS.md](docs/DEVICE_TESTS.md).
+- The additional fēnix targets have compile and limited simulator evidence only; physical device checks remain pending. See [docs/DEVICE_TESTS.md](docs/DEVICE_TESTS.md).
 - The simulator does not enforce the 32 KB storage limit per value, so size is checked by estimate; each routine is stored separately to stay under it (see [docs/STABILITY_AUDIT_PLAN.md](docs/STABILITY_AUDIT_PLAN.md)).

@@ -5,11 +5,16 @@
         id="33A5A4CA541A443CB8BECEFF62ED870E"
         launcherIcon="@Drawables.LauncherIcon"
         minSdkVersion="5.2.0"
-        version="0.2.1"
+        version="0.2.2"
         name="@Strings.AppName"
         type="watch-app">
         <iq:products>
             <iq:product id="fr965"/>
+            <iq:product id="fenix847mm"/>
+            <iq:product id="fenix8pro47mm"/>
+            <iq:product id="fenix947mm"/>
+            <iq:product id="fenix9pro47mm"/>
+            <iq:product id="fenix9pro51mm"/>
         </iq:products>
         <iq:languages>
             <iq:language>eng</iq:language>
