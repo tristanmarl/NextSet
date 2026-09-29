@@ -28,10 +28,12 @@ Check the test summary: the current SDK runner may return exit code 1 even after
 
 Use four spaces for indentation, typed Monkey C parameters and returns, `UpperCamelCase` for classes, `lowerCamelCase` for functions and locals, and `UPPER_SNAKE_CASE` for constants. Add tests beside related cases under `tests/`, name test functions `test...`, and mark them with `(:test)`. Prefer focused logic changes and tests over broad refactors; keep UI changes compatible with button-only watch navigation.
 
+Timer callbacks passed through `method(:callback)` must be public. A private `advanceFinalization` callback passed to `Timer.start()` compiled but crashed on the physical FR965 with `Invalid Value / Failed invoking <symbol>` during workout abort. Check callback visibility whenever adding a timer or other asynchronous callback; a successful build does not establish that it can be invoked on the watch.
+
 ## Commits and Pull Requests
 
 The available history has one release commit, so no repeated commit convention is established. Use short imperative subjects, such as `Fix rest timer vibration`. Pull requests should explain the user-visible change, list build/test results, link relevant issues when present, and include simulator screenshots for visual changes. Clearly identify device checks that remain unverified.
 
 ## Security and Configuration
 
-The current signing key is `/private/tmp/NextSetDeveloperKey.der` (PEM source: `/private/tmp/NextSetDeveloperKey.pem`); pass the DER path to `monkeyc -y`. These temporary files are outside the repository, but `/private/tmp` is not durable, so keep a secure backup. Reuse the same key for updates; never commit, upload, or package either key. Do not check in local SDK files or generated build artifacts. The app now compiles an `ActivityRecording` Strength FIT activity path. Physical-watch recording, FIT inspection, Garmin Connect visibility, and native per-exercise set rendering are not verified; local completed set details remain in NextSet history.
+The current signing key is `/private/tmp/NextSetDeveloperKey.der` (PEM source: `/private/tmp/NextSetDeveloperKey.pem`); pass the DER path to `monkeyc -y`. These temporary files are outside the repository, but `/private/tmp` is not durable, so keep a secure backup. Reuse the same key for updates; never commit, upload, or package either key. Do not check in local SDK files or generated build artifacts. The app now compiles an `ActivityRecording` Strength FIT activity path. A short physical-watch Strength FIT activity was inspected; Garmin Connect visibility and native per-exercise set rendering remain unverified. Local completed set details remain in NextSet history.

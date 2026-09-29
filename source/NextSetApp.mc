@@ -140,7 +140,7 @@ class NextSetApp extends Application.AppBase {
         _startTimer.start(method(:advanceFinalization), 150, false);
     }
 
-    private function advanceFinalization() as Void {
+    public function advanceFinalization() as Void {
         _finishPending = false;
         if (!_controller.hasPendingFinalization()) {
             return;
