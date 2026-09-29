@@ -81,19 +81,12 @@ class Store {
             var a = left as Dictionary;
             var b = right as Dictionary;
             var keys = a.keys();
-            var otherKeys = b.keys();
-            if (keys.size() != otherKeys.size()) {
+            if (keys.size() != b.keys().size()) {
                 return false;
             }
             for (var i = 0; i < keys.size(); i++) {
-                var found = false;
-                for (var j = 0; j < otherKeys.size(); j++) {
-                    if (Model.sameString(keys[i], otherKeys[j])) {
-                        found = true;
-                        break;
-                    }
-                }
-                if (!found || !equal(a[keys[i]], b[keys[i]])) {
+                var key = keys[i];
+                if (!b.hasKey(key) || !equal(a[key], b[key])) {
                     return false;
                 }
             }
