@@ -16,14 +16,14 @@ monkeyc -f monkey.jungle -d fr965 -o bin/NextSet.prg -y "$HOME/.garmin-keys/Next
 
 Add the Connect IQ SDK's `bin` directory to `PATH` before running the build command.
 
-Tests (35 tests, all passing on 2026-09-29; `monkeydo` may still exit 1 after a passing summary):
+Tests (37 tests, all passing on 2026-09-29; `monkeydo` may still exit 1 after a passing summary):
 
 ```sh
 monkeyc --unit-test -f tests.jungle -d fr965 -o bin/NextSet-tests.prg -y "$HOME/.garmin-keys/NextSetDeveloperKey.der"
 monkeydo bin/NextSet-tests.prg fr965 -t
 ```
 
-Release build (manifest version 0.2.0). NextSet is not published to the Connect IQ store; the `-r` build is sideloaded and attached to a GitHub release as `NextSet-<version>.prg`:
+Release build (manifest version 0.2.1). NextSet is not published to the Connect IQ store; the `-r` build is sideloaded and attached to a GitHub release as `NextSet-<version>.prg`:
 
 ```sh
 monkeyc -r -f monkey.jungle -d fr965 -o bin/NextSet-release.prg -y "$HOME/.garmin-keys/NextSetDeveloperKey.der"

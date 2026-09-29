@@ -108,9 +108,8 @@ class StrengthRecorder {
         }
     }
 
-    // One lap per logged set: the values are set first because a lap field's value is written
-    // when the lap closes, then addLap() closes the lap. The fields are cleared afterwards so the
-    // trailing lap (rest after the last set) does not repeat the previous set.
+    // One lap per logged set. Do not clear fields immediately after addLap(): setData() can
+    // replace a value before the device writes it to FIT.
     public function recordSet(payload as Dictionary?) as Void {
         if (payload == null || !isRecording()) {
             return;
@@ -120,7 +119,6 @@ class StrengthRecorder {
                 payload["reps"] as Number, payload["weightKg"] as Float,
                 payload["durationSec"] as Number);
             (_session as ActivityRecording.Session).addLap();
-            setLapFields("", 0, 0, 0.0, 0);
         } catch (error) {
         }
     }

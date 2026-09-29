@@ -1,6 +1,6 @@
 # NextSet
 
-NextSet is an offline strength-training log for the Garmin Forerunner 965 (Connect IQ watch app, version 0.2.0, FR965 only). It logs sets with button-only navigation and records a Garmin Strength activity while you train. No phone connection is needed.
+NextSet is an offline strength-training log for the Garmin Forerunner 965 (Connect IQ watch app, version 0.2.1, FR965 only). It logs sets with button-only navigation and records a Garmin Strength activity while you train. No phone connection is needed.
 
 ## Features
 
@@ -13,7 +13,7 @@ NextSet is an offline strength-training log for the Garmin Forerunner 965 (Conne
 
 ## Install (sideload)
 
-NextSet is distributed on GitHub only, as a `.prg` file attached to each release (`NextSet-<version>.prg`, for example `NextSet-0.2.0.prg`). It only supports the Forerunner 965.
+NextSet is distributed on GitHub only, as a `.prg` file attached to each release (`NextSet-<version>.prg`, for example `NextSet-0.2.1.prg`). It only supports the Forerunner 965.
 
 1. Download the `.prg` from GitHub Releases.
 2. Connect the FR965 to your computer by USB. On macOS use OpenMTP (or Android File Transfer); on Windows the watch shows up as a normal drive.
@@ -45,7 +45,7 @@ See [docs/TOOLCHAIN.md](docs/TOOLCHAIN.md) for details.
 
 ## Known limitations
 
-- Connect IQ cannot write native strength set rows, so Garmin Connect shows the sets only as laps and developer fields, and only if Connect renders them (unverified). Lap values are not rewritten when a set is corrected or deleted afterwards. NextSet's own history is the complete record.
-- How the activity appears in Garmin Connect (activity type, duration, heart rate, exercise names) has not been verified on a physical watch.
+- Connect IQ cannot write native strength set rows. Garmin Connect does not display developer fields from this sideloaded app, so its activity can look empty even when the FIT file contains set laps. Lap values are not rewritten when a set is corrected or deleted afterwards. NextSet's own history is the complete record.
+- The 0.2.1 FIT lap and summary values have not yet been verified on a physical watch.
 - Only the FR965 is supported, and device testing is still pending; see [docs/DEVICE_TESTS.md](docs/DEVICE_TESTS.md).
 - The simulator does not enforce the 32 KB storage limit per value, so size is checked by estimate; each routine is stored separately to stay under it (see [docs/STABILITY_AUDIT_PLAN.md](docs/STABILITY_AUDIT_PLAN.md)).

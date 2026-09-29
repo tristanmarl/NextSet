@@ -102,8 +102,10 @@ A short start/log/save path and saved Strength FIT were recorded on the FR965. T
 
 ## Set laps and FIT developer fields (`fit-set-laps`) — PENDING
 
-- [ ] **PENDING** Log a session with weight, assistance, bodyweight and timed sets, finish it, sync, then open the activity in the Garmin Connect app and on the web. Check: one lap per logged set with Exercise, Set, Reps, Weight (- = assist) and Duration columns; the activity summary shows Sets, Volume, Exercises and NextSet version; values match what was logged (including the assistance sign).
-- [ ] **PENDING** Check the first lap (before the first set) and the last lap (after the last set) are empty/zero rather than repeating a set.
+- **0.2.1 build and simulator tests (2026-09-29):** signed debug, test and release builds succeeded for FR965 with SDK 9.2.0 and the current developer key. The release artifact is `bin/NextSet-0.2.1.prg` (310,988 bytes); `bin/NextSet-0.2.1.iq` was also exported for Monkey Graph. The simulator reported 37/37 tests passed, although `monkeydo` exited 1 after that summary. The generated FIT contribution metadata contains five lap and four summary fields. No 0.2.1 activity FIT file or Garmin Connect rendering was inspected. Garmin's developer guide says Connect IQ developer fields from a sideloaded app will not render in Garmin Connect; use the `.iq` package with a watch FIT file in Monkey Graph for local display testing.
+
+- [ ] **PENDING** Log a session with weight, assistance, bodyweight and timed sets, finish it, then inspect the watch FIT file for one lap per logged set and developer fields for exercise, set, reps, weight, duration, total sets, volume, exercises and version. Garmin Connect will not render sideloaded Connect IQ developer fields; this is not a Connect display test.
+- [ ] **PENDING** Inspect the first and trailing laps for repeated field values; fields are no longer cleared immediately because this can overwrite unwritten FIT data.
 - [ ] **PENDING** Leave the app mid-workout and reopen: the second saved activity also carries laps and summary fields.
 - [ ] **PENDING** Confirm logging a set stays instant (no visible delay from the lap calls) and that a 60-set workout still finishes without a watchdog error.
 - [ ] **PENDING** If a FIT file can be pulled from `GARMIN/Activity`, parse its lap messages and developer field definitions to compare with the app's history.
