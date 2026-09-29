@@ -14,11 +14,111 @@ class Store {
         Application.Storage.setValue(key, value);
     }
 
+    private function validConfig(payload as Dictionary) as Boolean {
+        var version = payload["schemaVersion"];
+        if (version instanceof Number && version > 2) {
+            _futureRecord = true;
+            return false;
+        }
+        if ((version != null && !(version == 1 || version == 2)) ||
+            !Model.inRange(payload["nextSessionSeq"], 1, 2147483647, false) ||
+            (payload["settings"] != null && !(payload["settings"] instanceof Dictionary)) ||
+            (payload["templateOverrides"] != null &&
+             !(payload["templateOverrides"] instanceof Dictionary)) ||
+            (payload["incrementOverrides"] != null &&
+             !(payload["incrementOverrides"] instanceof Dictionary)) ||
+            (payload["routineNextEntrySeq"] != null &&
+             !Model.inRange(payload["routineNextEntrySeq"], 1, 2147483647, false))) {
+            return false;
+        }
+        if (version == 2 && !(payload["routines"] instanceof Array)) {
+            return false;
+        }
+        if (payload["routines"] != null) {
+            if (!(payload["routines"] instanceof Array)) {
+                return false;
+            }
+            var routines = payload["routines"] as Array;
+            if (routines.size() < 1 || routines.size() > Model.MAX_TEMPLATES) {
+                return false;
+            }
+            for (var i = 0; i < routines.size(); i++) {
+                if (!(routines[i] instanceof Dictionary)) {
+                    return false;
+                }
+                var routine = routines[i] as Dictionary;
+                if (!Catalog.validRoutine(routine) ||
+                    !Model.validNonblankText(routine["name"], 64)) {
+                    return false;
+                }
+                for (var j = 0; j < i; j++) {
+                    if (Model.sameString((routines[j] as Dictionary)["id"], routine["id"])) {
+                        return false;
+                    }
+                }
+            }
+        }
+        if (payload["settings"] instanceof Dictionary) {
+            var settings = payload["settings"] as Dictionary;
+            if ((settings["defaultRestSec"] != null &&
+                 !Model.inRange(settings["defaultRestSec"], 0, Model.MAX_REST_SEC, false)) ||
+                (settings["vibrationEnabled"] != null &&
+                 !(settings["vibrationEnabled"] instanceof Boolean))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private function validRecent(payload as Dictionary) as Boolean {
+        var items = payload["items"];
+        if (!(items instanceof Array) || (items as Array).size() > 8) {
+            return false;
+        }
+        var rows = items as Array;
+        for (var i = 0; i < rows.size(); i++) {
+            if (!(rows[i] instanceof Dictionary)) {
+                return false;
+            }
+            var item = rows[i] as Dictionary;
+            if (!Model.validId(item["id"]) || !Model.validNonblankText(item["name"], 64) ||
+                !Model.validText(item["category"], 48, false) ||
+                !Model.validText(item["code"], 64, false) ||
+                !Model.inRange(item["categoryIndex"], 0, 46, false) ||
+                (item["isBodyWeight"] != null && !(item["isBodyWeight"] instanceof Boolean))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private function validPayload(domain as String, payload as Dictionary) as Boolean {
+        if (Model.sameString(domain, "config")) {
+            return validConfig(payload);
+        }
+        if (Model.sameString(domain, "active")) {
+            return Model.validStoredSession(payload, false);
+        }
+        if (Model.sameString(domain, "last")) {
+            return LastPerformance.validCache(payload);
+        }
+        if (Model.sameString(domain, "recent")) {
+            return validRecent(payload);
+        }
+        for (var i = 0; i < 4; i++) {
+            if (Model.sameString(domain, "history" + i.toString())) {
+                return Model.validStoredSession(payload, true);
+            }
+        }
+        return true;
+    }
+
     private function readGeneration(domain as String, generation as String) as Dictionary? {
         var raw = null;
         try {
             raw = readKey(domain + "." + generation);
         } catch (error) {
+            _badRecord = true;
             return null;
         }
         if (raw == null) {
@@ -39,6 +139,18 @@ class Store {
         }
         if (!(record["rev"] instanceof Number) || record["rev"] < 1 ||
             !(record["payload"] instanceof Dictionary)) {
+            _badRecord = true;
+            return null;
+        }
+        var payload = record["payload"] as Dictionary;
+        if (Model.sameString(domain, "last")) {
+            var cleanCache = LastPerformance.sanitizeCache(payload);
+            if (cleanCache.keys().size() != payload.keys().size()) {
+                // A bad prefill entry is isolated; valid exercise entries stay usable.
+                _badRecord = true;
+            }
+            record["payload"] = cleanCache;
+        } else if (!validPayload(domain, payload)) {
             _badRecord = true;
             return null;
         }
@@ -73,52 +185,16 @@ class Store {
         return _recoveredRecord || _badRecord;
     }
 
-    private function equal(left as Object?, right as Object?) as Boolean {
-        if (left == null || right == null) {
-            return left == right;
-        }
-        if (left instanceof Dictionary && right instanceof Dictionary) {
-            var a = left as Dictionary;
-            var b = right as Dictionary;
-            var keys = a.keys();
-            if (keys.size() != b.keys().size()) {
-                return false;
-            }
-            for (var i = 0; i < keys.size(); i++) {
-                var key = keys[i];
-                if (!b.hasKey(key) || !equal(a[key], b[key])) {
-                    return false;
-                }
-            }
-            return true;
-        }
-        if (left instanceof Array && right instanceof Array) {
-            var a = left as Array;
-            var b = right as Array;
-            if (a.size() != b.size()) {
-                return false;
-            }
-            for (var j = 0; j < a.size(); j++) {
-                if (!equal(a[j], b[j])) {
-                    return false;
-                }
-            }
-            return true;
-        }
-        if (left instanceof String && right instanceof String) {
-            return (left as String).equals(right as String);
-        }
-        return left == right;
-    }
-
     public function commitPair(domain as String, payload as Dictionary) as Boolean {
-        var current = loadPair(domain);
-        if (_futureRecord || (_badRecord && current == null)) {
+        _badRecord = false;
+        _futureRecord = false;
+        _recoveredRecord = false;
+        if (!validPayload(domain, payload)) {
             return false;
         }
         var a = readGeneration(domain, "a");
         var b = readGeneration(domain, "b");
-        if (_futureRecord) {
+        if (_futureRecord || (_badRecord && a == null && b == null)) {
             return false;
         }
         var currentRevision = 0;
@@ -131,8 +207,10 @@ class Store {
         var target = "a";
         if (a == null) {
             target = "a";
+            _recoveredRecord = b != null;
         } else if (b == null) {
             target = "b";
+            _recoveredRecord = true;
         } else {
             target = a["rev"] <= b["rev"] ? "a" : "b";
         }
@@ -145,12 +223,6 @@ class Store {
         } catch (error) {
             return false;
         }
-        var written = readGeneration(domain, target);
-        if (written != null && written["rev"] == envelope["rev"] &&
-            equal(written["payload"], payload)) {
-            return true;
-        }
-        var recovered = loadPair(domain);
-        return recovered != null && equal(recovered, payload);
+        return true;
     }
 }

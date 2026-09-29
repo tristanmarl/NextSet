@@ -89,6 +89,25 @@ function testSeedSemantics(logger as Test.Logger) as Boolean {
 }
 
 (:test)
+function testRoutineNameAndEmptyRoutine(logger as Test.Logger) as Boolean {
+    var tooLong = "";
+    for (var i = 0; i < 65; i++) {
+        tooLong += "a";
+    }
+    var routine = {"id" => "routine-empty", "name" => "Empty",
+        "revision" => 1, "entries" => []};
+    var config = {"routines" => [routine]};
+    return check(logger, Model.validNonblankText("Routine 3", 64) &&
+            !Model.validNonblankText("   ", 64) && !Model.validNonblankText(tooLong, 64),
+            "routine names must be nonblank and at most 64 UTF-8 bytes") &&
+        check(logger, Catalog.validRoutine(routine),
+            "an empty routine must be a valid saved routine") &&
+        check(logger, Catalog.createSession("routine-empty", "empty-1", 1, 100,
+            null, config) == null,
+            "an empty routine must not create a workout session");
+}
+
+(:test)
 function testTimedSetLifecycle(logger as Test.Logger) as Boolean {
     var session = Catalog.createSession("lower", "timed-1", 1, 100, null, null) as Dictionary;
     var running = SessionLogic.startTimed(session, "lower-dead-bug", 0, 100) as Dictionary;
@@ -143,6 +162,7 @@ function testNumericTemplateOverrides(logger as Test.Logger) as Boolean {
     increments["seated-row-machine"] = 250;
     increments["machine-chest-press"] = 260;
     var config = {};
+    config["schemaVersion"] = 1;
     config["templateOverrides"] = templateOverrides;
     config["incrementOverrides"] = increments;
 
@@ -184,6 +204,17 @@ function testNumericTemplateOverrides(logger as Test.Logger) as Boolean {
             ((deadBug["slots"] as Array)[0] as Dictionary)["draft"]["durationSec"] == 42 &&
             ((deadBug["slots"] as Array)[0] as Dictionary)["draft"]["load100"] == null,
             "timed entry accepts duration while rejecting reps and load overrides");
+}
+
+(:test)
+function testStoredSessionPayloadValidation(logger as Test.Logger) as Boolean {
+    var session = Catalog.createSession("upper", "validation-1", 1, 100, null, null) as Dictionary;
+    var malformed = SessionLogic.copyDictionary(session);
+    malformed["rest"] = ["bad", "record"];
+    return check(logger, Model.validStoredSession(session, false),
+            "a bounded session created from a valid routine must be recoverable") &&
+        check(logger, !Model.validStoredSession(malformed, false),
+            "malformed nested saved state must be rejected before recovery casts");
 }
 
 (:test)

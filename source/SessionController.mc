@@ -10,6 +10,14 @@ class SessionController {
     private var _activeUnsupported as Boolean = false;
     private var _activeCorrupt as Boolean = false;
     private var _fitSavedInMemory as Boolean = false;
+    private var _pendingStartConfig as Dictionary? = null;
+    private var _pendingStartSession as Dictionary? = null;
+    private var _startSequenceReserved as Boolean = false;
+    private var _historySaved as Boolean = false;
+    private var _cacheSaved as Boolean = false;
+    private var _historyAlreadyWritten as Boolean = false;
+    private var _pendingRecorderState as Dictionary? = null;
+    private var _pendingHistory as Dictionary? = null;
 
     public function initialize(store as Store) {
         _store = store;
@@ -29,9 +37,7 @@ class SessionController {
         } else if (_store.recoveredEarlierGeneration()) {
             _error = "Recovered earlier checkpoint";
         }
-        if (_session != null && Model.sameString(_session["status"], "finalizing")) {
-            finalizePending();
-        } else if (isWorkoutRunning()) {
+        if (isWorkoutRunning()) {
             recoverRunningSession(Time.now().value());
         }
     }
@@ -146,7 +152,10 @@ class SessionController {
             config["schemaVersion"] = 2;
             // Migration is safe during an active session; it preserves the old
             // numeric values before marking the config as v2.
-            _store.commitPair("config", config as Dictionary);
+            if (!_store.commitPair("config", config as Dictionary)) {
+                _error = "Settings migration save failed";
+                return null;
+            }
         }
         if (!(config["settings"] instanceof Dictionary)) {
             config["settings"] = {"defaultRestSec" => 90, "vibrationEnabled" => true};
@@ -172,15 +181,36 @@ class SessionController {
             _error = "Saved settings are damaged";
             return null;
         }
-        var routines = config["routines"] as Array;
-        for (var i = 0; i < routines.size(); i++) {
-            if (!(routines[i] instanceof Dictionary) ||
-                !Catalog.validRoutine(routines[i] as Dictionary)) {
-                _error = "Saved settings are damaged";
-                return null;
-            }
+        if (!validRoutineList(config["routines"] as Array)) {
+            _error = "Saved settings are damaged";
+            return null;
         }
         return config;
+    }
+
+    private function validRoutineName(name as String) as Boolean {
+        return Model.validNonblankText(name, 64);
+    }
+
+    private function validRoutineList(routines as Array) as Boolean {
+        if (routines.size() < 1 || routines.size() > Model.MAX_TEMPLATES) {
+            return false;
+        }
+        for (var i = 0; i < routines.size(); i++) {
+            if (!(routines[i] instanceof Dictionary)) {
+                return false;
+            }
+            var routine = routines[i] as Dictionary;
+            if (!Catalog.validRoutine(routine) || !validRoutineName(routine["name"] as String)) {
+                return false;
+            }
+            for (var j = 0; j < i; j++) {
+                if (Model.sameString((routines[j] as Dictionary)["id"], routine["id"])) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     private function saveConfig(config as Dictionary) as Boolean {
@@ -228,6 +258,25 @@ class SessionController {
     public function routineTemplates() as Array {
         var config = readConfig();
         return config == null ? [] : Catalog.routineTemplates(config as Dictionary);
+    }
+
+    public function incrementValues() as Dictionary? {
+        var config = readConfig();
+        if (config == null) {
+            return null;
+        }
+        var overrides = config["incrementOverrides"] as Dictionary;
+        var values = {};
+        var exercises = Catalog.exercises();
+        for (var i = 0; i < exercises.size(); i++) {
+            var exercise = exercises[i] as Dictionary;
+            if (Model.sameString(exercise["loadType"], "weight") ||
+                Model.sameString(exercise["loadType"], "assistance")) {
+                var value = Catalog.dictionaryValue(overrides, exercise["id"] as String);
+                values[exercise["id"]] = value instanceof Number ? value : exercise["increment100"];
+            }
+        }
+        return values;
     }
 
     private function routineDefinition(config as Dictionary, templateId as String) as Dictionary? {
@@ -509,18 +558,83 @@ class SessionController {
     }
 
     private function saveRoutines(config as Dictionary, routines as Array) as Boolean {
-        if (routines.size() != 2) {
+        if (!validRoutineList(routines)) {
+            _error = "Routine list is invalid";
             return false;
-        }
-        for (var i = 0; i < routines.size(); i++) {
-            var routine = routines[i] as Dictionary;
-            if (!Catalog.validRoutine(routine)) {
-                return false;
-            }
         }
         var next = SessionLogic.copyDictionary(config);
         next["routines"] = routines;
         return saveConfig(next);
+    }
+
+    public function createRoutine(name as String) as String? {
+        if (!configurationEditable()) {
+            return null;
+        }
+        if (!validRoutineName(name)) {
+            _error = "Routine name is required (64 bytes max)";
+            return null;
+        }
+        var config = readConfig();
+        if (config == null) {
+            return null;
+        }
+        var routines = copyRoutines(config as Dictionary);
+        if (routines.size() >= Model.MAX_TEMPLATES) {
+            _error = "Routine limit reached";
+            return null;
+        }
+        for (var i = 0; i < routines.size(); i++) {
+            if (Model.sameString((routines[i] as Dictionary)["name"], name)) {
+                _error = "Routine name already exists";
+                return null;
+            }
+        }
+        var sequence = config["routineNextEntrySeq"] as Number;
+        var id = "routine-" + sequence.toString();
+        while (routineIndexIn(routines, id) >= 0) {
+            sequence++;
+            id = "routine-" + sequence.toString();
+        }
+        var routine = {"id" => id, "name" => name, "revision" => 1, "entries" => []};
+        if (!Model.validId(id) || !Catalog.validRoutine(routine)) {
+            _error = "Routine could not be created";
+            return null;
+        }
+        routines.add(routine);
+        var next = SessionLogic.copyDictionary(config as Dictionary);
+        next["routineNextEntrySeq"] = sequence + 1;
+        if (!saveRoutines(next, routines)) {
+            return null;
+        }
+        return id;
+    }
+
+    public function deleteRoutine(templateId as String) as Boolean {
+        if (!configurationEditable()) {
+            return false;
+        }
+        if (Model.sameString(templateId, "upper") || Model.sameString(templateId, "lower")) {
+            _error = "Upper and Lower routines are kept";
+            return false;
+        }
+        var config = readConfig();
+        if (config == null) {
+            return false;
+        }
+        var routines = copyRoutines(config as Dictionary);
+        var index = routineIndexIn(routines, templateId);
+        if (index < 0) {
+            _error = "Routine not found";
+            return false;
+        }
+        var kept = [];
+        for (var i = 0; i < routines.size(); i++) {
+            if (i != index) {
+                kept.add(routines[i]);
+            }
+        }
+        return saveRoutines(config as Dictionary, kept);
     }
 
     private function makeRoutineEntry(templateId as String, entryId as String,
@@ -818,8 +932,28 @@ class SessionController {
         return !_recoveryBlocked;
     }
 
+    private function persistRecorderState(candidate as Dictionary) as Boolean {
+        if (!_store.commitPair("active", candidate)) {
+            _pendingRecorderState = candidate;
+            _error = "Activity state save failed";
+            return false;
+        }
+        _pendingRecorderState = null;
+        _session = candidate;
+        _error = null;
+        return true;
+    }
+
+    private function persistPendingRecorderState() as Boolean {
+        return _pendingRecorderState == null ||
+            persistRecorderState(_pendingRecorderState as Dictionary);
+    }
+
     public function ensureRecordingSegment() as Boolean {
         if (!isWorkoutRunning()) {
+            return false;
+        }
+        if (!persistPendingRecorderState()) {
             return false;
         }
         if (_recorder.isRecording()) {
@@ -851,12 +985,9 @@ class SessionController {
                 candidate["fitSegments"] as Number : 0;
             candidate["fitSegments"] = savedCount + 1;
             candidate["fitState"] = "segment_saved";
-            if (!_store.commitPair("active", candidate)) {
-                _session = candidate;
-                _error = "Activity state save failed";
+            if (!persistRecorderState(candidate)) {
                 return false;
             }
-            _session = candidate;
         }
         candidate = SessionLogic.copyDictionary(_session as Dictionary);
         if (Model.sameString(candidate["fitState"], "recording") ||
@@ -874,15 +1005,20 @@ class SessionController {
         if (!_recorder.start(candidate["templateName"] as String)) {
             candidate = SessionLogic.copyDictionary(_session as Dictionary);
             candidate["fitState"] = "failed";
-            _store.commitPair("active", candidate);
-            _session = candidate;
+            if (!persistRecorderState(candidate)) {
+                _error = "Activity recording failed to start; state save failed";
+                return false;
+            }
             _error = "Activity recording failed to start";
             return false;
         }
         candidate = SessionLogic.copyDictionary(_session as Dictionary);
         candidate["fitState"] = "recording";
         if (!_store.commitPair("active", candidate)) {
-            _recorder.discard();
+            if (!_recorder.discard()) {
+                _error = "Activity state save and discard failed";
+                return false;
+            }
             _error = "Activity state save failed";
             return false;
         }
@@ -892,11 +1028,16 @@ class SessionController {
     }
 
     public function saveRecordingSegment() as Boolean {
+        if (_pendingRecorderState != null) {
+            return persistPendingRecorderState() &&
+                Model.sameString((_session as Dictionary)["fitState"], "segment_saved");
+        }
         if (!hasActiveSession() || !_recorder.hasSession()) {
             return false;
         }
         var candidate = SessionLogic.copyDictionary(_session as Dictionary);
-        if (_recorder.save()) {
+        var saved = _recorder.save();
+        if (saved) {
             var count = candidate["fitSegments"] instanceof Number ?
                 candidate["fitSegments"] as Number : 0;
             candidate["fitSegments"] = count + 1;
@@ -905,7 +1046,9 @@ class SessionController {
             candidate["fitState"] = "failed";
         }
         if (!_store.commitPair("active", candidate)) {
-            _session = candidate;
+            if (saved) {
+                _pendingRecorderState = candidate;
+            }
             _error = "Activity state save failed";
             return false;
         }
@@ -1046,7 +1189,11 @@ class SessionController {
     }
 
     public function retryFinalization() as Boolean {
-        return hasPendingFinalization() && finalizePending();
+        if (!hasPendingFinalization()) {
+            return false;
+        }
+        _error = null;
+        return true;
     }
 
     public function hasRest() as Boolean {
@@ -1171,6 +1318,7 @@ class SessionController {
     }
 
     private function historySlot(ended as Dictionary) as Number {
+        _historyAlreadyWritten = false;
         var empty = -1;
         var oldest = -1;
         var oldestSequence = 2147483647;
@@ -1186,6 +1334,7 @@ class SessionController {
                 continue;
             }
             if (Model.sameString(record["id"], ended["id"])) {
+                _historyAlreadyWritten = true;
                 return i;
             }
             var sequence = record["sessionSeq"];
@@ -1212,17 +1361,60 @@ class SessionController {
         return rebuilt;
     }
 
-    private function finalizePending() as Boolean {
+    private function archivedSession(ended as Dictionary) as Dictionary {
+        var archive = {};
+        var fields = ["id", "sessionSeq", "templateId", "templateRevision", "templateName",
+            "startedAt", "endedAt", "status", "completionKind", "elapsedSec", "activeSec",
+            "fitState", "fitSegments", "fitUnknownSegments"];
+        for (var i = 0; i < fields.size(); i++) {
+            var field = fields[i] as String;
+            if (ended.hasKey(field)) {
+                archive[field] = ended[field];
+            }
+        }
+        var exercises = ended["exercises"] as Array;
+        var archivedExercises = [];
+        for (var i = 0; i < exercises.size(); i++) {
+            var source = exercises[i] as Dictionary;
+            var exercise = {
+                "entryId" => source["entryId"],
+                "exerciseId" => source["exerciseId"],
+                "name" => source["name"],
+                "loadType" => source["loadType"],
+                "loadUnit" => source["loadUnit"],
+                "plannedSetCount" => source["plannedSetCount"],
+                "closedEarly" => source["closedEarly"]
+            };
+            var slots = source["slots"] as Array;
+            var archivedSlots = [];
+            for (var j = 0; j < slots.size(); j++) {
+                archivedSlots.add({"completed" => (slots[j] as Dictionary)["completed"]});
+            }
+            exercise["slots"] = archivedSlots;
+            archivedExercises.add(exercise);
+        }
+        archive["exercises"] = archivedExercises;
+        return archive;
+    }
+
+    public function advanceFinalization() as Boolean {
         if (!hasPendingFinalization()) {
             return false;
         }
+        _error = null;
         var frozen = _session as Dictionary;
-        var outcome = frozen["finishOutcome"] as String;
+        var outcome = frozen["finishOutcome"];
+        if (!(Model.sameString(outcome, "completed") || Model.sameString(outcome, "aborted"))) {
+            _error = "Saved workout is damaged";
+            return false;
+        }
         if (Model.sameString(outcome, "completed")) {
             var recording = SessionLogic.copyDictionary(frozen);
             var state = recording["fitState"];
-            if (Model.sameString(state, "saving")) {
-                if (_fitSavedInMemory) {
+            if (Model.sameString(state, "saving") || Model.sameString(state, "segment_saved")) {
+                if (Model.sameString(state, "segment_saved")) {
+                    recording["fitState"] = "saved";
+                } else if (_fitSavedInMemory) {
                     recording["fitState"] = "saved";
                 } else if (_recorder.hasSession()) {
                     if (_recorder.save()) {
@@ -1233,11 +1425,7 @@ class SessionController {
                         _fitSavedInMemory = true;
                     } else {
                         recording["fitState"] = "failed";
-                        _error = "Activity save failed";
                     }
-                } else if (recording["fitSegments"] instanceof Number &&
-                           recording["fitSegments"] > 0) {
-                    recording["fitState"] = "saved";
                 } else {
                     // The process restarted during save; the SDK has no way to
                     // query whether this segment reached the FIT file system.
@@ -1245,36 +1433,43 @@ class SessionController {
                 }
                 if (!_store.commitPair("active", recording)) {
                     _error = "Activity state save failed";
+                    return false;
                 }
                 _session = recording;
-                frozen = recording;
-            } else if (Model.sameString(state, "segment_saved")) {
-                recording["fitState"] = "saved";
-                _session = recording;
-                frozen = recording;
+                _error = null;
+                return false;
             }
         }
         var ended = SessionLogic.copyDictionary(frozen);
         ended["status"] = outcome;
-        var target = historySlot(ended);
-        if (target < 0) {
-            _error = "History needs newer app";
-            return false;
-        }
-        if (!_store.commitPair("history" + target.toString(), ended)) {
-            _error = "History save failed";
+        if (!_historySaved) {
+            var target = historySlot(ended);
+            if (target < 0) {
+                _error = "History needs newer app";
+                return false;
+            }
+            if (!_historyAlreadyWritten &&
+                !_store.commitPair("history" + target.toString(), archivedSession(ended))) {
+                _error = "History save failed";
+                return false;
+            }
+            _historySaved = true;
+            _error = null;
             return false;
         }
 
-        if (Model.sameString(outcome, "completed")) {
+        if (Model.sameString(outcome, "completed") && !_cacheSaved) {
             var cache = readLastCache();
             if (!_store.hasUnsupportedRecord()) {
-                var nextCache = LastPerformance.merge(cache, ended);
+                var nextCache = LastPerformance.merge(cache, archivedSession(ended));
                 if (!_store.commitPair("last", nextCache)) {
                     _error = "Previous performance save failed";
                     return false;
                 }
             }
+            _cacheSaved = true;
+            _error = null;
+            return false;
         }
 
         var tombstone = {
@@ -1292,34 +1487,83 @@ class SessionController {
             _error = "Activity save failed";
         } else if (Model.sameString(ended["fitState"], "unknown")) {
             _error = "Activity result unknown";
+        } else if (Model.sameString(ended["fitState"], "discard_failed")) {
+            _error = "Activity discard failed";
         } else {
             _error = null;
         }
         return true;
     }
 
-    public function startWorkout(templateId as String, now as Number) as Boolean {
-        if (hasActiveSession() || hasPendingFinalization() || _activeUnsupported || _activeCorrupt) {
+    public function prepareWorkoutStart(templateId as String, now as Number) as Boolean {
+        if (_pendingStartConfig != null || _pendingStartSession != null) {
+            _error = "Workout is already starting";
             return false;
         }
+        if (hasActiveSession() || hasPendingFinalization() || _activeUnsupported || _activeCorrupt) {
+            _error = _activeUnsupported ? "Update app to resume" :
+                (_activeCorrupt ? "Saved workout is damaged" : "Workout cannot start");
+            return false;
+        }
+        _error = null;
         var config = readConfig();
         if (config == null) {
             return false;
         }
         var sequence = (config as Dictionary)["nextSessionSeq"] as Number;
-        var nextConfig = SessionLogic.copyDictionary(config as Dictionary);
-        nextConfig["nextSessionSeq"] = sequence + 1;
-        if (!_store.commitPair("config", nextConfig)) {
-            _error = "Could not reserve workout ID";
+        var routine = Catalog.routineTemplate(config as Dictionary, templateId);
+        if (routine == null) {
+            _error = "Routine not found";
+            return false;
+        }
+        if (((routine as Dictionary)["entries"] as Array).size() == 0) {
+            _error = "Routine has no exercises";
             return false;
         }
         var sessionId = "session-" + sequence.toString();
         var cache = readLastCache();
-        var candidate = Catalog.createSession(templateId, sessionId, sequence, now, cache, nextConfig);
+        var candidate = Catalog.createSession(templateId, sessionId, sequence, now, cache,
+            config as Dictionary);
         if (candidate == null) {
+            _error = "Workout could not be created";
             return false;
         }
-        var fresh = candidate as Dictionary;
+        _pendingStartConfig = config as Dictionary;
+        _pendingStartSession = candidate as Dictionary;
+        _startSequenceReserved = false;
+        return true;
+    }
+
+    public function reserveWorkoutStart() as Boolean {
+        if (_pendingStartConfig == null || _pendingStartSession == null ||
+            _startSequenceReserved) {
+            _error = "Workout could not be created";
+            cancelWorkoutStart();
+            return false;
+        }
+        var config = _pendingStartConfig as Dictionary;
+        var sequence = config["nextSessionSeq"] as Number;
+        var nextConfig = SessionLogic.copyDictionary(config as Dictionary);
+        nextConfig["nextSessionSeq"] = sequence + 1;
+        if (!_store.commitPair("config", nextConfig)) {
+            _error = "Could not reserve workout ID";
+            cancelWorkoutStart();
+            return false;
+        }
+        _pendingStartConfig = null;
+        _startSequenceReserved = true;
+        _error = null;
+        return true;
+    }
+
+    public function commitWorkoutStart(now as Number) as Boolean {
+        if (_pendingStartSession == null || !_startSequenceReserved) {
+            _error = "Workout could not be created";
+            cancelWorkoutStart();
+            return false;
+        }
+        var fresh = _pendingStartSession as Dictionary;
+        fresh["startedAt"] = now;
         var clock = WorkoutClock.start(now);
         var clockKeys = clock.keys();
         for (var i = 0; i < clockKeys.size(); i++) {
@@ -1329,17 +1573,31 @@ class SessionController {
         fresh["fitState"] = "recording";
         fresh["fitSegments"] = 0;
         fresh["fitUnknownSegments"] = 0;
+        _fitSavedInMemory = false;
+        _historySaved = false;
+        _cacheSaved = false;
+        _pendingHistory = null;
+        _pendingRecorderState = null;
         if (!_recorder.start(fresh["templateName"] as String)) {
             _error = "Activity recording failed to start";
+            cancelWorkoutStart();
             return false;
         }
         if (!commit(fresh)) {
             if (!_recorder.discard()) {
                 _error = "Activity discard failed";
             }
+            cancelWorkoutStart();
             return false;
         }
+        cancelWorkoutStart();
         return true;
+    }
+
+    public function cancelWorkoutStart() as Void {
+        _pendingStartConfig = null;
+        _pendingStartSession = null;
+        _startSequenceReserved = false;
     }
 
     public function addSet(entryId as String) as Boolean {
@@ -1555,10 +1813,14 @@ class SessionController {
 
     public function finish(outcome as String, now as Number) as Boolean {
         if (hasPendingFinalization()) {
-            return finalizePending();
+            _error = "Workout is already finishing";
+            return false;
         }
         if (!hasActiveSession() ||
             (!Model.sameString(outcome, "completed") && !Model.sameString(outcome, "aborted"))) {
+            return false;
+        }
+        if (!persistPendingRecorderState()) {
             return false;
         }
         var candidate = SessionLogic.copyDictionary(_session as Dictionary);
@@ -1604,20 +1866,36 @@ class SessionController {
         if (!commit(candidate)) {
             return false;
         }
+        _historySaved = false;
+        _cacheSaved = false;
+        _historyAlreadyWritten = false;
         if (Model.sameString(candidate["fitState"], "discard_failed")) {
             _error = "Activity discard failed";
         }
-        return finalizePending();
+        return true;
     }
 
     public function canRetryActivitySave() as Boolean {
-        return _session != null && Model.sameString(_session["status"], "completed") &&
-            Model.sameString(_session["fitState"], "failed") && _recorder.hasSession();
+        return _pendingHistory != null || (_session != null &&
+            Model.sameString(_session["status"], "completed") &&
+            Model.sameString(_session["fitState"], "failed") && _recorder.hasSession());
     }
 
     public function retryActivitySave() as Boolean {
         if (!canRetryActivitySave()) {
             return false;
+        }
+        if (_pendingHistory != null) {
+            var target = historySlot(_pendingHistory as Dictionary);
+            if (target < 0 || !_store.commitPair("history" + target.toString(),
+                archivedSession(_pendingHistory as Dictionary))) {
+                _error = "Activity saved; history update failed";
+                return false;
+            }
+            _session = _pendingHistory;
+            _pendingHistory = null;
+            _error = null;
+            return true;
         }
         if (!_recorder.save()) {
             _error = "Activity save failed";
@@ -1628,9 +1906,10 @@ class SessionController {
         ended["fitSegments"] = count + 1;
         ended["fitState"] = "saved";
         var target = historySlot(ended);
-        if (target >= 0 && !_store.commitPair("history" + target.toString(), ended)) {
+        if (target < 0 || !_store.commitPair("history" + target.toString(),
+            archivedSession(ended))) {
+            _pendingHistory = ended;
             _fitSavedInMemory = true;
-            _session = ended;
             _error = "Activity saved; history update failed";
             return false;
         }

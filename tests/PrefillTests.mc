@@ -124,3 +124,39 @@ function testLastPerformanceTypesAndDefaults(logger as Test.Logger) as Boolean {
             unitMismatch["last"] == null,
             "type or unit mismatch must not prefill from another load semantic");
 }
+
+(:test)
+function testLastPerformanceCacheBound(logger as Test.Logger) as Boolean {
+    var cache = {};
+    for (var i = 1; i <= 34; i++) {
+        var exercise = {"exerciseId" => "exercise-" + i.toString(),
+            "loadType" => "bodyweight", "loadUnit" => null,
+            "slots" => [{"completed" => {"reps" => 8}}]};
+        var ended = {"id" => "session-" + i.toString(), "sessionSeq" => i,
+            "endedAt" => i, "status" => "completed", "completionKind" => "partial",
+            "exercises" => [exercise]};
+        cache = LastPerformance.merge(cache, ended);
+    }
+    return check(logger, cache.keys().size() == LastPerformance.MAX_CACHE_ENTRIES &&
+            cache["exercise-1"] == null && cache["exercise-34"] != null,
+        "the prefill cache must retain only the most recent bounded exercise records");
+}
+
+(:test)
+function testMalformedPrefillEntryDoesNotDiscardValidEntries(logger as Test.Logger) as Boolean {
+    var cache = {};
+    for (var i = 1; i <= 2; i++) {
+        var exercise = {"exerciseId" => "exercise-" + i.toString(),
+            "loadType" => "bodyweight", "loadUnit" => null,
+            "slots" => [{"completed" => {"reps" => 8}}]};
+        var ended = {"id" => "session-" + i.toString(), "sessionSeq" => i,
+            "endedAt" => i, "status" => "completed", "completionKind" => "partial",
+            "exercises" => [exercise]};
+        cache = LastPerformance.merge(cache, ended);
+    }
+    cache["exercise-1"] = {"exerciseId" => "exercise-1", "loadType" => "bodyweight",
+        "unit" => null, "sets" => ["malformed"]};
+    var clean = LastPerformance.sanitizeCache(cache);
+    return check(logger, clean["exercise-1"] == null && clean["exercise-2"] != null,
+        "an invalid saved prefill entry must not discard other valid exercise entries");
+}

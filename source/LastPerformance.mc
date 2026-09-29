@@ -1,6 +1,10 @@
 import Toybox.Lang;
 
 module LastPerformance {
+    // ponytail: cap prefill to 32 exercises; retain a larger index when cache history needs it.
+    const MAX_CACHE_ENTRIES = 32;
+    const MAX_READ_ENTRIES = 128;
+
     // Cached tuples are [slot, load100, reps, durationSec], ordered by slot.
     function copyDictionary(source as Dictionary) as Dictionary {
         var copy = {};
@@ -34,6 +38,64 @@ module LastPerformance {
         }
         return Model.sameString(type, "timed") && values[1] == null && values[2] == null &&
             Model.inRange(values[3], 1, Model.MAX_DURATION_SEC, false);
+    }
+
+    function validCacheEntry(id as Object?, entry as Object?) as Boolean {
+        if (!Model.validId(id) || !(entry instanceof Dictionary)) {
+            return false;
+        }
+        var item = entry as Dictionary;
+        var type = item["loadType"];
+        var unit = item["unit"];
+        var sets = item["sets"];
+        if (!Model.sameString(item["exerciseId"], id) || !Model.validLoadType(type) ||
+            !Model.validId(item["sourceSessionId"]) ||
+            !Model.inRange(item["sourceSessionSeq"], 1, 2147483647, false) ||
+            !Model.inRange(item["sourceEndedAt"], 0, 2147483647, false) ||
+            (item["completionKind"] != null &&
+             !Model.sameString(item["completionKind"], "full") &&
+             !Model.sameString(item["completionKind"], "partial")) ||
+            !(sets instanceof Array) || (sets as Array).size() == 0 ||
+            (sets as Array).size() > Model.MAX_SETS) {
+            return false;
+        }
+        if ((Model.sameString(type, "weight") || Model.sameString(type, "assistance")) ?
+            !Model.sameString(unit, "kg") : unit != null) {
+            return false;
+        }
+        var exercise = {"exerciseId" => id, "loadType" => type};
+        var values = sets as Array;
+        for (var j = 0; j < values.size(); j++) {
+            if (!validTuple(exercise, values[j]) ||
+                (j > 0 && (values[j - 1] as Array)[0] >= (values[j] as Array)[0])) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    function sanitizeCache(cache as Dictionary) as Dictionary {
+        var clean = {};
+        var ids = cache.keys();
+        if (ids.size() > MAX_READ_ENTRIES) {
+            return clean;
+        }
+        for (var i = 0; i < ids.size(); i++) {
+            var id = ids[i];
+            if (validCacheEntry(id, cache[id])) {
+                clean[id] = cache[id];
+            }
+        }
+        return clean;
+    }
+
+    function validCache(cache as Object?) as Boolean {
+        if (!(cache instanceof Dictionary)) {
+            return false;
+        }
+        var saved = cache as Dictionary;
+        return saved.keys().size() <= MAX_READ_ENTRIES &&
+            sanitizeCache(saved).keys().size() == saved.keys().size();
     }
 
     function performedSets(exercise as Dictionary) as Array {
@@ -109,7 +171,35 @@ module LastPerformance {
             entry["sets"] = sets;
             result[id as String] = entry;
         }
-        return result;
+        var keys = result.keys();
+        if (keys.size() <= MAX_CACHE_ENTRIES) {
+            return result;
+        }
+        var chosen = [];
+        for (var i = 0; i < keys.size(); i++) {
+            chosen.add(false);
+        }
+        var bounded = {};
+        for (var pick = 0; pick < MAX_CACHE_ENTRIES; pick++) {
+            var newest = -1;
+            var newestIndex = -1;
+            for (var i = 0; i < keys.size(); i++) {
+                if (chosen[i]) {
+                    continue;
+                }
+                var cachedSequence = result[keys[i]]["sourceSessionSeq"] as Number;
+                if (cachedSequence > newest) {
+                    newest = cachedSequence;
+                    newestIndex = i;
+                }
+            }
+            if (newestIndex < 0) {
+                break;
+            }
+            chosen[newestIndex] = true;
+            bounded[keys[newestIndex]] = result[keys[newestIndex]];
+        }
+        return bounded;
     }
 
     function matchingSets(exercise as Dictionary, cached as Dictionary?) as Array? {
@@ -120,7 +210,7 @@ module LastPerformance {
             return null;
         }
         var sets = cached["sets"] as Array;
-        if (sets.size() == 0) {
+        if (sets.size() == 0 || sets.size() > Model.MAX_SETS) {
             return null;
         }
         for (var i = 0; i < sets.size(); i++) {

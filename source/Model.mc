@@ -46,6 +46,19 @@ module Model {
         return value instanceof String && byteLength(value as String) <= maxBytes;
     }
 
+    function validNonblankText(value as Object?, maxBytes as Number) as Boolean {
+        if (!validText(value, maxBytes, false)) {
+            return false;
+        }
+        var bytes = (value as String).toUtf8Array();
+        for (var i = 0; i < bytes.size(); i++) {
+            if (bytes[i] > 32 && bytes[i] != 127) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     function inRange(value as Object?, min as Number, max as Number, nullable as Boolean) as Boolean {
         if (value == null) {
             return nullable;
@@ -120,5 +133,270 @@ module Model {
             }
         }
         return total <= MAX_SETS_PER_WORKOUT;
+    }
+
+    function validStoredSession(session as Object?, history as Boolean) as Boolean {
+        if (!(session instanceof Dictionary)) {
+            return false;
+        }
+        var record = session as Dictionary;
+        var status = record["status"];
+        if (!history && (sameString(status, "completed") || sameString(status, "aborted")) &&
+            !(record["exercises"] instanceof Array)) {
+            return validId(record["id"]) && inRange(record["sessionSeq"], 1, 2147483647, false) &&
+                inRange(record["endedAt"], 0, 2147483647, false);
+        }
+        if (!(sameString(status, "active") || sameString(status, "paused") ||
+              sameString(status, "finalizing") ||
+              (history && (sameString(status, "completed") || sameString(status, "aborted")))) ||
+            !validId(record["id"]) || !inRange(record["sessionSeq"], 1, 2147483647, false) ||
+            !validId(record["templateId"]) ||
+            !inRange(record["templateRevision"], 1, 1000000, false) ||
+            !validNonblankText(record["templateName"], 64) ||
+            !inRange(record["startedAt"], 0, 2147483647, false) ||
+            !(record["exercises"] instanceof Array)) {
+            return false;
+        }
+        if (record["endedAt"] != null && !inRange(record["endedAt"], 0, 2147483647, false)) {
+            return false;
+        }
+        if (record["completionKind"] != null &&
+            !sameString(record["completionKind"], "full") &&
+            !sameString(record["completionKind"], "partial")) {
+            return false;
+        }
+        if (record["fitSegments"] != null && !inRange(record["fitSegments"], 0, 1000, false)) {
+            return false;
+        }
+        if (record["fitUnknownSegments"] != null &&
+            !inRange(record["fitUnknownSegments"], 0, 1000, false)) {
+            return false;
+        }
+        var fitState = record["fitState"];
+        if (fitState != null && !(sameString(fitState, "recording") ||
+            sameString(fitState, "paused") || sameString(fitState, "segment_saved") ||
+            sameString(fitState, "interrupted") || sameString(fitState, "failed") ||
+            sameString(fitState, "saving") || sameString(fitState, "saved") ||
+            sameString(fitState, "unknown") || sameString(fitState, "discarded") ||
+            sameString(fitState, "discard_failed"))) {
+            return false;
+        }
+        if (sameString(status, "finalizing")) {
+            if (!(sameString(record["finishOutcome"], "completed") ||
+                  sameString(record["finishOutcome"], "aborted")) ||
+                !inRange(record["endedAt"], 0, 2147483647, false)) {
+                return false;
+            }
+        } else if (history &&
+            (!inRange(record["endedAt"], 0, 2147483647, false) ||
+             !inRange(record["elapsedSec"], 0, 2147483647, false) ||
+             !inRange(record["activeSec"], 0, 2147483647, false))) {
+            return false;
+        }
+        if (record["pausedSec"] != null && !inRange(record["pausedSec"], 0, 2147483647, false)) {
+            return false;
+        }
+        if (record["recoveryGapSec"] != null &&
+            !inRange(record["recoveryGapSec"], 0, 2147483647, false)) {
+            return false;
+        }
+        if (record["lastCheckpointAt"] != null &&
+            !inRange(record["lastCheckpointAt"], 0, 2147483647, false)) {
+            return false;
+        }
+
+        var exercises = record["exercises"] as Array;
+        if (exercises.size() < 1 || exercises.size() > MAX_ENTRIES) {
+            return false;
+        }
+        var totalSlots = 0;
+        var entryIds = [];
+        for (var i = 0; i < exercises.size(); i++) {
+            var exercise = exercises[i];
+            if (!(exercise instanceof Dictionary)) {
+                return false;
+            }
+            var item = exercise as Dictionary;
+            var type = item["loadType"];
+            var planned = item["plannedSetCount"];
+            var slots = item["slots"];
+            if (!validId(item["entryId"]) || !validId(item["exerciseId"]) ||
+                !validNonblankText(item["name"], 64) || !validLoadType(type) ||
+                !(sameString(type, "weight") || sameString(type, "assistance") ?
+                    sameString(item["loadUnit"], "kg") : item["loadUnit"] == null) ||
+                !inRange(planned, 1, MAX_SETS, false) ||
+                !(slots instanceof Array) || (slots as Array).size() != planned ||
+                !(item["closedEarly"] instanceof Boolean) ||
+                !inRange(item["restSec"], 0, MAX_REST_SEC, true) ||
+                !inRange(item["weightIncrement100"], 25, 10000, true) ||
+                !inRange(item["targetRepsMin"], 1, MAX_REPS, true) ||
+                !inRange(item["targetRepsMax"], 1, MAX_REPS, true) ||
+                !inRange(item["targetDurationSec"], 1, MAX_DURATION_SEC, true) ||
+                !validText(item["notes"], 160, true)) {
+                return false;
+            }
+            for (var j = 0; j < entryIds.size(); j++) {
+                if (sameString(entryIds[j], item["entryId"])) {
+                    return false;
+                }
+            }
+            entryIds.add(item["entryId"]);
+            var setSlots = slots as Array;
+            totalSlots += setSlots.size();
+            for (var s = 0; s < setSlots.size(); s++) {
+                var slot = setSlots[s];
+                if (!(slot instanceof Dictionary)) {
+                    return false;
+                }
+                var savedSlot = slot as Dictionary;
+                if (!history && !(savedSlot["draft"] instanceof Dictionary)) {
+                    return false;
+                }
+                if (savedSlot["draft"] != null && !validSavedDraft(type, savedSlot["draft"])) {
+                    return false;
+                }
+                var completed = savedSlot["completed"];
+                if (completed != null && !validCompletedSet(type, completed, s)) {
+                    return false;
+                }
+            }
+        }
+        if (totalSlots > MAX_SETS_PER_WORKOUT) {
+            return false;
+        }
+        if (record["nextSetSequence"] != null &&
+            !inRange(record["nextSetSequence"], 1, 2147483647, false)) {
+            return false;
+        }
+        if (record["restGeneration"] != null &&
+            !inRange(record["restGeneration"], 0, 2147483647, false)) {
+            return false;
+        }
+        if (record["timedRun"] != null && !validTimedRun(record["timedRun"], exercises)) {
+            return false;
+        }
+        if (record["rest"] != null && !validRest(record["rest"], exercises)) {
+            return false;
+        }
+        if (record["lastCompleted"] != null && !validSessionPointer(record["lastCompleted"], exercises)) {
+            return false;
+        }
+        return true;
+    }
+
+    function validSavedDraft(type as Object?, draft as Object?) as Boolean {
+        if (!(draft instanceof Dictionary)) {
+            return false;
+        }
+        var values = draft as Dictionary;
+        if (!inRange(values["load100"], 0, MAX_LOAD100, true) ||
+            !inRange(values["reps"], 1, MAX_REPS, true) ||
+            !inRange(values["durationSec"], 1, MAX_DURATION_SEC, true) ||
+            !inRange(values["measuredSec"], 0, MAX_DURATION_SEC, true) ||
+            (values["durationEdited"] != null && !(values["durationEdited"] instanceof Boolean)) ||
+            (values["targetAlertConsumed"] != null &&
+             !(values["targetAlertConsumed"] instanceof Boolean))) {
+            return false;
+        }
+        if (sameString(type, "weight") || sameString(type, "assistance")) {
+            return values["durationSec"] == null;
+        }
+        if (sameString(type, "bodyweight")) {
+            return values["load100"] == null && values["durationSec"] == null;
+        }
+        return values["load100"] == null && values["reps"] == null;
+    }
+
+    function validCompletedSet(type as Object?, completed as Object?, slot as Number) as Boolean {
+        if (!(completed instanceof Dictionary)) {
+            return false;
+        }
+        var set = completed as Dictionary;
+        if (set["slot"] != slot || !inRange(set["sequence"], 1, 2147483647, false) ||
+            !inRange(set["completedAt"], 0, 2147483647, false) ||
+            (set["updatedAt"] != null && !inRange(set["updatedAt"], 0, 2147483647, false))) {
+            return false;
+        }
+        if (sameString(type, "weight") || sameString(type, "assistance")) {
+            return inRange(set["load100"], 0, MAX_LOAD100, false) &&
+                inRange(set["reps"], 1, MAX_REPS, false) && set["durationSec"] == null;
+        }
+        if (sameString(type, "bodyweight")) {
+            return set["load100"] == null && inRange(set["reps"], 1, MAX_REPS, false) &&
+                set["durationSec"] == null;
+        }
+        return set["load100"] == null && set["reps"] == null &&
+            inRange(set["durationSec"], 1, MAX_DURATION_SEC, false) &&
+            (sameString(set["durationSource"], "manual") ||
+             sameString(set["durationSource"], "measured"));
+    }
+
+    function validSessionPointer(pointer as Object?, exercises as Array) as Boolean {
+        if (!(pointer instanceof Dictionary)) {
+            return false;
+        }
+        var item = pointer as Dictionary;
+        for (var i = 0; i < exercises.size(); i++) {
+            var exercise = exercises[i] as Dictionary;
+            if (sameString(item["entryId"], exercise["entryId"])) {
+                return inRange(item["slot"], 0, (exercise["slots"] as Array).size() - 1, false);
+            }
+        }
+        return false;
+    }
+
+    function validTimedRun(run as Object?, exercises as Array) as Boolean {
+        if (!(run instanceof Dictionary)) {
+            return false;
+        }
+        var item = run as Dictionary;
+        if (!validId(item["entryId"]) ||
+            !inRange(item["slot"], 0, MAX_SETS - 1, false) ||
+            !inRange(item["startedAt"], 0, 2147483647, false) ||
+            !inRange(item["accumulatedSec"], 0, MAX_DURATION_SEC, false) ||
+            !(item["targetAlertConsumed"] instanceof Boolean)) {
+            return false;
+        }
+        for (var i = 0; i < exercises.size(); i++) {
+            var exercise = exercises[i] as Dictionary;
+            if (sameString(item["entryId"], exercise["entryId"])) {
+                var slot = item["slot"] as Number;
+                return sameString(exercise["loadType"], "timed") &&
+                    slot < (exercise["slots"] as Array).size() &&
+                    (exercise["slots"] as Array)[slot]["completed"] == null;
+            }
+        }
+        return false;
+    }
+
+    function validRest(rest as Object?, exercises as Array) as Boolean {
+        if (!(rest instanceof Dictionary)) {
+            return false;
+        }
+        var item = rest as Dictionary;
+        if (!inRange(item["id"], 0, 2147483647, false) || !validId(item["entryId"]) ||
+            !inRange(item["slot"], 0, MAX_SETS - 1, false) ||
+            !inRange(item["startedAt"], 0, 2147483647, false) ||
+            !inRange(item["durationSec"], 0, MAX_REST_SEC, false) ||
+            !inRange(item["endsAt"], 0, 2147483647, false) ||
+            !(sameString(item["state"], "running") || sameString(item["state"], "paused") ||
+              sameString(item["state"], "expired") || sameString(item["state"], "dismissed")) ||
+            !(item["alertConsumed"] instanceof Boolean)) {
+            return false;
+        }
+        if (item["remainingWhenPausedSec"] != null &&
+            !inRange(item["remainingWhenPausedSec"], 0, MAX_REST_SEC, false)) {
+            return false;
+        }
+        if (item["pausedAt"] != null && !inRange(item["pausedAt"], 0, 2147483647, false)) {
+            return false;
+        }
+        for (var i = 0; i < exercises.size(); i++) {
+            var exercise = exercises[i] as Dictionary;
+            if (sameString(item["entryId"], exercise["entryId"])) {
+                return (item["slot"] as Number) < (exercise["slots"] as Array).size();
+            }
+        }
+        return false;
     }
 }

@@ -109,7 +109,6 @@ module Catalog {
                 entry["name"] = definition["name"];
                 entry["loadType"] = definition["loadType"];
                 entry["unit"] = definition["unit"];
-                entry["increment100"] = definition["increment100"];
                 entry["defaultRestSec"] = definition["defaultRestSec"];
                 entry["isBodyWeight"] = definition["isBodyWeight"];
                 entry["garminCategory"] = definition["garminCategory"];
@@ -140,7 +139,7 @@ module Catalog {
         var seeded = exercise(id as String);
         if (seeded != null) {
             var copy = SessionLogic.copyDictionary(seeded as Dictionary);
-            var keys = ["name", "loadType", "unit", "increment100",
+            var keys = ["name", "loadType", "unit",
                 "defaultRestSec", "notes", "isBodyWeight", "garminCategory", "garminCode"];
             for (var i = 0; i < keys.size(); i++) {
                 var key = keys[i] as String;
@@ -148,6 +147,9 @@ module Catalog {
                     Model.sameString(key, "increment100")) {
                     copy[key] = entry[key];
                 }
+            }
+            if (entry["increment100"] instanceof Number) {
+                copy["increment100"] = entry["increment100"];
             }
             return copy;
         }
@@ -219,13 +221,8 @@ module Catalog {
         if (source == null) {
             return null;
         }
-        var keys = (source as Dictionary).keys();
-        for (var i = 0; i < keys.size(); i++) {
-            if (Model.sameString(keys[i], key)) {
-                return (source as Dictionary)[keys[i]];
-            }
-        }
-        return null;
+        var dictionary = source as Dictionary;
+        return dictionary.hasKey(key) ? dictionary[key] : null;
     }
 
     function overridesFor(config as Dictionary?, templateId as String,
@@ -279,7 +276,7 @@ module Catalog {
     function createSession(templateId as String, id as String, sequence as Number,
                            now as Number, cache as Dictionary?, config as Dictionary?) as Dictionary? {
         var workout = routineTemplate(config, templateId);
-        if (workout == null || !valid() || !validRoutine(workout as Dictionary) ||
+        if (workout == null || !validRoutine(workout as Dictionary) ||
             (workout as Dictionary)["entries"].size() == 0) {
             return null;
         }
