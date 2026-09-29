@@ -36,7 +36,8 @@ class NumberEditView extends WatchUi.View {
         dc.clear();
         var caption = UiFormat.captionFont();
         var title = _configKind != null ? "EDIT CONFIG" :
-            ((_correcting ? "EDIT SET " : "EDIT NEXT ") + (_slot + 1).toString());
+            ("Set " + (_slot + 1).toString() + (_correcting ? " (done) · " : " · ") +
+                fieldWord());
         var y = UiFormat.drawLine(dc, title, 72, Graphics.FONT_XTINY) + 6;
         y = UiFormat.drawLine(dc, fieldLabel(), y, Graphics.FONT_SMALL) + 6;
         y = UiFormat.drawLine(dc, displayValue(), y, Graphics.FONT_LARGE) + 10;
@@ -72,7 +73,7 @@ class NumberEditView extends WatchUi.View {
             var context = editorContext();
             if (context != null) {
                 var completed = (context as Dictionary)["completed"] as Dictionary;
-                var actual = copyDictionary(completed);
+                var actual = SessionLogic.copyDictionary(completed);
                 actual[_field] = _value;
                 saved = controller.correctSet(_entryId, _slot, actual, Time.now().value());
             }
@@ -85,14 +86,17 @@ class NumberEditView extends WatchUi.View {
                 Navigator.settings();
             } else if (Model.sameString(_configKind, "template")) {
                 Navigator.templateEntryFields(_parentId as String, _entryId, true);
-            } else if (Model.sameString(_configKind, "increment")) {
-                Navigator.editIncrements();
+                if (Model.sameString(_field, "targetRepsMin")) {
+                    // Reps are one field to the user: edit the maximum right after the minimum.
+                    Navigator.configNumberEdit("template", _parentId as String, _entryId,
+                        "targetRepsMax", Navigator.configFieldLabel("targetRepsMax"));
+                }
             }
         } else {
-            var problem = controller.errorMessage();
-            _error = Model.sameString(problem, "Routine limit reached") ? "ROUTINE LIMIT" :
-                (Model.sameString(problem, "Settings save failed") ||
-                 Model.sameString(problem, "Save failed. Retry before continuing.") ?
+            var problem = controller.errorCode();
+            _error = problem == Err.ROUTINE_LIMIT_REACHED ? "ROUTINE LIMIT" :
+                (problem == Err.SETTINGS_SAVE_FAILED ||
+                 problem == Err.SAVE_FAILED_RETRY_BEFORE_CONTINUING ?
                  "SAVE FAILED" : "INVALID VALUE");
             WatchUi.requestUpdate();
         }
@@ -123,13 +127,10 @@ class NumberEditView extends WatchUi.View {
                 if (Model.sameString(_field, "increment100")) {
                     _increment100 = _value;
                 } else if (_configKind != null && Model.sameString(_field, "startingLoad100")) {
-                    var exerciseId = entryDefinitionExerciseId();
-                    if (exerciseId != null) {
-                        var configuredIncrement = getApp().controller().numericConfigValue(
-                            "template", _parentId as String, _entryId, "increment100");
-                        if (configuredIncrement instanceof Number) {
-                            _increment100 = configuredIncrement as Number;
-                        }
+                    var configuredIncrement = getApp().controller().numericConfigValue(
+                        "template", _parentId as String, _entryId, "increment100");
+                    if (configuredIncrement instanceof Number) {
+                        _increment100 = configuredIncrement as Number;
                     }
                 }
             }
@@ -195,12 +196,6 @@ class NumberEditView extends WatchUi.View {
             Model.sameString(_field, "increment100");
     }
 
-    private function entryDefinitionExerciseId() as String? {
-        var entry = getApp().controller().templateEntry(
-            _parentId == null ? "" : _parentId as String, _entryId);
-        return entry == null ? null : (entry as Dictionary)["exerciseId"] as String;
-    }
-
     private function minimumValue() as Number {
         if (Model.sameString(_field, "defaultRestSec") || Model.sameString(_field, "restSec") ||
             Model.sameString(_field, "load100") || Model.sameString(_field, "startingLoad100")) {
@@ -240,6 +235,13 @@ class NumberEditView extends WatchUi.View {
         return _stepMode == 1 ? 10 : (_stepMode == 2 ? 30 : 1);
     }
 
+    private function fieldWord() as String {
+        if (isLoadField()) {
+            return Model.sameString(_loadType, "assistance") ? "assistance" : "load";
+        }
+        return Model.sameString(_field, "reps") ? "reps" : "duration";
+    }
+
     private function fieldLabel() as String {
         if (_configKind != null) {
             return _configTitle as String;
@@ -277,14 +279,6 @@ class NumberEditView extends WatchUi.View {
         return _increment100;
     }
 
-    private function copyDictionary(source as Dictionary) as Dictionary {
-        var copy = {};
-        var keys = source.keys();
-        for (var i = 0; i < keys.size(); i++) {
-            copy[keys[i]] = source[keys[i]];
-        }
-        return copy;
-    }
 }
 
 class NumberEditDelegate extends WatchUi.BehaviorDelegate {

@@ -185,6 +185,65 @@ class Store {
         return _recoveredRecord || _badRecord;
     }
 
+    // Envelope-only read: returns rev (0 if missing/unusable) without validating the payload.
+    private function readEnvelope(domain as String, generation as String) as Dictionary? {
+        var raw = null;
+        try {
+            raw = readKey(domain + "." + generation);
+        } catch (error) {
+            _badRecord = true;
+            return null;
+        }
+        if (raw == null) {
+            return null;
+        }
+        if (!(raw instanceof Dictionary)) {
+            _badRecord = true;
+            return null;
+        }
+        var record = raw as Dictionary;
+        if (record["v"] != 1) {
+            if (record["v"] instanceof Number && record["v"] > 1) {
+                _futureRecord = true;
+            } else {
+                _badRecord = true;
+            }
+            return null;
+        }
+        if (!(record["rev"] instanceof Number) || record["rev"] < 1 ||
+            !(record["payload"] instanceof Dictionary)) {
+            _badRecord = true;
+            return null;
+        }
+        return record;
+    }
+
+    private function readRevision(domain as String, generation as String) as Number {
+        var record = readEnvelope(domain, generation);
+        return record == null ? 0 : record["rev"] as Number;
+    }
+
+    // Newest valid-envelope generation's id, sessionSeq, templateId, endedAt and status, without validating the payload.
+    // Returns null when nothing usable (or a non-session payload) is stored.
+    public function peekSession(domain as String) as Dictionary? {
+        _badRecord = false;
+        _futureRecord = false;
+        _recoveredRecord = false;
+        var a = readEnvelope(domain, "a");
+        var b = readEnvelope(domain, "b");
+        var newest = a == null ? b : (b == null || a["rev"] >= b["rev"] ? a : b);
+        if (newest == null) {
+            return null;
+        }
+        var payload = newest["payload"] as Dictionary;
+        if (!(payload["id"] instanceof String) || !(payload["sessionSeq"] instanceof Number)) {
+            return null;
+        }
+        return {"id" => payload["id"], "sessionSeq" => payload["sessionSeq"],
+            "templateId" => payload["templateId"], "endedAt" => payload["endedAt"],
+            "status" => payload["status"]};
+    }
+
     public function commitPair(domain as String, payload as Dictionary) as Boolean {
         _badRecord = false;
         _futureRecord = false;
@@ -192,27 +251,21 @@ class Store {
         if (!validPayload(domain, payload)) {
             return false;
         }
-        var a = readGeneration(domain, "a");
-        var b = readGeneration(domain, "b");
-        if (_futureRecord || (_badRecord && a == null && b == null)) {
+        var a = readRevision(domain, "a");
+        var b = readRevision(domain, "b");
+        if (_futureRecord || (_badRecord && a == 0 && b == 0)) {
             return false;
         }
-        var currentRevision = 0;
-        if (a != null && a["rev"] > currentRevision) {
-            currentRevision = a["rev"];
-        }
-        if (b != null && b["rev"] > currentRevision) {
-            currentRevision = b["rev"];
-        }
+        var currentRevision = a > b ? a : b;
         var target = "a";
-        if (a == null) {
+        if (a == 0) {
             target = "a";
-            _recoveredRecord = b != null;
-        } else if (b == null) {
+            _recoveredRecord = b != 0;
+        } else if (b == 0) {
             target = "b";
             _recoveredRecord = true;
         } else {
-            target = a["rev"] <= b["rev"] ? "a" : "b";
+            target = a <= b ? "a" : "b";
         }
         var envelope = {};
         envelope["v"] = 1;

@@ -58,32 +58,43 @@ class OverviewView extends WatchUi.View {
         var focusTitle = focused["name"] as String;
         var titleFont = Graphics.FONT_SMALL;
         var countFont = Graphics.FONT_LARGE;
-        var gap = 10;
-        var titleHeight = dc.getFontHeight(titleFont);
+        var gap = 8;
         var footerFont = UiFormat.captionFont();
-        var blockHeight = titleHeight + gap + dc.getFontHeight(countFont) + 3 +
-            dc.getFontHeight(footerFont) + 2 + dc.getFontHeight(footerFont);
+        var footerHeight = dc.getFontHeight(footerFont) + 2;
+        var nextSlot = SessionLogic.nextSlot(focused);
+        var restStatus = UiFormat.restStatus(current);
+        // Rows below the count: next target (optional), progress, rest (optional), browse hint.
+        var rows = 2 + (nextSlot >= 0 ? 1 : 0);
+        var blockHeight = dc.getFontHeight(titleFont) + gap + dc.getFontHeight(countFont) + 3 +
+            rows * footerHeight + (restStatus != null ? dc.getFontHeight(footerFont) + 4 : 0);
         var titleY = (dc.getHeight() - blockHeight) / 2;
         if (!Model.sameString(UiFormat.safeText(dc, focusTitle, titleY, titleFont), focusTitle)) {
             titleFont = Graphics.FONT_XTINY;
-            titleHeight = dc.getFontHeight(titleFont);
-            blockHeight = titleHeight + gap + dc.getFontHeight(countFont) + 3 +
-                dc.getFontHeight(footerFont) + 2 + dc.getFontHeight(footerFont);
+            blockHeight -= dc.getFontHeight(Graphics.FONT_SMALL) - dc.getFontHeight(titleFont);
             titleY = (dc.getHeight() - blockHeight) / 2;
         }
         UiFormat.drawLine(dc, focusTitle, titleY, titleFont);
-        var countY = titleY + titleHeight + gap;
+        var countY = titleY + dc.getFontHeight(titleFont) + gap;
         var count = getApp().controller().isWorkoutPaused() ? "WORKOUT PAUSED" :
             (SessionLogic.completedCount(focused).toString() + "/" +
              focused["plannedSetCount"].toString() + " sets");
         UiFormat.drawLine(dc, count, countY, countFont);
+        var y = countY + dc.getFontHeight(countFont) + 3;
+        if (nextSlot >= 0) {
+            y = UiFormat.drawLine(dc, "Next: " + UiFormat.draftLine(focused, nextSlot), y,
+                footerFont) + 2;
+        }
         var totals = SessionLogic.totals(current);
-        var progressY = countY + dc.getFontHeight(countFont) + 3;
-        UiFormat.drawLine(dc, totals["done"].toString() + "/" + totals["planned"].toString() +
-            " SETS · EX " + (_selectedIndex + 1).toString() + "/" + exercises.size(),
-            progressY, footerFont);
-        UiFormat.drawLine(dc, "MENU actions",
-            progressY + dc.getFontHeight(footerFont) + 2, footerFont);
+        y = UiFormat.drawLine(dc, totals["done"].toString() + "/" + totals["planned"].toString() +
+            " SETS", y, footerFont) + 2;
+        if (restStatus != null) {
+            dc.setColor(Graphics.COLOR_YELLOW, Graphics.COLOR_BLACK);
+            y = UiFormat.drawLine(dc, restStatus as String, y, footerFont) + 4;
+            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+        }
+        // ponytail: plain "UP/DOWN" text instead of arrow glyphs, whose font coverage is unverified.
+        UiFormat.drawLine(dc, "UP/DOWN · EX " + (_selectedIndex + 1).toString() + "/" +
+            exercises.size(), y, footerFont);
     }
 
     public function moveSelection(direction as Number) as Void {

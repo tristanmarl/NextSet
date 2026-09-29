@@ -68,3 +68,24 @@ A short start/log/save path and saved Strength FIT were recorded on the FR965. T
 - [ ] **PENDING** Inject finalization storage failures and verify replay creates one archive and does not regress cache.
 - [ ] **PENDING** Verify four-session history eviction while the independent last-performance cache retains older exercise results.
 - [ ] **PENDING** Finish a 60-set routine on device; record callback latency, storage headroom, and memory use. Inject or reproduce write failures at the FIT marker, history, cache, and tombstone stages, then restart between stages and confirm one archive, preserved set actuals, and idempotent prefill.
+
+## Stability steps 4-6 (2026-09-29) — PENDING
+
+- [ ] **PENDING** Abort a workout with an injected storage failure at the `finalizing`/`discarding` commit; confirm the FIT recording is not discarded before the commit succeeds, then that discard runs in the finalization stage. Restart while `fitState` is `discarding` and confirm the workout closes as discarded.
+- [ ] **PENDING** Pause and resume with an active FIT recording; confirm one write on pause, and that a failed `pause()` returns `fitState` to `recording` with an error notice.
+- [ ] **PENDING** Open, edit, reorder, and delete routines in an 8-routine x 12-entry config (mixed seed and Garmin exercises) with no watchdog trip.
+- [ ] **PENDING** Finish a 60-set workout; confirm each finalization stage (history slot choice, cache, tombstone) completes within the watchdog limit.
+
+## Exit guard and error codes (2026-09-29) — PENDING
+
+- [ ] **PENDING** During an active and a paused workout, press BACK from Home and from Overview: confirm BACK opens the Actions menu (no direct exit), and that "Exit workout" shows the confirm screen ("Workout continues next time. Garmin activity so far is saved separately."). Confirm exit ends the app and a reopened workout starts a separate activity segment. Confirm BACK with no active workout still exits normally.
+- [ ] **PENDING** Spot-check the Home notices for recovery, save-failure, and routine-with-no-exercises errors after the error-code change; text should be unchanged.
+
+## UX audit changes (2026-09-29) — PENDING
+
+- [ ] **PENDING** Press counts: log a set (1), back to Overview from Exercise (1 BACK), change load (MENU, START on the first item, then edit), skip rest from the Exercise menu. Record actual counts.
+- [ ] **PENDING** Overview: yellow REST m:ss counts down each second while resting; `Next:` line and `UP/DOWN · EX n/N` hint are not clipped on the round 454 px screen, with long exercise names and with rest running.
+- [ ] **PENDING** Exercise screen: BACK during a running timed set pauses it and returns to Overview; MENU opens the Exercise menu in the specified order; "Workout..." reaches Finish/Pause/Exit; Pause from there returns to Overview.
+- [ ] **PENDING** Routines: add and replace an exercise open Edit values; rename a routine (duplicate and blank names rejected); `Reps 8–12` edits min then max, and raising min above max raises max.
+- [ ] **PENDING** Home shows `N ex · M sets · last Day`; check the caption is not clipped with long routine names. Exercise `target 8–12` caption appears only when there is room.
+- [ ] **PENDING** Summary and History wording (Workout saved, cancelled, Garmin activities count).

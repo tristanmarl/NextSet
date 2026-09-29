@@ -3,6 +3,8 @@ import Toybox.WatchUi;
 
 module Catalog {
     var _data as Dictionary? = null;
+    var _exerciseIndex as Dictionary? = null;
+    var _garminOrder as Array? = null;
     var _garminCategories as Array? = null;
     var _garminIndex as Number = -1;
     var _garminRows as Array? = null;
@@ -45,6 +47,29 @@ module Catalog {
             _garminCategories = WatchUi.loadResource($.Rez.JsonData.GarminCategories) as Array;
         }
         return _garminCategories as Array;
+    }
+
+    // Display order of category indices: common strength categories first, then the rest as stored.
+    function garminCategoryOrder() as Array {
+        if (_garminOrder == null) {
+            var common = ["BENCH_PRESS", "SQUAT", "DEADLIFT", "ROW", "SHOULDER_PRESS", "PULL_UP",
+                "CURL", "TRICEPS_EXTENSION", "LUNGE", "PLANK", "CORE", "LATERAL_RAISE", "LEG_CURL"];
+            var order = [];
+            for (var i = 0; i < common.size(); i++) {
+                var index = garminCategoryIndex(common[i] as String);
+                if (index >= 0) {
+                    order.add(index);
+                }
+            }
+            var total = garminCategories().size();
+            for (var i = 0; i < total; i++) {
+                if (order.indexOf(i) < 0) {
+                    order.add(i);
+                }
+            }
+            _garminOrder = order;
+        }
+        return _garminOrder as Array;
     }
 
     function garminExercises(categoryIndex as Number) as Array {
@@ -174,8 +199,22 @@ module Catalog {
         var entries = workout["entries"] as Array;
         for (var i = 0; i < entries.size(); i++) {
             var entry = entries[i] as Dictionary;
-            var definition = exerciseForEntry(entry);
-            if (definition == null || !Model.validExercise(definition)) {
+            // Only the fields Model.validExercise reads, merged as exerciseForEntry would.
+            var id = entry["exerciseId"];
+            if (!(id instanceof String)) {
+                return false;
+            }
+            var seeded = exercise(id as String);
+            var definition = {"id" => id, "unit" => entry["unit"]};
+            var keys = ["name", "loadType", "defaultRestSec", "notes"];
+            for (var k = 0; k < keys.size(); k++) {
+                var key = keys[k] as String;
+                definition[key] = (seeded != null && entry[key] == null) ?
+                    seeded[key] : entry[key];
+            }
+            definition["increment100"] = (seeded != null && !(entry["increment100"] instanceof Number)) ?
+                seeded["increment100"] : entry["increment100"];
+            if (!Model.validExercise(definition)) {
                 return false;
             }
             if (Model.sameString(definition["loadType"], "timed") && entry["targetDurationSec"] == null) {
@@ -189,13 +228,16 @@ module Catalog {
     }
 
     function exercise(id as String) as Dictionary? {
-        var list = exercises();
-        for (var i = 0; i < list.size(); i++) {
-            if (Model.sameString(list[i]["id"], id)) {
-                return list[i] as Dictionary;
+        if (_exerciseIndex == null) {
+            var index = {};
+            var list = exercises();
+            for (var i = 0; i < list.size(); i++) {
+                index[list[i]["id"]] = i;
             }
+            _exerciseIndex = index;
         }
-        return null;
+        var position = (_exerciseIndex as Dictionary)[id];
+        return position instanceof Number ? exercises()[position] as Dictionary : null;
     }
 
     function template(id as String) as Dictionary? {

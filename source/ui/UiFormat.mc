@@ -136,6 +136,20 @@ module UiFormat {
         return draft["durationSec"].toString() + " sec";
     }
 
+    function targetLine(exercise as Dictionary, slotIndex as Number) as String? {
+        var minimum = exercise["targetRepsMin"];
+        var maximum = exercise["targetRepsMax"];
+        if (Model.sameString(exercise["loadType"], "timed") || !(minimum instanceof Number) ||
+            !(maximum instanceof Number)) {
+            return null;
+        }
+        var draft = ((exercise["slots"] as Array)[slotIndex] as Dictionary)["draft"] as Dictionary;
+        if (minimum == maximum) {
+            return draft["reps"] == minimum ? null : "target " + minimum.toString();
+        }
+        return "target " + minimum.toString() + "–" + maximum.toString();
+    }
+
     function lastLine(exercise as Dictionary, slotIndex as Number) as String? {
         var last = exercise["last"];
         if (!(last instanceof Dictionary) || !(last["sets"] instanceof Array)) {
@@ -181,3 +195,4 @@ module UiFormat {
         return last;
     }
 }
+

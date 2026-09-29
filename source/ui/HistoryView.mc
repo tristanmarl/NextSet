@@ -113,7 +113,7 @@ class HistoryView extends WatchUi.View {
 
     private function statusLabel(record as Dictionary, totals as Dictionary) as String {
         if (Model.sameString(record["status"], "aborted")) {
-            return "ABORTED";
+            return "CANCELLED";
         }
         if (Model.sameString(record["completionKind"], "full") ||
             (totals["planned"] > 0 && totals["done"] == totals["planned"])) {
@@ -130,11 +130,11 @@ class HistoryView extends WatchUi.View {
         }
         lines.add(fitStatusLabel(record));
         if (record["fitSegments"] instanceof Number && record["fitSegments"] > 1) {
-            lines.add(record["fitSegments"].toString() + " Garmin segments saved");
+            lines.add(record["fitSegments"].toString() + " Garmin activities saved");
         }
         if (record["fitUnknownSegments"] instanceof Number &&
             record["fitUnknownSegments"] > 0) {
-            lines.add("Earlier Garmin segment unknown");
+            lines.add("One Garmin part unknown");
         }
         var exercises = record["exercises"] as Array;
         for (var i = 0; i < exercises.size(); i++) {

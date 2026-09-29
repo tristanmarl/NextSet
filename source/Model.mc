@@ -178,7 +178,8 @@ module Model {
             sameString(fitState, "interrupted") || sameString(fitState, "failed") ||
             sameString(fitState, "saving") || sameString(fitState, "saved") ||
             sameString(fitState, "unknown") || sameString(fitState, "discarded") ||
-            sameString(fitState, "discard_failed"))) {
+            sameString(fitState, "discard_failed") ||
+            sameString(fitState, "discarding"))) {
             return false;
         }
         if (sameString(status, "finalizing")) {

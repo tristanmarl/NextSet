@@ -6,15 +6,6 @@ module LastPerformance {
     const MAX_READ_ENTRIES = 128;
 
     // Cached tuples are [slot, load100, reps, durationSec], ordered by slot.
-    function copyDictionary(source as Dictionary) as Dictionary {
-        var copy = {};
-        var keys = source.keys();
-        for (var i = 0; i < keys.size(); i++) {
-            copy[keys[i]] = source[keys[i]];
-        }
-        return copy;
-    }
-
     function sameNullableString(left as Object?, right as Object?) as Boolean {
         return left == null ? right == null : Model.sameString(left, right);
     }
@@ -225,7 +216,7 @@ module LastPerformance {
     }
 
     function cloneEntry(cached as Dictionary, sets as Array) as Dictionary {
-        var copy = copyDictionary(cached);
+        var copy = SessionLogic.copyDictionary(cached);
         var copiedSets = [];
         for (var i = 0; i < sets.size(); i++) {
             var tuple = sets[i] as Array;
@@ -237,7 +228,7 @@ module LastPerformance {
 
     // Returns a new exercise snapshot; it never changes the current session or cache.
     function prefill(exerciseSnapshot as Dictionary, cachedEntry as Dictionary?) as Dictionary {
-        var exercise = copyDictionary(exerciseSnapshot);
+        var exercise = SessionLogic.copyDictionary(exerciseSnapshot);
         var prior = matchingSets(exerciseSnapshot, cachedEntry);
         var slots = exerciseSnapshot["slots"] as Array;
         var filledSlots = [];
@@ -245,8 +236,8 @@ module LastPerformance {
 
         for (var i = 0; i < slots.size(); i++) {
             var original = slots[i] as Dictionary;
-            var slot = copyDictionary(original);
-            var draft = copyDictionary(original["draft"] as Dictionary);
+            var slot = SessionLogic.copyDictionary(original);
+            var draft = SessionLogic.copyDictionary(original["draft"] as Dictionary);
             var source = null;
             if (prior != null) {
                 var sets = prior as Array;

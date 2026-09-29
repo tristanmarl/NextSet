@@ -20,18 +20,16 @@ class SummaryView extends WatchUi.View {
         var totals = SessionLogic.totals(session as Dictionary);
         var complete = Model.sameString(_outcome, "completed");
         var full = Model.sameString((session as Dictionary)["completionKind"], "full");
-        var title = complete ? (full ? "NextSet log saved" : "Partial NextSet log") :
-            "Workout ended";
+        var title = complete ? (full ? "Workout saved" : "Workout saved (partial)") :
+            "Workout cancelled";
         var lines = [title, totals["done"].toString() + "/" +
             totals["planned"].toString() + " sets"];
         var fonts = [Graphics.FONT_SMALL, Graphics.FONT_LARGE];
         var gaps = [8, 8];
         var caption = UiFormat.captionFont();
         if (session["elapsedSec"] instanceof Number && session["activeSec"] instanceof Number) {
-            lines.add("ELAPSED " + duration(session["elapsedSec"] as Number));
-            fonts.add(caption);
-            gaps.add(4);
-            lines.add("ACTIVE " + duration(session["activeSec"] as Number));
+            lines.add(duration(session["elapsedSec"] as Number) + " · " +
+                duration(session["activeSec"] as Number) + " active");
             fonts.add(caption);
             gaps.add(8);
         }
@@ -40,13 +38,13 @@ class SummaryView extends WatchUi.View {
         gaps.add(5);
         var segments = session["fitSegments"];
         if (segments instanceof Number && segments > 1) {
-            lines.add(segments.toString() + " GARMIN SEGMENTS");
+            lines.add("Saved as " + segments.toString() + " Garmin activities");
             fonts.add(caption);
             gaps.add(5);
         }
         var unknown = session["fitUnknownSegments"];
         if (unknown instanceof Number && unknown > 0) {
-            lines.add("PRIOR SEGMENT UNKNOWN");
+            lines.add("One Garmin part unknown");
             fonts.add(caption);
             gaps.add(5);
         }

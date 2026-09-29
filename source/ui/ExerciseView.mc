@@ -72,6 +72,9 @@ class ExerciseView extends WatchUi.View {
         var mainHeight = titleLines.size() * titleHeight + 5 + setHeight + 8 + valueHeight;
         var restStatus = slot < 0 ? null : UiFormat.restStatus(session as Dictionary);
         var last = slot < 0 || restStatus != null ? null : UiFormat.lastLine(current, slot);
+        // Target is lowest priority: only shown when notes and messages leave room.
+        var target = slot < 0 || restStatus != null || _message != null ||
+            current["notes"] instanceof String ? null : UiFormat.targetLine(current, slot);
         if (slot < 0) {
             mainHeight = titleLines.size() * titleHeight + 8 + dc.getFontHeight(Graphics.FONT_SMALL) +
                 4 + dc.getFontHeight(Graphics.FONT_SMALL);
@@ -81,6 +84,9 @@ class ExerciseView extends WatchUi.View {
                 mainHeight += dc.getFontHeight(Graphics.FONT_SMALL) + 3;
             } else {
                 if (last != null) {
+                    mainHeight += dc.getFontHeight(caption) + 2;
+                }
+                if (target != null) {
                     mainHeight += dc.getFontHeight(caption) + 2;
                 }
                 if (current["notes"] instanceof String) {
@@ -145,6 +151,9 @@ class ExerciseView extends WatchUi.View {
         if (last != null) {
             y = UiFormat.drawLine(dc, last as String, y, caption) + 2;
         }
+        if (target != null) {
+            y = UiFormat.drawLine(dc, target as String, y, caption) + 2;
+        }
         if (restStatus == null && current["notes"] instanceof String) {
             y = UiFormat.drawLine(dc, current["notes"] as String, y, caption) + 2;
         }
@@ -159,10 +168,9 @@ class ExerciseView extends WatchUi.View {
         var draft = ((current["slots"] as Array)[slot] as Dictionary)["draft"] as Dictionary;
         var measured = draft["measuredSec"] instanceof Number && draft["measuredSec"] > 0;
         var manuallyEdited = draft["durationEdited"] == true;
-        var cue = restStatus != null ? "MENU SKIP REST" :
-            (timed ? (isRunning ? "START finish" :
+        var cue = timed ? (isRunning ? "START finish" :
             (measured ? "START resume" :
-            (manuallyEdited ? "START log" : "START begin"))) : "ADJUST · START LOG");
+            (manuallyEdited ? "START log" : "START begin"))) : "UP/DOWN reps · START log";
         UiFormat.drawLine(dc, cue, y + 2, caption);
     }
 
@@ -404,12 +412,24 @@ class ExerciseDelegate extends WatchUi.BehaviorDelegate {
     }
 
     public function onMenu() as Boolean {
-        Navigator.actionsForEntry(_view.entryId());
+        Navigator.exerciseMenu(_view.entryId(), _view);
         return true;
     }
 
+    // BACK returns to Overview; a running timed set on this exercise is paused first.
     public function onBack() as Boolean {
-        Navigator.actionsForEntry(_view.entryId());
+        var controller = getApp().controller();
+        var session = controller.session();
+        if (session != null) {
+            var run = (session as Dictionary)["timedRun"];
+            if (run instanceof Dictionary && Model.sameString(run["entryId"], _view.entryId()) &&
+                !controller.pauseTimedForEntry(_view.entryId(), Time.now().value())) {
+                Navigator.feedback("Timed set could not be paused");
+                return true;
+            }
+        }
+        WatchUi.popView(WatchUi.SLIDE_DOWN);
+        WatchUi.requestUpdate();
         return true;
     }
 }

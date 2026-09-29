@@ -1,3 +1,4 @@
+import Toybox.Application;
 import Toybox.Lang;
 import Toybox.Test;
 
@@ -246,4 +247,185 @@ function testOverrideSetCeiling(logger as Test.Logger) as Boolean {
     return check(logger, total == Catalog.totalSets(Catalog.template("upper") as Dictionary) &&
             total <= Model.MAX_SETS_PER_WORKOUT && allEntryCounts,
             "over-capacity count overrides must fall back to seed counts without dropping entries");
+}
+
+function clearConfigKeys() as Void {
+    var keys = ["config.a", "config.b"];
+    for (var i = 0; i < keys.size(); i++) {
+        Application.Storage.deleteValue(keys[i]);
+    }
+}
+
+(:test)
+function testConfigCacheReflectsEdits(logger as Test.Logger) as Boolean {
+    var store = new Store();
+    clearConfigKeys();
+    var controller = new SessionController(store);
+    var before = controller.routineTemplates().size();
+    var id = controller.createRoutine("Cache test");
+    var afterCreate = controller.routineTemplates().size();
+    var duplicate = controller.createRoutine("Cache test");
+    var afterRejected = controller.routineTemplates().size();
+    var saved = controller.updateNumericConfig("setting", "", "", "defaultRestSec", 45);
+    var rest = controller.defaultRestSec();
+    var rejected = controller.updateNumericConfig("setting", "", "", "defaultRestSec", 99999);
+    var restAfterRejected = controller.defaultRestSec();
+    var reloaded = new SessionController(new Store());
+    var persisted = reloaded.routineTemplates().size() == before + 1 &&
+        reloaded.defaultRestSec() == 45;
+    var deleted = id != null && controller.deleteRoutine(id as String);
+    var afterDelete = controller.routineTemplates().size();
+    clearConfigKeys();
+    return check(logger, id != null && afterCreate == before + 1,
+            "created routine must be visible on the next read") &&
+        check(logger, duplicate == null && afterRejected == before + 1,
+            "a rejected create must not alter later reads") &&
+        check(logger, saved && rest == 45, "saved setting must be visible on the next read") &&
+        check(logger, !rejected && restAfterRejected == 45,
+            "a rejected edit must not alter later reads") &&
+        check(logger, persisted, "a new controller must read the committed config") &&
+        check(logger, deleted && afterDelete == before, "delete must be visible on the next read");
+}
+
+(:test)
+function testCommitPairEnvelopeOnlyRevision(logger as Test.Logger) as Boolean {
+    var store = new Store();
+    var payload = {"schemaVersion" => 2, "nextSessionSeq" => 1,
+        "routines" => Catalog.routineTemplates(null)};
+    clearConfigKeys();
+    // Valid envelope, invalid payload: still counts as a generation for rev/target choice.
+    Application.Storage.setValue("config.a", {"v" => 1, "rev" => 5, "payload" => {}});
+    Application.Storage.setValue("config.b", {"v" => 1, "rev" => 3, "payload" => {}});
+    var committed = store.commitPair("config", payload);
+    var b = Application.Storage.getValue("config.b") as Dictionary;
+    var a = Application.Storage.getValue("config.a") as Dictionary;
+    var olderTargeted = committed && b["rev"] == 6 && a["rev"] == 5;
+    Application.Storage.setValue("config.a", {"v" => 2, "rev" => 9, "payload" => {}});
+    var refused = !store.commitPair("config", payload);
+    var untouched = (Application.Storage.getValue("config.b") as Dictionary)["rev"] == 6;
+    clearConfigKeys();
+    return check(logger, olderTargeted, "commit must overwrite the older generation with rev max+1") &&
+        check(logger, refused && untouched, "a future-version record must refuse the commit");
+}
+
+(:test)
+function testValidRoutineMaxConfigAndRejections(logger as Test.Logger) as Boolean {
+    var seedEntries = (Catalog.routineTemplates(null)[0] as Dictionary)["entries"] as Array;
+    var routines = [];
+    for (var r = 0; r < Model.MAX_TEMPLATES; r++) {
+        var entries = [];
+        for (var e = 0; e < Model.MAX_ENTRIES; e++) {
+            var entry = null;
+            if (e % 2 == 0) {
+                entry = SessionLogic.copyDictionary(seedEntries[e % seedEntries.size()] as Dictionary);
+                entry["entryId"] = "r" + r.toString() + "-e" + e.toString();
+                // Seed entries may leave fields null; the seed supplies them.
+                entry["name"] = null;
+            } else {
+                entry = {"entryId" => "r" + r.toString() + "-e" + e.toString(),
+                    "exerciseId" => "g-" + e.toString(), "name" => "Custom " + e.toString(),
+                    "loadType" => "bodyweight", "workingSetCount" => 1, "targetRepsMin" => 8,
+                    "targetRepsMax" => 10, "restSec" => 60};
+            }
+            entries.add(entry);
+        }
+        routines.add({"id" => "r" + r.toString(), "name" => "R" + r.toString(),
+            "revision" => 1, "entries" => entries});
+    }
+    var allValid = true;
+    var first = routines.size() > 0 ? routines[0 * routines.size()] as Dictionary : {};
+    for (var r = 0; r < routines.size(); r++) {
+        allValid = allValid && Catalog.validRoutine(routines[r] as Dictionary);
+    }
+    var badLoad = SessionLogic.copyDictionary((first["entries"] as Array)[1] as Dictionary);
+    badLoad["loadType"] = "bogus";
+    var badEntries = [badLoad];
+    var badRoutine = {"id" => "bad", "name" => "Bad", "revision" => 1, "entries" => badEntries};
+    var noName = SessionLogic.copyDictionary((first["entries"] as Array)[1] as Dictionary);
+    noName["name"] = null;
+    var noNameRoutine = {"id" => "bad2", "name" => "Bad", "revision" => 1, "entries" => [noName]};
+    var noReps = SessionLogic.copyDictionary((first["entries"] as Array)[1] as Dictionary);
+    noReps["targetRepsMin"] = null;
+    var noRepsRoutine = {"id" => "bad3", "name" => "Bad", "revision" => 1, "entries" => [noReps]};
+    var badIncrement = SessionLogic.copyDictionary((first["entries"] as Array)[0] as Dictionary);
+    badIncrement["increment100"] = 30;
+    var badIncrementRoutine = {"id" => "bad4", "name" => "Bad", "revision" => 1,
+        "entries" => [badIncrement]};
+    return check(logger, allValid, "a full 8x12 seed and Garmin routine set must validate") &&
+        check(logger, !Catalog.validRoutine(badRoutine), "an invalid load type must be rejected") &&
+        check(logger, !Catalog.validRoutine(noNameRoutine),
+            "a custom entry without a name must be rejected") &&
+        check(logger, !Catalog.validRoutine(noRepsRoutine),
+            "a non-timed entry without reps must be rejected") &&
+        check(logger, !Catalog.validRoutine(badIncrementRoutine),
+            "an increment that is not a multiple of 25 must be rejected") &&
+        check(logger, Catalog.exercise("no-such-exercise") == null &&
+            Catalog.exercise(seedEntries[0]["exerciseId"] as String) != null,
+            "exercise lookup by id must find seeds only");
+}
+
+(:test)
+function testDiscardingFitStateIsValid(logger as Test.Logger) as Boolean {
+    var session = Catalog.createSession("upper", "disc-1", 1, 100, null, null) as Dictionary;
+    session["status"] = "finalizing";
+    session["finishOutcome"] = "aborted";
+    session["endedAt"] = 200;
+    session["fitState"] = "discarding";
+    var valid = Model.validStoredSession(session, false);
+    session["fitState"] = "bogus";
+    return check(logger, valid, "discarding must be a valid fitState") &&
+        check(logger, !Model.validStoredSession(session, false), "unknown fitState must be rejected");
+}
+
+(:test)
+function testPeekSessionEnvelopeOnly(logger as Test.Logger) as Boolean {
+    var store = new Store();
+    Application.Storage.deleteValue("history0.a");
+    Application.Storage.deleteValue("history0.b");
+    var empty = store.peekSession("history0") == null;
+    Application.Storage.setValue("history0.a", {"v" => 1, "rev" => 1,
+        "payload" => {"id" => "s-1", "sessionSeq" => 1}});
+    Application.Storage.setValue("history0.b", {"v" => 1, "rev" => 2,
+        "payload" => {"id" => "s-2", "sessionSeq" => 2}});
+    var newest = store.peekSession("history0");
+    var picked = newest != null && newest["id"].equals("s-2") && newest["sessionSeq"] == 2;
+    Application.Storage.setValue("history0.b", {"v" => 2, "rev" => 3, "payload" => {}});
+    store.peekSession("history0");
+    var future = store.hasUnsupportedRecord();
+    Application.Storage.deleteValue("history0.a");
+    Application.Storage.deleteValue("history0.b");
+    return check(logger, empty, "missing history slot must read as empty") &&
+        check(logger, picked, "peek must return the newest generation without payload validation") &&
+        check(logger, future, "a future-version history record must be flagged unsupported");
+}
+
+(:test)
+function testRenameRoutineAndRepsRange(logger as Test.Logger) as Boolean {
+    var store = new Store();
+    clearConfigKeys();
+    var controller = new SessionController(store);
+    var first = controller.createRoutine("Rename A");
+    var second = controller.createRoutine("Rename B");
+    var okRename = second != null && controller.renameRoutine(second as String, "Rename C");
+    var duplicate = second != null && controller.renameRoutine(second as String, "Rename A");
+    var blank = second != null && controller.renameRoutine(second as String, "   ");
+    var missing = controller.renameRoutine("no-such-routine", "Rename D");
+    var names = "";
+    var routines = controller.routineTemplates();
+    for (var i = 0; i < routines.size(); i++) {
+        names += routines[i]["name"] as String + "|";
+    }
+    var renamedVisible = names.find("Rename C|") != null && names.find("Rename B|") == null;
+    var entry = ((controller.routineTemplates()[0] as Dictionary)["entries"] as Array)[0] as Dictionary;
+    var entryId = entry["entryId"] as String;
+    var raised = controller.updateNumericConfig("template", "upper", entryId, "targetRepsMin", 40);
+    var after = controller.templateEntry("upper", entryId) as Dictionary;
+    var raisedBoth = raised && after["targetRepsMin"] == 40 && after["targetRepsMax"] == 40;
+    var lowered = controller.updateNumericConfig("template", "upper", entryId, "targetRepsMax", 30);
+    clearConfigKeys();
+    return check(logger, first != null && okRename && renamedVisible, "rename must be visible") &&
+        check(logger, !duplicate && !blank && !missing,
+            "duplicate, blank and unknown-routine renames must be rejected") &&
+        check(logger, raisedBoth, "raising min reps above max must raise max with it") &&
+        check(logger, !lowered, "max reps below min must still be rejected");
 }
