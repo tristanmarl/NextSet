@@ -788,3 +788,46 @@ function testMissingRoutineKeyIsDroppedWithError(logger as Test.Logger) as Boole
         check(logger, damaged && others, "a missing routine is dropped, the rest stay usable, error is reported") &&
         check(logger, none, "with every routine missing the settings are unusable");
 }
+
+function completedExercise(name as String, type as String, load100 as Number?, reps as Number?,
+                           durationSec as Number?) as Dictionary {
+    return {"name" => name, "loadType" => type, "plannedSetCount" => 2, "closedEarly" => false,
+        "slots" => [
+            {"completed" => {"load100" => load100, "reps" => reps, "durationSec" => durationSec}},
+            {"completed" => null}]};
+}
+
+(:test)
+function testFitLapPayloadFromCompletedSet(logger as Test.Logger) as Boolean {
+    var weight = SessionLogic.lapPayload(completedExercise("Row", "weight", 6250, 10, null), 0) as Dictionary;
+    var assist = SessionLogic.lapPayload(completedExercise("Pull-up", "assistance", 2500, 8, null), 0) as Dictionary;
+    var body = SessionLogic.lapPayload(completedExercise("Push-up", "bodyweight", null, 15, null), 0) as Dictionary;
+    var timed = SessionLogic.lapPayload(completedExercise("Plank", "timed", null, null, 45), 0) as Dictionary;
+    var open = SessionLogic.lapPayload(completedExercise("Row", "weight", 6250, 10, null), 1);
+    var long = SessionLogic.truncateBytes(repeatText("é", 40), 64);
+    return check(logger, weight["weightKg"] == 62.5 && weight["reps"] == 10 && weight["set"] == 1 &&
+            weight["durationSec"] == 0 && weight["name"].equals("Row"),
+            "weight set: kg, reps, 1-based set number") &&
+        check(logger, assist["weightKg"] == -25.0, "assistance is a negative kg offset") &&
+        check(logger, body["weightKg"] == 0.0 && body["reps"] == 15, "bodyweight has 0 kg") &&
+        check(logger, timed["reps"] == 0 && timed["durationSec"] == 45 && timed["weightKg"] == 0.0,
+            "timed set has duration and no reps") &&
+        check(logger, open == null, "an open slot has no lap payload") &&
+        check(logger, Model.byteLength(long) <= 64 && long.length() == 32,
+            "names are truncated to whole characters within 64 bytes");
+}
+
+(:test)
+function testFitSummaryVolume(logger as Test.Logger) as Boolean {
+    var session = {"exercises" => [
+        completedExercise("Row", "weight", 6250, 10, null),
+        completedExercise("Pull-up", "assistance", 2500, 8, null),
+        completedExercise("Plank", "timed", null, null, 45),
+        {"name" => "Skipped", "loadType" => "weight", "plannedSetCount" => 1, "closedEarly" => false,
+            "slots" => [{"completed" => null}]}]};
+    var summary = SessionLogic.fitSummary(session);
+    return check(logger, summary["sets"] == 3, "completed sets are counted") &&
+        check(logger, summary["exercises"] == 3, "exercises without a completed set are not counted") &&
+        check(logger, summary["volumeKg"] == 625.0,
+            "volume is weight x reps for weight exercises only (62.5 x 10)");
+}

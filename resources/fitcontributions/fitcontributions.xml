@@ -1,0 +1,24 @@
+<resources xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://developer.garmin.com/downloads/connect-iq/resources.xsd">
+    <fitContributions>
+        <!-- Lap fields: one lap per logged set (ids match StrengthRecorder). -->
+        <fitField id="0" displayInActivityLaps="true" sortOrder="0"
+                  dataLabel="@Strings.FitExercise" unitLabel="@Strings.FitUnitNone" />
+        <fitField id="1" displayInActivityLaps="true" sortOrder="1" precision="0"
+                  dataLabel="@Strings.FitSet" unitLabel="@Strings.FitUnitNone" />
+        <fitField id="2" displayInActivityLaps="true" sortOrder="2" precision="0"
+                  dataLabel="@Strings.FitReps" unitLabel="@Strings.FitUnitNone" />
+        <fitField id="3" displayInActivityLaps="true" sortOrder="3" precision="2"
+                  dataLabel="@Strings.FitWeight" unitLabel="@Strings.FitUnitKg" />
+        <fitField id="4" displayInActivityLaps="true" sortOrder="4" precision="0"
+                  dataLabel="@Strings.FitDuration" unitLabel="@Strings.FitUnitSec" />
+        <!-- Session summary fields. -->
+        <fitField id="5" displayInActivitySummary="true" sortOrder="5" precision="0"
+                  dataLabel="@Strings.FitTotalSets" unitLabel="@Strings.FitUnitNone" />
+        <fitField id="6" displayInActivitySummary="true" sortOrder="6" precision="1"
+                  dataLabel="@Strings.FitVolume" unitLabel="@Strings.FitUnitKg" />
+        <fitField id="7" displayInActivitySummary="true" sortOrder="7" precision="0"
+                  dataLabel="@Strings.FitExercises" unitLabel="@Strings.FitUnitNone" />
+        <fitField id="8" displayInActivitySummary="true" sortOrder="8"
+                  dataLabel="@Strings.FitVersion" unitLabel="@Strings.FitUnitNone" />
+    </fitContributions>
+</resources>

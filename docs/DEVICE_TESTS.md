@@ -99,3 +99,11 @@ A short start/log/save path and saved Strength FIT were recorded on the FR965. T
 - [ ] **PENDING** Load a session that was saved as paused (from the previous build) and confirm it resumes as an active workout with rest and timed set intact.
 - [ ] **PENDING** Delete Upper and Lower; the last routine cannot be deleted. New exercise uses the Settings default rest.
 - [ ] **PENDING** Exercise menu: Edit last set > Delete set confirms and removes the set; Replace exercise swaps at 0 sets and adds an alternative otherwise.
+
+## Set laps and FIT developer fields (`fit-set-laps`) — PENDING
+
+- [ ] **PENDING** Log a session with weight, assistance, bodyweight and timed sets, finish it, sync, then open the activity in the Garmin Connect app and on the web. Check: one lap per logged set with Exercise, Set, Reps, Weight (- = assist) and Duration columns; the activity summary shows Sets, Volume, Exercises and NextSet version; values match what was logged (including the assistance sign).
+- [ ] **PENDING** Check the first lap (before the first set) and the last lap (after the last set) are empty/zero rather than repeating a set.
+- [ ] **PENDING** Leave the app mid-workout and reopen: the second saved activity also carries laps and summary fields.
+- [ ] **PENDING** Confirm logging a set stays instant (no visible delay from the lap calls) and that a 60-set workout still finishes without a watchdog error.
+- [ ] **PENDING** If a FIT file can be pulled from `GARMIN/Activity`, parse its lap messages and developer field definitions to compare with the app's history.

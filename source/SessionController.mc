@@ -1107,7 +1107,7 @@ class SessionController {
                 _errorCode = Err.NONE;
                 return true;
             }
-            if (!Model.sameString(candidate["fitState"], "failed") || !_recorder.save()) {
+            if (!Model.sameString(candidate["fitState"], "failed") || !saveRecording()) {
                 _errorCode = Err.ACTIVITY_SAVE_FAILED;
                 return false;
             }
@@ -1166,7 +1166,7 @@ class SessionController {
             return false;
         }
         var candidate = SessionLogic.copyDictionary(_session as Dictionary);
-        var saved = _recorder.save();
+        var saved = saveRecording();
         if (saved) {
             var count = candidate["fitSegments"] instanceof Number ?
                 candidate["fitSegments"] as Number : 0;
@@ -1238,7 +1238,11 @@ class SessionController {
             return false;
         }
         var candidate = SessionLogic.completeTimed(_session as Dictionary, entryId, slot, now);
-        return candidate != null && commit(candidate as Dictionary);
+        if (candidate == null || !commit(candidate as Dictionary)) {
+            return false;
+        }
+        recordSetLap(entryId, slot);
+        return true;
     }
 
     public function timedElapsed(now as Number) as Number {
@@ -1338,6 +1342,23 @@ class SessionController {
         candidate["rest"] = next;
         candidate["restGeneration"] = next["id"];
         return commit(candidate as Dictionary);
+    }
+
+    // Saves the recording with the FIT session summary of the current session.
+    private function saveRecording() as Boolean {
+        return _recorder.save(_session == null ? null : SessionLogic.fitSummary(_session as Dictionary));
+    }
+
+    // One FIT lap per logged set while recording; never affects the logged set.
+    private function recordSetLap(entryId as String, slot as Number) as Void {
+        if (_session == null || !_recorder.isRecording()) {
+            return;
+        }
+        var index = SessionLogic.exerciseIndex(_session as Dictionary, entryId);
+        if (index >= 0) {
+            _recorder.recordSet(SessionLogic.lapPayload(
+                (_session["exercises"] as Array)[index] as Dictionary, slot));
+        }
     }
 
     private function commit(candidate as Dictionary) as Boolean {
@@ -1457,7 +1478,7 @@ class SessionController {
                 } else if (_fitSavedInMemory) {
                     recording["fitState"] = "saved";
                 } else if (_recorder.hasSession()) {
-                    if (_recorder.save()) {
+                    if (saveRecording()) {
                         var count = recording["fitSegments"] instanceof Number ?
                             recording["fitSegments"] as Number : 0;
                         recording["fitSegments"] = count + 1;
@@ -1698,7 +1719,11 @@ class SessionController {
             }
         }
         var candidate = SessionLogic.completeSet(session, entryId, slot, draft, now);
-        return candidate != null && commit(candidate as Dictionary);
+        if (candidate == null || !commit(candidate as Dictionary)) {
+            return false;
+        }
+        recordSetLap(entryId, slot);
+        return true;
     }
 
     public function correctSet(entryId as String, slot as Number, actual as Dictionary, now as Number) as Boolean {
@@ -1951,7 +1976,7 @@ class SessionController {
             _errorCode = Err.NONE;
             return true;
         }
-        if (!_recorder.save()) {
+        if (!saveRecording()) {
             _errorCode = Err.ACTIVITY_SAVE_FAILED;
             return false;
         }

@@ -576,4 +576,66 @@ module SessionLogic {
         archive["exercises"] = archivedExercises;
         return archive;
     }
+
+    function truncateBytes(text as String, maxBytes as Number) as String {
+        var result = text;
+        while (result.length() > 0 && Model.byteLength(result) > maxBytes) {
+            result = result.substring(0, result.length() - 1) as String;
+        }
+        return result;
+    }
+
+    // Values for one FIT lap developer-field set, from a completed set. Weight is kg: negative for
+    // assistance (the offset from bodyweight), 0 for bodyweight and timed. Reps and duration are
+    // 0 when they do not apply.
+    function lapPayload(exercise as Dictionary, slotIndex as Number) as Dictionary? {
+        var completed = ((exercise["slots"] as Array)[slotIndex] as Dictionary)["completed"];
+        if (!(completed instanceof Dictionary)) {
+            return null;
+        }
+        var type = exercise["loadType"];
+        var load100 = completed["load100"] instanceof Number ? completed["load100"] as Number : 0;
+        var kg = load100 / 100.0;
+        if (Model.sameString(type, "assistance")) {
+            kg = -kg;
+        } else if (!Model.sameString(type, "weight")) {
+            kg = 0.0;
+        }
+        return {
+            "name" => truncateBytes(exercise["name"] as String, 64),
+            "set" => slotIndex + 1,
+            "reps" => completed["reps"] instanceof Number ? completed["reps"] as Number : 0,
+            "weightKg" => kg,
+            "durationSec" => completed["durationSec"] instanceof Number ?
+                completed["durationSec"] as Number : 0
+        };
+    }
+
+    // Session-level FIT summary: completed sets, volume (weight x reps, weight exercises only,
+    // kg) and the number of exercises with at least one completed set.
+    function fitSummary(session as Dictionary) as Dictionary {
+        var sets = 0;
+        var exerciseCount = 0;
+        var volume100 = 0;
+        var exercises = session["exercises"] as Array;
+        for (var i = 0; i < exercises.size(); i++) {
+            var exercise = exercises[i] as Dictionary;
+            var done = completedCount(exercise);
+            sets += done;
+            if (done > 0) {
+                exerciseCount++;
+            }
+            if (Model.sameString(exercise["loadType"], "weight")) {
+                var slots = exercise["slots"] as Array;
+                for (var j = 0; j < slots.size(); j++) {
+                    var completed = slots[j]["completed"];
+                    if (completed instanceof Dictionary && completed["load100"] instanceof Number &&
+                        completed["reps"] instanceof Number) {
+                        volume100 += (completed["load100"] as Number) * (completed["reps"] as Number);
+                    }
+                }
+            }
+        }
+        return {"sets" => sets, "volumeKg" => volume100 / 100.0, "exercises" => exerciseCount};
+    }
 }

@@ -136,3 +136,31 @@ recognizes the machine variant exactly.
   Strength FIT recording, without duplicate recordings on retry. Cancel and
   failed FIT saves have explicit outcomes. Physical watch and Connect visibility
   are reported only after direct verification.
+
+## Garmin Connect data: set laps and summary fields (branch `fit-set-laps`, 2026-09-29)
+
+Connect IQ cannot write native strength set messages (only session, lap and record messages through FitContributor), so a real session showed an empty strength workout in Garmin Connect. This build writes the sets as lap and session developer fields instead.
+
+Behaviour
+- Each logged set (normal or timed) closes one lap while the recording is active. The lap fields are set first, then `Session.addLap()` closes the lap (a lap field's value is written when the lap closes, so setting them afterwards would land in the next lap). Afterwards the lap fields are reset to empty/0 so the trailing lap (rest after the last set, or the time before the first set) does not repeat the previous set.
+- Before `save()` the session fields are set from the workout so far, so every saved segment carries totals for the workout up to that point.
+- Corrections, set deletion and skipped exercises do not rewrite laps that are already recorded; the lap table shows the set as it was logged. Rest time lands in the lap of the next set.
+- Any FitContributor exception is swallowed; logging a set never depends on it. Fields are created once per `ActivityRecording.Session` in `StrengthRecorder.start()`, so a new segment after an app restart gets its own fields.
+
+Fields (ids match `resources/fitcontributions/fitcontributions.xml`; labels are in `resources/strings/strings.xml`)
+
+| id | Message | Name | Type | Bytes | Meaning |
+| --- | --- | --- | --- | --- | --- |
+| 0 | lap | exercise | STRING, count 65 | 65 | Exercise name, at most 64 bytes plus terminator (names are validated to 64 bytes and truncated on whole characters otherwise) |
+| 1 | lap | set | UINT8 | 1 | Set number within the exercise, from 1 |
+| 2 | lap | reps | UINT16 | 2 | Reps; 0 for timed sets |
+| 3 | lap | weight_kg | FLOAT | 4 | kg; negative for assistance exercises (the assistance offset), 0 for bodyweight and timed |
+| 4 | lap | duration_s | UINT16 | 2 | Seconds for timed sets; 0 otherwise |
+| 5 | session | total_sets | UINT16 | 2 | Completed sets |
+| 6 | session | volume_kg | FLOAT | 4 | Sum of weight x reps over weight exercises (assistance and bodyweight excluded) |
+| 7 | session | exercises | UINT8 | 1 | Exercises with at least one completed set |
+| 8 | session | nextset_version | STRING, count 8 | 8 | App version (string resource `AppVersion`; keep equal to `manifest.xml`) |
+
+Limits from the `createField` docs: apps get 256 bytes per message type (lap fields use 74, session fields 15); field names need at least 64 bytes and units at least 16. The `Fit` permission is not enough for `FitContributor`; `manifest.xml` now also declares `FitContributor` (the compiler requires it).
+
+Verification so far: unit tests cover the lap payload and summary calculation. A simulator probe created all nine fields, set maximum-length values, closed laps and saved without exceptions. The simulator's FIT file could not be located or parsed, so field values in the file are not verified. Whether Garmin Connect shows the lap table and summary fields, and how it treats a strength activity's laps, is unverified until a real session is inspected (see `docs/DEVICE_TESTS.md`).

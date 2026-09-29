@@ -8,7 +8,7 @@ NextSet is an offline strength-training log for the Garmin Forerunner 965 (Conne
 - Workout: one press logs a set; UP/DOWN adjusts reps and the load can be edited. Sets are prefilled from your last performance. A rest timer vibrates when rest ends, and timed sets have their own timer. You can correct or delete the last set, add a set, skip or replace an exercise for the day, then finish (or cancel) the workout.
 - Safety: workout state is checkpointed to storage, so a workout survives leaving the app or a crash and resumes on the next launch.
 - History: the last four finished workouts, with per-set details.
-- Garmin activity: a Strength activity is recorded for the workout and saved when it finishes. Leaving the app saves the segment so far; reopening starts a new recording.
+- Garmin activity: a Strength activity is recorded for the workout and saved when it finishes. Each logged set is also written as a lap with the exercise, set number, reps, weight and duration, and the activity summary carries total sets, volume and exercise count (Connect IQ developer fields; see docs/GARMIN_STRENGTH_PLAN.md). Leaving the app saves the segment so far; reopening starts a new recording.
 - Settings: default rest for new exercises, vibration on or off.
 
 ## Install (sideload)
@@ -45,7 +45,7 @@ See [docs/TOOLCHAIN.md](docs/TOOLCHAIN.md) for details.
 
 ## Known limitations
 
-- The recorded FIT file has no per-exercise or per-set rows. Set details stay in NextSet's own history.
+- Connect IQ cannot write native strength set rows, so Garmin Connect shows the sets only as laps and developer fields, and only if Connect renders them (unverified). Lap values are not rewritten when a set is corrected or deleted afterwards. NextSet's own history is the complete record.
 - How the activity appears in Garmin Connect (activity type, duration, heart rate, exercise names) has not been verified on a physical watch.
 - Only the FR965 is supported, and device testing is still pending; see [docs/DEVICE_TESTS.md](docs/DEVICE_TESTS.md).
 - The simulator does not enforce the 32 KB storage limit per value, so size is checked by estimate; each routine is stored separately to stay under it (see [docs/STABILITY_AUDIT_PLAN.md](docs/STABILITY_AUDIT_PLAN.md)).

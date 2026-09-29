@@ -1,8 +1,25 @@
 import Toybox.ActivityRecording;
+import Toybox.FitContributor;
 import Toybox.Lang;
+import Toybox.WatchUi;
 
+// Owns the recording and its FIT developer fields. Garmin Connect has no native set rows for a
+// Connect IQ activity, so each logged set becomes one lap carrying the set as lap fields, and the
+// session gets summary fields. Field ids match resources/fitcontributions.
+// Limits (createField docs): apps get 256 bytes per message type; lap fields use 74 (name 65 incl.
+// terminator, set 1, reps 2, weight 4, duration 2) and session fields 15.
+// Any FitContributor failure is swallowed: logging a set must never depend on it.
 class StrengthRecorder {
     private var _session as ActivityRecording.Session? = null;
+    private var _nameField as FitContributor.Field? = null;
+    private var _setField as FitContributor.Field? = null;
+    private var _repsField as FitContributor.Field? = null;
+    private var _weightField as FitContributor.Field? = null;
+    private var _durationField as FitContributor.Field? = null;
+    private var _totalSetsField as FitContributor.Field? = null;
+    private var _volumeField as FitContributor.Field? = null;
+    private var _exercisesField as FitContributor.Field? = null;
+    private var _versionField as FitContributor.Field? = null;
 
     public function start(name as String) as Boolean {
         if (_session != null) {
@@ -18,6 +35,7 @@ class StrengthRecorder {
                 return false;
             }
             var session = _session as ActivityRecording.Session;
+            createFields(session);
             if (session.start()) {
                 return true;
             }
@@ -27,6 +45,105 @@ class StrengthRecorder {
         } catch (error) {
             _session = null;
             return false;
+        }
+    }
+
+    // Fields belong to one Session, so they are created here for every new session (including a
+    // new segment after an app restart) and never reused.
+    private function createFields(session as ActivityRecording.Session) as Void {
+        _nameField = null;
+        _setField = null;
+        _repsField = null;
+        _weightField = null;
+        _durationField = null;
+        _totalSetsField = null;
+        _volumeField = null;
+        _exercisesField = null;
+        _versionField = null;
+        try {
+            if (!(session has :createField)) {
+                return;
+            }
+            var lap = FitContributor.MESG_TYPE_LAP;
+            var summary = FitContributor.MESG_TYPE_SESSION;
+            _nameField = session.createField("exercise", 0, FitContributor.DATA_TYPE_STRING,
+                {:mesgType => lap, :count => 65});
+            _setField = session.createField("set", 1, FitContributor.DATA_TYPE_UINT8,
+                {:mesgType => lap});
+            _repsField = session.createField("reps", 2, FitContributor.DATA_TYPE_UINT16,
+                {:mesgType => lap});
+            _weightField = session.createField("weight_kg", 3, FitContributor.DATA_TYPE_FLOAT,
+                {:mesgType => lap, :units => "kg"});
+            _durationField = session.createField("duration_s", 4, FitContributor.DATA_TYPE_UINT16,
+                {:mesgType => lap, :units => "s"});
+            _totalSetsField = session.createField("total_sets", 5, FitContributor.DATA_TYPE_UINT16,
+                {:mesgType => summary});
+            _volumeField = session.createField("volume_kg", 6, FitContributor.DATA_TYPE_FLOAT,
+                {:mesgType => summary, :units => "kg"});
+            _exercisesField = session.createField("exercises", 7, FitContributor.DATA_TYPE_UINT8,
+                {:mesgType => summary});
+            _versionField = session.createField("nextset_version", 8, FitContributor.DATA_TYPE_STRING,
+                {:mesgType => summary, :count => 8});
+        } catch (error) {
+            // Keep whatever was created; missing fields are skipped when writing.
+        }
+    }
+
+    private function setLapFields(name as String, setNumber as Number, reps as Number,
+                                  weightKg as Float, durationSec as Number) as Void {
+        if (_nameField != null) {
+            (_nameField as FitContributor.Field).setData(name);
+        }
+        if (_setField != null) {
+            (_setField as FitContributor.Field).setData(setNumber);
+        }
+        if (_repsField != null) {
+            (_repsField as FitContributor.Field).setData(reps);
+        }
+        if (_weightField != null) {
+            (_weightField as FitContributor.Field).setData(weightKg);
+        }
+        if (_durationField != null) {
+            (_durationField as FitContributor.Field).setData(durationSec);
+        }
+    }
+
+    // One lap per logged set: the values are set first because a lap field's value is written
+    // when the lap closes, then addLap() closes the lap. The fields are cleared afterwards so the
+    // trailing lap (rest after the last set) does not repeat the previous set.
+    public function recordSet(payload as Dictionary?) as Void {
+        if (payload == null || !isRecording()) {
+            return;
+        }
+        try {
+            setLapFields(payload["name"] as String, payload["set"] as Number,
+                payload["reps"] as Number, payload["weightKg"] as Float,
+                payload["durationSec"] as Number);
+            (_session as ActivityRecording.Session).addLap();
+            setLapFields("", 0, 0, 0.0, 0);
+        } catch (error) {
+        }
+    }
+
+    private function setSummaryFields(summary as Dictionary?) as Void {
+        if (summary == null) {
+            return;
+        }
+        try {
+            if (_totalSetsField != null) {
+                (_totalSetsField as FitContributor.Field).setData(summary["sets"]);
+            }
+            if (_volumeField != null) {
+                (_volumeField as FitContributor.Field).setData(summary["volumeKg"]);
+            }
+            if (_exercisesField != null) {
+                (_exercisesField as FitContributor.Field).setData(summary["exercises"]);
+            }
+            if (_versionField != null) {
+                (_versionField as FitContributor.Field).setData(
+                    WatchUi.loadResource($.Rez.Strings.AppVersion) as String);
+            }
+        } catch (error) {
         }
     }
 
@@ -54,12 +171,13 @@ class StrengthRecorder {
         return _session != null;
     }
 
-    public function save() as Boolean {
+    public function save(summary as Dictionary?) as Boolean {
         if (_session == null) {
             return false;
         }
         try {
             var session = _session as ActivityRecording.Session;
+            setSummaryFields(summary);
             if (session.isRecording() && !session.stop()) {
                 return false;
             }
