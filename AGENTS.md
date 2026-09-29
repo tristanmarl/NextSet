@@ -10,17 +10,18 @@ Install Connect IQ SDK 9.2.0 and add its `bin` directory to `PATH`.
 
 ```sh
 mkdir -p bin
-monkeyc -f monkey.jungle -d fr965 -o bin/NextSet.prg
+monkeyc -f monkey.jungle -d fr965 -o bin/NextSet.prg -y /private/tmp/NextSetDeveloperKey.der
 monkeydo bin/NextSet.prg fr965
 ```
 
 The first command builds the app; the second launches it in the FR965 simulator. Build and run the automated test target with:
 
 ```sh
-monkeyc --unit-test -f tests.jungle -d fr965 -o bin/NextSet-tests.prg
+monkeyc --unit-test -f tests.jungle -d fr965 -o bin/NextSet-tests.prg -y /private/tmp/NextSetDeveloperKey.der
 monkeydo bin/NextSet-tests.prg fr965
 ```
 
+Always pass `-y /private/tmp/NextSetDeveloperKey.der` to `monkeyc`, including simulator and unit-test builds. This checkout's SDK exits 101 with “The private key was not specified” if it is omitted; do not try an unsigned build first.
 Check the test summary: the current SDK runner may return exit code 1 even after reporting all tests passed. Record simulator and physical-watch evidence separately in `docs/DEVICE_TESTS.md`.
 
 ## Style and Testing
@@ -33,4 +34,4 @@ The available history has one release commit, so no repeated commit convention i
 
 ## Security and Configuration
 
-The current signing key is `/private/tmp/NextSetDeveloperKey.der` (PEM source: `/private/tmp/NextSetDeveloperKey.pem`); pass the DER path to `monkeyc -y`. These temporary files are outside the repository, but `/private/tmp` is not durable, so keep a secure backup. Reuse the same key for updates; never commit, upload, or package either key. Do not check in local SDK files or generated build artifacts. The app is currently local-only and does not generate Garmin activities or FIT files; documentation must not claim otherwise.
+The current signing key is `/private/tmp/NextSetDeveloperKey.der` (PEM source: `/private/tmp/NextSetDeveloperKey.pem`); pass the DER path to `monkeyc -y`. These temporary files are outside the repository, but `/private/tmp` is not durable, so keep a secure backup. Reuse the same key for updates; never commit, upload, or package either key. Do not check in local SDK files or generated build artifacts. The app now compiles an `ActivityRecording` Strength FIT activity path. Physical-watch recording, FIT inspection, Garmin Connect visibility, and native per-exercise set rendering are not verified; local completed set details remain in NextSet history.

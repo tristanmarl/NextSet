@@ -84,7 +84,7 @@ module Model {
         var entries = template["entries"];
         if (!validId(template["id"]) || !validText(template["name"], 64, false) ||
             !inRange(template["revision"], 1, 1000000, false) ||
-            !(entries instanceof Array) || entries.size() < 1 || entries.size() > MAX_ENTRIES) {
+            !(entries instanceof Array) || entries.size() > MAX_ENTRIES) {
             return false;
         }
         var total = 0;
@@ -93,15 +93,18 @@ module Model {
             var entry = entries[i];
             if (!(entry instanceof Dictionary) ||
                 !validId(entry["entryId"]) || !validId(entry["exerciseId"]) ||
-                !inRange(entry["workingSetCount"], 1, MAX_SETS, false)) {
+                !inRange(entry["workingSetCount"], 1, MAX_SETS, false) ||
+                !inRange(entry["increment100"], 25, 10000, true) ||
+                (entry["increment100"] instanceof Number &&
+                 (entry["increment100"] % 25) != 0)) {
                 return false;
             }
             for (var j = 0; j < ids.size(); j++) {
-                if (sameString(ids[j], entry["exerciseId"])) {
+                if (sameString(ids[j], entry["entryId"])) {
                     return false;
                 }
             }
-            ids.add(entry["exerciseId"]);
+            ids.add(entry["entryId"]);
             total += entry["workingSetCount"];
             if (entry["targetRepsMin"] != null || entry["targetRepsMax"] != null) {
                 if (!inRange(entry["targetRepsMin"], 1, MAX_REPS, false) ||

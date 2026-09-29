@@ -18,8 +18,8 @@ Add the Connect IQ SDK's `bin` directory to `PATH` before running the build comm
 
 ## Current evidence
 
-The integrated production build compiled successfully for `fr965` with Connect IQ SDK 9.2.0 using the command above. On 2026-09-27, the test target was built with `monkeyc --unit-test` and run in the FR965 simulator: all 17 tests reported PASS, with 0 failures and 0 errors. `monkeydo` nevertheless returned exit code 1 after printing the passing summary, including for a single passing test; treat this as a runner-status issue until its cause is resolved.
+The integrated production build compiled successfully for `fr965` with Connect IQ SDK 9.2.0 using the command above. The signed build on 2026-09-29 includes `ActivityRecording`, Fit permission, bundled Garmin exercise data, and editable routines. On 2026-09-27, the test target was built with `monkeyc --unit-test` and run in the FR965 simulator: all 17 tests reported PASS, with 0 failures and 0 errors. `monkeydo` nevertheless returned exit code 1 after printing the passing summary, including for a single passing test; treat this as a runner-status issue until its cause is resolved.
 
 The production build was relaunched in the FR965 simulator. Home, Overview, and Exercise screens were inspected; the visible overview and exercise text fit without clipping, including long exercise names. This is simulator-only layout evidence. No physical FR965 validation is recorded. See [DEVICE_TESTS.md](DEVICE_TESTS.md) and [SPIKES.md](SPIKES.md) for remaining acceptance work.
 
-`ActivityRecording`/`Recorder` and FIT output are not implemented. The current app is local-only and does not create Garmin activity files.
+The production code creates and saves a Strength `ActivityRecording.Session`. The simulator connection attempt on 2026-09-29 returned `Unable to connect to simulator.`, so no FIT file or activity rendering was inspected. Physical FR965 recording and Garmin Connect visibility remain pending. Local detailed sets are preserved; native Garmin strength set rendering is not claimed. See [DEVICE_TESTS.md](DEVICE_TESTS.md) and [SPIKES.md](SPIKES.md).

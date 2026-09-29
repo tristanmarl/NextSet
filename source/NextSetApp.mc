@@ -21,17 +21,20 @@ class NextSetApp extends Application.AppBase {
     public function onStart(state as Dictionary?) as Void {
         AppBase.onStart(state);
         if (_controller.isWorkoutRunning()) {
+            _controller.ensureRecordingSegment();
             startTimer(true);
         }
     }
 
     public function onStop(state as Dictionary?) as Void {
         stopTimer();
+        _controller.saveRecordingSegment();
         AppBase.onStop(state);
     }
 
     public function getInitialView() as [Views] or [Views, InputDelegates] {
-        return [new HomeView(), new HomeDelegate()];
+        var view = new HomeView();
+        return [view, new HomeDelegate(view)];
     }
 
     public function controller() as SessionController {
@@ -74,30 +77,76 @@ class NextSetApp extends Application.AppBase {
 }
 
 class HomeView extends WatchUi.View {
+    private var _routineIndex as Number = 0;
+
     public function initialize() {
         View.initialize();
+        var routines = getApp().controller().routineTemplates();
+        if (routines.size() == 0) {
+            _routineIndex = -1;
+        }
     }
 
     public function onUpdate(dc as Dc) as Void {
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
         dc.clear();
+        var controller = getApp().controller();
         var notice = getHomeNotice();
         var caption = UiFormat.captionFont();
-        var totalHeight = dc.getFontHeight(Graphics.FONT_LARGE) + 8 +
-            dc.getFontHeight(Graphics.FONT_TINY);
+        var active = controller.hasActiveSession();
+        var routines = controller.routineTemplates();
+        var routine = !active && _routineIndex >= 0 && _routineIndex < routines.size() ?
+            routines[_routineIndex] as Dictionary : null;
+        var lines = ["NextSet"];
+        var fonts = [Graphics.FONT_LARGE];
+        var gaps = [6];
+        if (active) {
+            var session = controller.session() as Dictionary;
+            lines.add(controller.isWorkoutPaused() ? "WORKOUT PAUSED" : "WORKOUT ACTIVE");
+            fonts.add(Graphics.FONT_SMALL);
+            gaps.add(5);
+            lines.add(session["templateName"] as String);
+            fonts.add(caption);
+            gaps.add(8);
+            lines.add("START: Resume");
+            fonts.add(Graphics.FONT_XTINY);
+            gaps.add(8);
+        } else if (routine != null) {
+            lines.add(routine["name"] as String);
+            fonts.add(Graphics.FONT_MEDIUM);
+            gaps.add(5);
+            lines.add(controller.templateTotalSets(routine["id"] as String).toString() +
+                " planned sets");
+            fonts.add(caption);
+            gaps.add(8);
+            lines.add("UP/DOWN select · START begin");
+            fonts.add(Graphics.FONT_XTINY);
+            gaps.add(8);
+        } else {
+            lines.add("Workout unavailable");
+            fonts.add(Graphics.FONT_SMALL);
+            gaps.add(8);
+        }
+        lines.add(active ? "MENU: Actions" : "MENU: History/Edit");
+        fonts.add(caption);
+        gaps.add(notice == null ? 0 : 4);
         if (notice != null) {
-            totalHeight += 8 + dc.getFontHeight(caption);
+            lines.add(notice as String);
+            fonts.add(caption);
+            gaps.add(0);
+        }
+        var totalHeight = 0;
+        for (var i = 0; i < lines.size(); i++) {
+            totalHeight += dc.getFontHeight(fonts[i] as Graphics.FontType) +
+                (gaps[i] as Number);
         }
         var y = (dc.getHeight() - totalHeight) / 2;
-        y = UiFormat.drawLine(dc, "NextSet", y, Graphics.FONT_LARGE) + 8;
-        y = UiFormat.drawLine(dc,
-            getApp().controller().hasRecoverySaveFailure() ? "START: Retry recovery" :
-                (getApp().controller().hasPendingFinalization() ? "START: Retry save" :
-                (getApp().controller().hasActiveSession() ? "START: Resume" : "START: Begin")),
-            y, Graphics.FONT_TINY) + 8;
-        if (notice != null) {
-            dc.setColor(Graphics.COLOR_YELLOW, Graphics.COLOR_BLACK);
-            UiFormat.drawLine(dc, notice as String, y, caption);
+        for (var i = 0; i < lines.size(); i++) {
+            if (notice != null && i == lines.size() - 1) {
+                dc.setColor(Graphics.COLOR_YELLOW, Graphics.COLOR_BLACK);
+            }
+            y = UiFormat.drawLine(dc, lines[i] as String, y,
+                fonts[i] as Graphics.FontType) + (gaps[i] as Number);
         }
     }
 
@@ -141,6 +190,20 @@ class HomeView extends WatchUi.View {
             return "Update app to save history";
         }
         return error == null ? null : "Check workout status";
+    }
+
+    public function moveRoutine(direction as Number) as Void {
+        var count = getApp().controller().routineTemplates().size();
+        if (count > 0) {
+            _routineIndex = (_routineIndex + direction + count) % count;
+            WatchUi.requestUpdate();
+        }
+    }
+
+    public function selectedTemplateId() as String? {
+        var routines = getApp().controller().routineTemplates();
+        return _routineIndex >= 0 && _routineIndex < routines.size() ?
+            (routines[_routineIndex] as Dictionary)["id"] as String : null;
     }
 }
 

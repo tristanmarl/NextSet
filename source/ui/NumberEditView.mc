@@ -89,7 +89,11 @@ class NumberEditView extends WatchUi.View {
                 Navigator.editIncrements();
             }
         } else {
-            _error = "INVALID VALUE OR SAVE FAILED";
+            var problem = controller.errorMessage();
+            _error = Model.sameString(problem, "Routine limit reached") ? "ROUTINE LIMIT" :
+                (Model.sameString(problem, "Settings save failed") ||
+                 Model.sameString(problem, "Save failed. Retry before continuing.") ?
+                 "SAVE FAILED" : "INVALID VALUE");
             WatchUi.requestUpdate();
         }
     }
@@ -122,7 +126,7 @@ class NumberEditView extends WatchUi.View {
                     var exerciseId = entryDefinitionExerciseId();
                     if (exerciseId != null) {
                         var configuredIncrement = getApp().controller().numericConfigValue(
-                            "increment", "", exerciseId as String, "increment100");
+                            "template", _parentId as String, _entryId, "increment100");
                         if (configuredIncrement instanceof Number) {
                             _increment100 = configuredIncrement as Number;
                         }
@@ -192,17 +196,9 @@ class NumberEditView extends WatchUi.View {
     }
 
     private function entryDefinitionExerciseId() as String? {
-        var template = Catalog.template(_parentId == null ? "" : _parentId as String);
-        if (template == null) {
-            return null;
-        }
-        var entries = (template as Dictionary)["entries"] as Array;
-        for (var i = 0; i < entries.size(); i++) {
-            if (Model.sameString(entries[i]["entryId"], _entryId)) {
-                return entries[i]["exerciseId"] as String;
-            }
-        }
-        return null;
+        var entry = getApp().controller().templateEntry(
+            _parentId == null ? "" : _parentId as String, _entryId);
+        return entry == null ? null : (entry as Dictionary)["exerciseId"] as String;
     }
 
     private function minimumValue() as Number {

@@ -3,6 +3,27 @@ import Toybox.WatchUi;
 
 module Catalog {
     var _data as Dictionary? = null;
+    var _garminCategories as Array? = null;
+    var _garminIndex as Number = -1;
+    var _garminRows as Array? = null;
+    var _garminResources = [
+        $.Rez.JsonData.Garmin00, $.Rez.JsonData.Garmin01, $.Rez.JsonData.Garmin02,
+        $.Rez.JsonData.Garmin03, $.Rez.JsonData.Garmin04, $.Rez.JsonData.Garmin05,
+        $.Rez.JsonData.Garmin06, $.Rez.JsonData.Garmin07, $.Rez.JsonData.Garmin08,
+        $.Rez.JsonData.Garmin09, $.Rez.JsonData.Garmin10, $.Rez.JsonData.Garmin11,
+        $.Rez.JsonData.Garmin12, $.Rez.JsonData.Garmin13, $.Rez.JsonData.Garmin14,
+        $.Rez.JsonData.Garmin15, $.Rez.JsonData.Garmin16, $.Rez.JsonData.Garmin17,
+        $.Rez.JsonData.Garmin18, $.Rez.JsonData.Garmin19, $.Rez.JsonData.Garmin20,
+        $.Rez.JsonData.Garmin21, $.Rez.JsonData.Garmin22, $.Rez.JsonData.Garmin23,
+        $.Rez.JsonData.Garmin24, $.Rez.JsonData.Garmin25, $.Rez.JsonData.Garmin26,
+        $.Rez.JsonData.Garmin27, $.Rez.JsonData.Garmin28, $.Rez.JsonData.Garmin29,
+        $.Rez.JsonData.Garmin30, $.Rez.JsonData.Garmin31, $.Rez.JsonData.Garmin32,
+        $.Rez.JsonData.Garmin33, $.Rez.JsonData.Garmin34, $.Rez.JsonData.Garmin35,
+        $.Rez.JsonData.Garmin36, $.Rez.JsonData.Garmin37, $.Rez.JsonData.Garmin38,
+        $.Rez.JsonData.Garmin39, $.Rez.JsonData.Garmin40, $.Rez.JsonData.Garmin41,
+        $.Rez.JsonData.Garmin42, $.Rez.JsonData.Garmin43, $.Rez.JsonData.Garmin44,
+        $.Rez.JsonData.Garmin45, $.Rez.JsonData.Garmin46
+    ];
 
     function data() as Dictionary {
         if (_data == null) {
@@ -17,6 +38,152 @@ module Catalog {
 
     function templates() as Array {
         return data()["templates"] as Array;
+    }
+
+    function garminCategories() as Array {
+        if (_garminCategories == null) {
+            _garminCategories = WatchUi.loadResource($.Rez.JsonData.GarminCategories) as Array;
+        }
+        return _garminCategories as Array;
+    }
+
+    function garminExercises(categoryIndex as Number) as Array {
+        if (_garminIndex != categoryIndex) {
+            if (categoryIndex < 0 || categoryIndex >= _garminResources.size()) {
+                return [];
+            }
+            _garminRows = WatchUi.loadResource(_garminResources[categoryIndex]) as Array;
+            _garminIndex = categoryIndex;
+        }
+        return _garminRows as Array;
+    }
+
+    function garminExercise(categoryIndex as Number, id as String) as Dictionary? {
+        var rows = garminExercises(categoryIndex);
+        for (var i = 0; i < rows.size(); i++) {
+            if (Model.sameString(rows[i]["id"], id)) {
+                return rows[i] as Dictionary;
+            }
+        }
+        return null;
+    }
+
+    function garminCategoryIndex(code as String) as Number {
+        var categories = garminCategories();
+        for (var i = 0; i < categories.size(); i++) {
+            if (Model.sameString(categories[i]["code"], code)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    function garminName(category as String, code as String) as String {
+        var index = garminCategoryIndex(category);
+        if (index >= 0) {
+            var rows = garminExercises(index);
+            for (var i = 0; i < rows.size(); i++) {
+                if (Model.sameString(rows[i]["code"], code)) {
+                    return rows[i]["name"] as String;
+                }
+            }
+        }
+        return code;
+    }
+
+    function routineTemplates(config as Dictionary?) as Array {
+        var saved = dictionaryValue(config, "routines");
+        if (saved instanceof Array) {
+            return saved as Array;
+        }
+        var result = [];
+        var seeded = templates();
+        for (var i = 0; i < seeded.size(); i++) {
+            var source = seeded[i] as Dictionary;
+            var routine = SessionLogic.copyDictionary(source);
+            var entries = [];
+            var sourceEntries = source["entries"] as Array;
+            for (var j = 0; j < sourceEntries.size(); j++) {
+                var entry = SessionLogic.copyDictionary(sourceEntries[j] as Dictionary);
+                var definition = exercise(entry["exerciseId"] as String) as Dictionary;
+                entry["name"] = definition["name"];
+                entry["loadType"] = definition["loadType"];
+                entry["unit"] = definition["unit"];
+                entry["increment100"] = definition["increment100"];
+                entry["defaultRestSec"] = definition["defaultRestSec"];
+                entry["isBodyWeight"] = definition["isBodyWeight"];
+                entry["garminCategory"] = definition["garminCategory"];
+                entry["garminCode"] = definition["garminCode"];
+                entries.add(entry);
+            }
+            routine["entries"] = entries;
+            result.add(routine);
+        }
+        return result;
+    }
+
+    function routineTemplate(config as Dictionary?, id as String) as Dictionary? {
+        var list = routineTemplates(config);
+        for (var i = 0; i < list.size(); i++) {
+            if (Model.sameString(list[i]["id"], id)) {
+                return list[i] as Dictionary;
+            }
+        }
+        return null;
+    }
+
+    function exerciseForEntry(entry as Dictionary) as Dictionary? {
+        var id = entry["exerciseId"];
+        if (!(id instanceof String)) {
+            return null;
+        }
+        var seeded = exercise(id as String);
+        if (seeded != null) {
+            var copy = SessionLogic.copyDictionary(seeded as Dictionary);
+            var keys = ["name", "loadType", "unit", "increment100",
+                "defaultRestSec", "notes", "isBodyWeight", "garminCategory", "garminCode"];
+            for (var i = 0; i < keys.size(); i++) {
+                var key = keys[i] as String;
+                if (entry[key] != null || Model.sameString(key, "unit") ||
+                    Model.sameString(key, "increment100")) {
+                    copy[key] = entry[key];
+                }
+            }
+            return copy;
+        }
+        var definition = {};
+        definition["id"] = id;
+        definition["name"] = entry["name"];
+        definition["loadType"] = entry["loadType"];
+        definition["unit"] = entry["unit"];
+        definition["increment100"] = entry["increment100"];
+        definition["defaultRestSec"] = entry["defaultRestSec"];
+        definition["notes"] = entry["notes"];
+        definition["isBodyWeight"] = entry["isBodyWeight"];
+        definition["garminCategory"] = entry["garminCategory"];
+        definition["garminCode"] = entry["garminCode"];
+        return definition;
+    }
+
+    function validRoutine(workout as Dictionary) as Boolean {
+        if (!Model.validTemplate(workout)) {
+            return false;
+        }
+        var entries = workout["entries"] as Array;
+        for (var i = 0; i < entries.size(); i++) {
+            var entry = entries[i] as Dictionary;
+            var definition = exerciseForEntry(entry);
+            if (definition == null || !Model.validExercise(definition)) {
+                return false;
+            }
+            if (Model.sameString(definition["loadType"], "timed") && entry["targetDurationSec"] == null) {
+                return false;
+            }
+            if (!Model.sameString(definition["loadType"], "timed") && entry["targetRepsMin"] == null) {
+                return false;
+            }
+        }
+        return true;
     }
 
     function exercise(id as String) as Dictionary? {
@@ -111,8 +278,9 @@ module Catalog {
 
     function createSession(templateId as String, id as String, sequence as Number,
                            now as Number, cache as Dictionary?, config as Dictionary?) as Dictionary? {
-        var workout = template(templateId);
-        if (workout == null || !valid()) {
+        var workout = routineTemplate(config, templateId);
+        if (workout == null || !valid() || !validRoutine(workout as Dictionary) ||
+            (workout as Dictionary)["entries"].size() == 0) {
             return null;
         }
         var sessionExercises = [];
@@ -149,7 +317,7 @@ module Catalog {
         var incrementOverrides = dictionaryValue(config, "incrementOverrides");
         for (var i = 0; i < entries.size(); i++) {
             var entry = entries[i] as Dictionary;
-            var definition = exercise(entry["exerciseId"] as String) as Dictionary;
+            var definition = exerciseForEntry(entry) as Dictionary;
             var type = definition["loadType"] as String;
             var isTimed = Model.sameString(type, "timed");
             var isLoadable = Model.sameString(type, "weight") || Model.sameString(type, "assistance");
@@ -196,12 +364,14 @@ module Catalog {
                 }
             }
 
-            var increment = definition["increment100"];
+            var increment = entry["increment100"] instanceof Number ?
+                entry["increment100"] : definition["increment100"];
             var incrementOverride = dictionaryValue(
                 incrementOverrides instanceof Dictionary ? incrementOverrides as Dictionary : null,
                 definition["id"] as String
             );
-            if (isLoadable && Model.inRange(incrementOverride, 25, 10000, false) &&
+            if (isLoadable && !(entry["increment100"] instanceof Number) &&
+                Model.inRange(incrementOverride, 25, 10000, false) &&
                 ((incrementOverride as Number) % 25) == 0) {
                 increment = incrementOverride;
             }
@@ -225,6 +395,8 @@ module Catalog {
             snapshot["name"] = definition["name"];
             snapshot["loadType"] = type;
             snapshot["loadUnit"] = definition["unit"];
+            snapshot["garminCategory"] = entry["garminCategory"];
+            snapshot["garminCode"] = entry["garminCode"];
             snapshot["weightIncrement100"] = increment;
             snapshot["restSec"] = rest;
             snapshot["plannedSetCount"] = count;
@@ -251,6 +423,7 @@ module Catalog {
         session["endedAt"] = null;
         session["status"] = "active";
         session["completionKind"] = null;
+        session["fitSegments"] = 0;
         session["exercises"] = sessionExercises;
         session["rest"] = null;
         session["restGeneration"] = 0;

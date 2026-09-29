@@ -18,18 +18,70 @@ class SummaryView extends WatchUi.View {
             return;
         }
         var totals = SessionLogic.totals(session as Dictionary);
-        var title = Model.sameString(_outcome, "completed") ? "Workout saved" : "Workout ended";
-        var y = UiFormat.drawLine(dc, title, 80, Graphics.FONT_MEDIUM) + 8;
-        y = UiFormat.drawLine(dc, totals["done"].toString() + "/" +
-            totals["planned"].toString() + " sets", y, Graphics.FONT_LARGE) + 8;
+        var complete = Model.sameString(_outcome, "completed");
+        var full = Model.sameString((session as Dictionary)["completionKind"], "full");
+        var title = complete ? (full ? "NextSet log saved" : "Partial NextSet log") :
+            "Workout ended";
+        var lines = [title, totals["done"].toString() + "/" +
+            totals["planned"].toString() + " sets"];
+        var fonts = [Graphics.FONT_SMALL, Graphics.FONT_LARGE];
+        var gaps = [8, 8];
         var caption = UiFormat.captionFont();
         if (session["elapsedSec"] instanceof Number && session["activeSec"] instanceof Number) {
-            y = UiFormat.drawLine(dc, "ELAPSED " + duration(session["elapsedSec"] as Number),
-                y, caption) + 6;
-            y = UiFormat.drawLine(dc, "ACTIVE " + duration(session["activeSec"] as Number),
-                y, caption) + 16;
+            lines.add("ELAPSED " + duration(session["elapsedSec"] as Number));
+            fonts.add(caption);
+            gaps.add(4);
+            lines.add("ACTIVE " + duration(session["activeSec"] as Number));
+            fonts.add(caption);
+            gaps.add(8);
         }
-        UiFormat.drawLine(dc, "START: DONE", y, Graphics.FONT_XTINY);
+        lines.add(activityLabel(session["fitState"]));
+        fonts.add(caption);
+        gaps.add(5);
+        var segments = session["fitSegments"];
+        if (segments instanceof Number && segments > 1) {
+            lines.add(segments.toString() + " GARMIN SEGMENTS");
+            fonts.add(caption);
+            gaps.add(5);
+        }
+        var unknown = session["fitUnknownSegments"];
+        if (unknown instanceof Number && unknown > 0) {
+            lines.add("PRIOR SEGMENT UNKNOWN");
+            fonts.add(caption);
+            gaps.add(5);
+        }
+        lines.add(hasUnresolvedActivity() ? "START: SAVE CHOICE" : "START: EXIT");
+        fonts.add(Graphics.FONT_XTINY);
+        gaps.add(0);
+        var totalHeight = 0;
+        for (var i = 0; i < lines.size(); i++) {
+            totalHeight += dc.getFontHeight(fonts[i] as Graphics.FontType) +
+                (gaps[i] as Number);
+        }
+        var y = (dc.getHeight() - totalHeight) / 2;
+        for (var i = 0; i < lines.size(); i++) {
+            y = UiFormat.drawLine(dc, lines[i] as String, y,
+                fonts[i] as Graphics.FontType) + (gaps[i] as Number);
+        }
+    }
+
+    private function activityLabel(fitState as Object?) as String {
+        if (Model.sameString(fitState, "saved") || Model.sameString(fitState, "segment_saved")) {
+            return "GARMIN ACTIVITY SAVED";
+        }
+        if (Model.sameString(fitState, "failed")) {
+            return "GARMIN ACTIVITY FAILED";
+        }
+        if (Model.sameString(fitState, "unknown")) {
+            return "GARMIN ACTIVITY UNKNOWN";
+        }
+        return "GARMIN ACTIVITY NOT SAVED";
+    }
+
+    private function hasUnresolvedActivity() as Boolean {
+        var session = getApp().controller().session();
+        return session != null && (Model.sameString((session as Dictionary)["fitState"], "failed") ||
+            Model.sameString((session as Dictionary)["fitState"], "unknown"));
     }
 
     private function duration(totalSeconds as Number) as String {
@@ -45,12 +97,18 @@ class SummaryDelegate extends WatchUi.BehaviorDelegate {
     }
 
     public function onSelect() as Boolean {
-        Navigator.home();
+        var session = getApp().controller().session();
+        if (session != null && (Model.sameString((session as Dictionary)["fitState"], "failed") ||
+            Model.sameString((session as Dictionary)["fitState"], "unknown"))) {
+            Navigator.activityResultActions();
+        } else {
+            Navigator.exitApp();
+        }
         return true;
     }
 
     public function onBack() as Boolean {
-        Navigator.home();
+        onSelect();
         return true;
     }
 }

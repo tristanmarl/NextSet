@@ -53,17 +53,43 @@ class ExerciseView extends WatchUi.View {
             Model.sameString(loadType, "assistance");
         var caption = UiFormat.captionFont();
         var titleFont = Graphics.FONT_MEDIUM;
-        var titleLines = UiFormat.wrapTitle(dc, current["name"] as String, titleFont,
+        var name = current["name"] as String;
+        var titleLines = UiFormat.wrapTitle(dc, name, titleFont,
             dc.getWidth() * 0.72);
+        if (titleLines.size() == 1 && !Model.sameString(titleLines[0], name)) {
+            titleFont = Graphics.FONT_SMALL;
+            titleLines = UiFormat.wrapTitle(dc, name, titleFont, dc.getWidth() * 0.62);
+            if (titleLines.size() == 1 && !Model.sameString(titleLines[0], name)) {
+                titleFont = Graphics.FONT_XTINY;
+                titleLines = UiFormat.wrapTitle(dc, name, titleFont, dc.getWidth() * 0.62);
+            }
+        }
         var titleHeight = dc.getFontHeight(titleFont);
         var setFont = Graphics.FONT_SMALL;
         var setHeight = dc.getFontHeight(setFont);
         var valueFont = Graphics.FONT_MEDIUM;
         var valueHeight = dc.getFontHeight(valueFont);
         var mainHeight = titleLines.size() * titleHeight + 5 + setHeight + 8 + valueHeight;
+        var restStatus = slot < 0 ? null : UiFormat.restStatus(session as Dictionary);
+        var last = slot < 0 || restStatus != null ? null : UiFormat.lastLine(current, slot);
         if (slot < 0) {
             mainHeight = titleLines.size() * titleHeight + 8 + dc.getFontHeight(Graphics.FONT_SMALL) +
                 4 + dc.getFontHeight(Graphics.FONT_SMALL);
+        } else {
+            mainHeight += 8 + dc.getFontHeight(caption);
+            if (restStatus != null) {
+                mainHeight += dc.getFontHeight(Graphics.FONT_SMALL) + 3;
+            } else {
+                if (last != null) {
+                    mainHeight += dc.getFontHeight(caption) + 2;
+                }
+                if (current["notes"] instanceof String) {
+                    mainHeight += dc.getFontHeight(caption) + 2;
+                }
+                if (_message != null) {
+                    mainHeight += dc.getFontHeight(caption) + 2;
+                }
+            }
         }
         var y = (dc.getHeight() - mainHeight) / 2;
         for (var i = 0; i < titleLines.size(); i++) {
@@ -111,20 +137,18 @@ class ExerciseView extends WatchUi.View {
             dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
         }
 
-        var last = UiFormat.lastLine(current, slot);
+        if (restStatus != null) {
+            dc.setColor(Graphics.COLOR_YELLOW, Graphics.COLOR_BLACK);
+            y = UiFormat.drawLine(dc, restStatus as String, y, Graphics.FONT_SMALL) + 3;
+            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+        }
         if (last != null) {
             y = UiFormat.drawLine(dc, last as String, y, caption) + 2;
         }
-        var restStatus = UiFormat.restStatus(session as Dictionary);
-        if (restStatus != null) {
-            dc.setColor(Graphics.COLOR_YELLOW, Graphics.COLOR_BLACK);
-            y = UiFormat.drawLine(dc, restStatus as String, y, caption) + 2;
-            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
-        }
-        if (current["notes"] instanceof String) {
+        if (restStatus == null && current["notes"] instanceof String) {
             y = UiFormat.drawLine(dc, current["notes"] as String, y, caption) + 2;
         }
-        if (_message != null) {
+        if (restStatus == null && _message != null) {
             y = UiFormat.drawLine(dc, _message as String, y, caption) + 2;
         }
 
@@ -135,9 +159,10 @@ class ExerciseView extends WatchUi.View {
         var draft = ((current["slots"] as Array)[slot] as Dictionary)["draft"] as Dictionary;
         var measured = draft["measuredSec"] instanceof Number && draft["measuredSec"] > 0;
         var manuallyEdited = draft["durationEdited"] == true;
-        var cue = timed ? (isRunning ? "START finish" :
+        var cue = restStatus != null ? "MENU SKIP REST" :
+            (timed ? (isRunning ? "START finish" :
             (measured ? "START resume" :
-            (manuallyEdited ? "START log" : "START begin"))) : "ADJUST · START LOG";
+            (manuallyEdited ? "START log" : "START begin"))) : "ADJUST · START LOG");
         UiFormat.drawLine(dc, cue, y + 2, caption);
     }
 
@@ -173,15 +198,17 @@ class ExerciseView extends WatchUi.View {
         if (run instanceof Dictionary && Model.sameString(run["entryId"], _entryId) &&
             run["slot"] == slotIndex) {
             var elapsed = getApp().controller().timedElapsed(Time.now().value());
-            return (elapsed >= exercise["targetDurationSec"] ? "TARGET  " : "RUN  ") +
-                elapsed.toString() + " sec";
+            return "RUN  " + elapsed.toString() + "/" +
+                exercise["targetDurationSec"].toString() + " sec";
         }
         var draft = (exercise["slots"] as Array)[slotIndex]["draft"] as Dictionary;
         if (draft["measuredSec"] instanceof Number && draft["measuredSec"] > 0) {
-            return "PAUSED  " + draft["measuredSec"].toString() + " sec";
+            return "PAUSED  " + draft["measuredSec"].toString() + "/" +
+                exercise["targetDurationSec"].toString() + " sec";
         }
         if (draft["durationEdited"] == true) {
-            return "MANUAL  " + draft["durationSec"].toString() + " sec";
+            return "MANUAL  " + draft["durationSec"].toString() + "/" +
+                exercise["targetDurationSec"].toString() + " sec";
         }
         return "TARGET  " + exercise["targetDurationSec"].toString() + " sec";
     }
@@ -377,19 +404,12 @@ class ExerciseDelegate extends WatchUi.BehaviorDelegate {
     }
 
     public function onMenu() as Boolean {
-        Navigator.exerciseMenu(_view.entryId(), _view);
+        Navigator.actionsForEntry(_view.entryId());
         return true;
     }
 
     public function onBack() as Boolean {
-        var session = getApp().controller().session();
-        var run = session == null ? null : (session as Dictionary)["timedRun"];
-        if (run instanceof Dictionary && Model.sameString(run["entryId"], _view.entryId()) &&
-            !getApp().controller().pauseTimedForEntry(_view.entryId(), Time.now().value())) {
-            _view.showMessage("Save failed - timer still running");
-            return true;
-        }
-        WatchUi.popView(WatchUi.SLIDE_DOWN);
+        Navigator.actionsForEntry(_view.entryId());
         return true;
     }
 }

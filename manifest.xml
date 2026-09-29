@@ -13,7 +13,9 @@
         <iq:languages>
             <iq:language>eng</iq:language>
         </iq:languages>
-        <iq:permissions/>
+        <iq:permissions>
+            <iq:uses-permission id="Fit"/>
+        </iq:permissions>
         <iq:barrels/>
     </iq:application>
 </iq:manifest>

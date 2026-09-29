@@ -128,6 +128,14 @@ class HistoryView extends WatchUi.View {
             lines.add("Saved workout details unavailable");
             return lines;
         }
+        lines.add(fitStatusLabel(record));
+        if (record["fitSegments"] instanceof Number && record["fitSegments"] > 1) {
+            lines.add(record["fitSegments"].toString() + " Garmin segments saved");
+        }
+        if (record["fitUnknownSegments"] instanceof Number &&
+            record["fitUnknownSegments"] > 0) {
+            lines.add("Earlier Garmin segment unknown");
+        }
         var exercises = record["exercises"] as Array;
         for (var i = 0; i < exercises.size(); i++) {
             var exercise = exercises[i] as Dictionary;
@@ -165,6 +173,24 @@ class HistoryView extends WatchUi.View {
             lines.add("No exercise details");
         }
         return lines;
+    }
+
+    private function fitStatusLabel(record as Dictionary) as String {
+        var state = record["fitState"];
+        if (Model.sameString(state, "saved")) {
+            return "Garmin activity saved";
+        }
+        if (Model.sameString(state, "failed")) {
+            return "Garmin activity failed";
+        }
+        if (Model.sameString(state, "unknown")) {
+            return "Garmin activity unknown";
+        }
+        if (Model.sameString(state, "discarded") ||
+            Model.sameString(state, "discard_failed")) {
+            return "Garmin activity not saved";
+        }
+        return "Garmin status unavailable";
     }
 
     private function setValue(exercise as Dictionary, completed as Dictionary) as String {

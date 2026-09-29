@@ -481,7 +481,15 @@ module SessionLogic {
         var state = exerciseCandidate(session, index);
         var exercise = state["exercise"] as Dictionary;
         exercise["closedEarly"] = closed;
-        return state["session"] as Dictionary;
+        var candidate = state["session"] as Dictionary;
+        var rest = candidate["rest"];
+        if (closed && rest instanceof Dictionary && Model.sameString(rest["entryId"], entryId)) {
+            candidate["rest"] = null;
+        }
+        if (closed && candidate["nextSetSequence"] instanceof Number) {
+            candidate["nextSetSequence"] = (candidate["nextSetSequence"] as Number) + 1;
+        }
+        return candidate;
     }
 
     function completedCount(exercise as Dictionary) as Number {
@@ -525,8 +533,10 @@ module SessionLogic {
         var planned = 0;
         var exercises = session["exercises"] as Array;
         for (var i = 0; i < exercises.size(); i++) {
-            done += completedCount(exercises[i] as Dictionary);
-            planned += exercises[i]["plannedSetCount"];
+            var exercise = exercises[i] as Dictionary;
+            var exerciseDone = completedCount(exercise);
+            done += exerciseDone;
+            planned += exercise["closedEarly"] == true ? exerciseDone : exercise["plannedSetCount"];
         }
         return {"done" => done, "planned" => planned};
     }

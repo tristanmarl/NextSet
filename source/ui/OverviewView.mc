@@ -41,8 +41,7 @@ class OverviewView extends WatchUi.View {
         if (current["nextSetSequence"] instanceof Number &&
             current["nextSetSequence"] != _seenNextSetSequence) {
             _seenNextSetSequence = current["nextSetSequence"] as Number;
-            var selected = exercises[_selectedIndex] as Dictionary;
-            if (SessionLogic.nextSlot(selected) < 0) {
+            if (SessionLogic.nextSlot(exercises[_selectedIndex] as Dictionary) < 0) {
                 for (var offset = 1; offset <= exercises.size(); offset++) {
                     var candidateIndex = (_selectedIndex + offset) % exercises.size();
                     if (SessionLogic.nextSlot(exercises[candidateIndex] as Dictionary) >= 0) {
@@ -61,19 +60,30 @@ class OverviewView extends WatchUi.View {
         var countFont = Graphics.FONT_LARGE;
         var gap = 10;
         var titleHeight = dc.getFontHeight(titleFont);
-        var blockHeight = titleHeight + gap + dc.getFontHeight(countFont);
+        var footerFont = UiFormat.captionFont();
+        var blockHeight = titleHeight + gap + dc.getFontHeight(countFont) + 3 +
+            dc.getFontHeight(footerFont) + 2 + dc.getFontHeight(footerFont);
         var titleY = (dc.getHeight() - blockHeight) / 2;
         if (!Model.sameString(UiFormat.safeText(dc, focusTitle, titleY, titleFont), focusTitle)) {
             titleFont = Graphics.FONT_XTINY;
             titleHeight = dc.getFontHeight(titleFont);
-            blockHeight = titleHeight + gap + dc.getFontHeight(countFont);
+            blockHeight = titleHeight + gap + dc.getFontHeight(countFont) + 3 +
+                dc.getFontHeight(footerFont) + 2 + dc.getFontHeight(footerFont);
             titleY = (dc.getHeight() - blockHeight) / 2;
         }
         UiFormat.drawLine(dc, focusTitle, titleY, titleFont);
         var countY = titleY + titleHeight + gap;
-        var count = SessionLogic.completedCount(focused).toString() + "/" +
-            focused["plannedSetCount"].toString() + " sets";
+        var count = getApp().controller().isWorkoutPaused() ? "WORKOUT PAUSED" :
+            (SessionLogic.completedCount(focused).toString() + "/" +
+             focused["plannedSetCount"].toString() + " sets");
         UiFormat.drawLine(dc, count, countY, countFont);
+        var totals = SessionLogic.totals(current);
+        var progressY = countY + dc.getFontHeight(countFont) + 3;
+        UiFormat.drawLine(dc, totals["done"].toString() + "/" + totals["planned"].toString() +
+            " SETS · EX " + (_selectedIndex + 1).toString() + "/" + exercises.size(),
+            progressY, footerFont);
+        UiFormat.drawLine(dc, "MENU actions",
+            progressY + dc.getFontHeight(footerFont) + 2, footerFont);
     }
 
     public function moveSelection(direction as Number) as Void {
@@ -90,6 +100,10 @@ class OverviewView extends WatchUi.View {
     }
 
     public function openSelection() as Void {
+        if (getApp().controller().isWorkoutPaused()) {
+            Navigator.resumeWorkout();
+            return;
+        }
         var session = getApp().controller().session();
         if (session == null) {
             return;
@@ -98,6 +112,16 @@ class OverviewView extends WatchUi.View {
         if (_selectedIndex < exercises.size()) {
             Navigator.exercise((exercises[_selectedIndex] as Dictionary)["entryId"] as String);
         }
+    }
+
+    public function selectedEntryId() as String? {
+        var session = getApp().controller().session();
+        if (session == null) {
+            return null;
+        }
+        var exercises = (session as Dictionary)["exercises"] as Array;
+        return _selectedIndex < exercises.size() ?
+            (exercises[_selectedIndex] as Dictionary)["entryId"] as String : null;
     }
 }
 
@@ -132,12 +156,16 @@ class OverviewDelegate extends WatchUi.BehaviorDelegate {
     }
 
     public function onMenu() as Boolean {
-        Navigator.actions();
+        var entryId = _view.selectedEntryId();
+        if (entryId != null) {
+            Navigator.actionsForOverview(entryId as String);
+        } else {
+            Navigator.actions();
+        }
         return true;
     }
 
     public function onBack() as Boolean {
-        Navigator.actions();
-        return true;
+        return onMenu();
     }
 }
