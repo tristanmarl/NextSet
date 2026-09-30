@@ -16,6 +16,8 @@ times before enabling the loop:
 
     docker compose up -d
 
+`exercises.json` is only needed for FITs recorded before NextSet 0.2.5; newer FITs carry the Garmin category and code per lap.
+
 `run --force` overwrites an activity that already has sets. Env: `INTERVAL_SEC`, `ACTIVE_SEC`
 (assumed seconds per non-timed set), `LOOKBACK` (activities checked per run). Self-check:
 `python test_sync.py`.

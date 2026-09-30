@@ -45,10 +45,12 @@ log = logging.getLogger("connect-sets")
 _warned = set()
 
 
-def garmin_exercise(name):
-    """(category, name) for exercises.json entry `name`, checked against the pinned garmin-fit-sdk profile: Garmin
-    rejects unknown names with 400 "Invalid Sub-Category", so degrade to name None / UNKNOWN."""
-    category, sub = EXERCISES[name]["category"], EXERCISES[name]["name"]
+def garmin_exercise(name, category=None, sub=None):
+    """(category, name) checked against the pinned garmin-fit-sdk profile: Garmin rejects unknown names with
+    400 "Invalid Sub-Category", so degrade to name None / UNKNOWN. Uses the lap's `category`/`sub` (0.2.5+
+    FITs) when given, else the exercises.json entry `name`."""
+    if not category:
+        category, sub = EXERCISES[name]["category"], EXERCISES[name]["name"]
     types = Profile["types"]
     if category.lower() not in types["exercise_category"].values():
         category, sub, why = "UNKNOWN", None, "category is not in the FIT profile"
@@ -98,7 +100,8 @@ def nextset_laps(data):
                 laps.append({f: frame.get_value(f) for f in
                              ("start_time", "total_timer_time", "exercise", "set", "reps",
                               "weight_kg", "duration_s")}
-                            | {"active_s": frame.get_value("active_s", fallback=None)})  # 0.2.4+
+                            | {f: frame.get_value(f, fallback=None) for f in
+                                  ("active_s", "garmin_category", "garmin_code")})  # 0.2.4+, 0.2.5+
     return laps if is_nextset else None
 
 
@@ -107,7 +110,7 @@ def iso(t):
 
 
 def exercise_sets(laps):
-    """Connect exerciseSets from laps. Raises KeyError for an exercise missing in exercises.json."""
+    """Connect exerciseSets from laps. Raises KeyError for an old-FIT exercise missing in exercises.json."""
     sets, previous = [], None
     for lap in laps:
         name = (lap["exercise"] or "").strip()
@@ -116,7 +119,7 @@ def exercise_sets(laps):
         if not name or key == previous:
             continue
         previous = key
-        category, sub = garmin_exercise(name)
+        category, sub = garmin_exercise(name, lap.get("garmin_category"), lap.get("garmin_code") or None)
         end = lap["start_time"] + dt.timedelta(seconds=lap["total_timer_time"] or 0)
         timed = bool(lap["duration_s"])
         measured = lap.get("active_s") or 0  # set time from an explicit START press (0.2.4+)

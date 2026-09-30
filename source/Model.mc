@@ -223,6 +223,7 @@ module Model {
             var slots = item["slots"];
             if (!validId(item["entryId"]) || !validId(item["exerciseId"]) ||
                 !validNonblankText(item["name"], 64) || !validLoadType(type) ||
+                !validText(item["garminCategory"], 64, true) || !validText(item["garminCode"], 64, true) ||
                 !(sameString(type, "weight") || sameString(type, "assistance") ?
                     sameString(item["loadUnit"], "kg") : item["loadUnit"] == null) ||
                 !inRange(planned, 1, MAX_SETS, false) ||

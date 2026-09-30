@@ -640,6 +640,7 @@ module SessionLogic {
     // assistance (the offset from bodyweight), 0 for bodyweight and timed. Reps and duration are
     // 0 when they do not apply. activeSec is the set time: the measured duration for timed sets,
     // else the start-to-log time (0 when the set was not started explicitly, i.e. unknown).
+    // garminCategory/garminCode identify the exercise for Garmin Connect ("" when unmapped or group-only).
     function lapPayload(exercise as Dictionary, slotIndex as Number) as Dictionary? {
         var completed = ((exercise["slots"] as Array)[slotIndex] as Dictionary)["completed"];
         if (!(completed instanceof Dictionary)) {
@@ -653,8 +654,12 @@ module SessionLogic {
         } else if (!Model.sameString(type, "weight")) {
             kg = 0.0;
         }
+        var category = exercise["garminCategory"];
+        var code = exercise["garminCode"];
         return {
             "name" => truncateBytes(exercise["name"] as String, 64),
+            "garminCategory" => category instanceof String ? truncateBytes(category as String, 23) : "",
+            "garminCode" => code instanceof String ? truncateBytes(code as String, 64) : "",
             "set" => slotIndex + 1,
             "reps" => completed["reps"] instanceof Number ? completed["reps"] as Number : 0,
             "weightKg" => kg,

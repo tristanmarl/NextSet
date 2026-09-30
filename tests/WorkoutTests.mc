@@ -844,6 +844,26 @@ function testFitLapPayloadFromCompletedSet(logger as Test.Logger) as Boolean {
 }
 
 (:test)
+function testFitLapPayloadGarminCodes(logger as Test.Logger) as Boolean {
+    var session = Catalog.createSession("upper", "garmin-1", 1, 100, null, null) as Dictionary;
+    var row = {"load100" => 5500, "reps" => 9};
+    var done = SessionLogic.completeSet(session, "upper-row", 0, row, 1000) as Dictionary;
+    done = SessionLogic.completeSet(done, "upper-chest", 0, row, 1001) as Dictionary;
+    var rowLap = SessionLogic.lapPayload(
+        (done["exercises"] as Array)[SessionLogic.exerciseIndex(done, "upper-row")] as Dictionary, 0) as Dictionary;
+    var chestLap = SessionLogic.lapPayload(
+        (done["exercises"] as Array)[SessionLogic.exerciseIndex(done, "upper-chest")] as Dictionary, 0) as Dictionary;
+    var plain = SessionLogic.lapPayload(completedExercise("Row", "weight", 6250, 10, null), 0) as Dictionary;
+    return check(logger, rowLap["garminCategory"].equals("ROW") &&
+            rowLap["garminCode"].equals("SEATED_CABLE_ROW") && Model.validStoredSession(done, false),
+            "seed exercise carries its Garmin category and code") &&
+        check(logger, chestLap["garminCategory"].equals("BENCH_PRESS") && chestLap["garminCode"].equals(""),
+            "group-only exercise has an empty code") &&
+        check(logger, plain["garminCategory"].equals("") && plain["garminCode"].equals(""),
+            "exercise without a Garmin mapping has empty category and code");
+}
+
+(:test)
 function testFitSummaryVolume(logger as Test.Logger) as Boolean {
     var session = {"exercises" => [
         completedExercise("Row", "weight", 6250, 10, null),

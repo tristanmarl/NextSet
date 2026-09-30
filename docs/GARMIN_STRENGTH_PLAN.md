@@ -157,12 +157,14 @@ Fields (ids match `resources/fitcontributions/fitcontributions.xml`; labels are 
 | 3 | lap | weight_kg | FLOAT | 4 | kg; negative for assistance exercises (the assistance offset), 0 for bodyweight and timed |
 | 4 | lap | duration_s | UINT16 | 2 | Seconds for timed sets; 0 otherwise |
 | 9 | lap | active_s | UINT16 | 2 | Set time in seconds (0.2.4): start press to log press for non-timed sets, measured duration for timed sets; 0 when the set was logged without a start press (unknown) |
+| 10 | lap | garmin_category | STRING, count 24 | 24 | Garmin exercise category (0.2.5), e.g. `ROW`; longest catalog category is 18 bytes; `""` when the exercise has no Garmin mapping |
+| 11 | lap | garmin_code | STRING, count 65 | 65 | Garmin exercise code (0.2.5), at most 64 bytes plus terminator; `""` for group-only exercises or no mapping |
 | 5 | session | total_sets | UINT16 | 2 | Completed sets |
 | 6 | session | volume_kg | FLOAT | 4 | Sum of weight x reps over weight exercises (assistance and bodyweight excluded); shown with precision 0 |
 | 7 | session | exercises | UINT8 | 1 | Exercises with at least one completed set |
 | 8 | session | nextset_version | STRING, count 8 | 8 | App version (string resource `AppVersion`; keep equal to `manifest.xml`) |
 
-Limits from the `createField` docs: apps get 256 bytes per message type (lap fields use 76, session fields 15); field names need at least 64 bytes and units at least 16. The `Fit` permission is not enough for `FitContributor`; `manifest.xml` now also declares `FitContributor` (the compiler requires it).
+Limits from the `createField` docs: apps get 256 bytes per message type (lap fields use 165, session fields 15); field names need at least 64 bytes and units at least 16. The `Fit` permission is not enough for `FitContributor`; `manifest.xml` now also declares `FitContributor` (the compiler requires it).
 
 Verification so far: unit tests cover the lap payload and summary calculation. A simulator probe created all nine fields, set maximum-length values, closed laps and saved without exceptions. The simulator's FIT file could not be located or parsed, so field values in the file are not verified. Garmin Connect does not render Connect IQ developer fields for a sideloaded app; the app must be approved and published in the Connect IQ store for those fields to display. The FIT lap and summary values still need inspection on a physical watch (see `docs/DEVICE_TESTS.md`).
 
@@ -178,5 +180,5 @@ Per-exercise summary lines (0.2.3 draft, removed): twelve 20-byte `Ex N` session
 - **Group-only rule:** a catalog or seed exercise whose code is not a valid enum value (generic code equal to its category, or names missing from the profile such as `ruck_*`) keeps its category and has `garminCode` null. Connect then shows the exercise under its category group only, not a specific exercise. Connect's `_3_way...` codes are normalised to the profile spelling `3_way...`. Result: 1494 valid, 37 group-only.
 - **Snapshot:** the 2026-09-29 `Exercises.json` input is no longer available locally, so `resources/data/garmin.xml` was revalidated in place (`generate_garmin_catalog.py --revalidate`; only `code` fields changed) and copied to `private/resources/data/garmin.xml`. Exercise ids are unchanged.
 - **Seeds and sync:** `generate_garmin_catalog.py --seeds` fails on an invalid seed code and writes `tools/connect-sets/exercises.json`; `sync.py` validates against the same pinned profile and falls back to name None / UNKNOWN.
-- **Stored routines:** `garminCode` is only displayed on the watch, never sent to Connect (the sync job maps exercise names via `exercises.json`), so old stored codes need no migration.
+- **Stored routines:** `garminCode` is only displayed on the watch, never sent to Connect (the sync job maps exercise names via `exercises.json`), so old stored codes need no migration. From 0.2.5 the session exercise snapshot carries `garminCategory`/`garminCode` (optional strings in `Model.validStoredSession`) and every lap records them as fields 10 and 11; `sync.py` uses them when `garmin_category` is non-empty and falls back to `exercises.json` by name for older FITs. Fields 10 and 11 have no `fitContributions` entry (machine data, not for display).
 - The picker labels group-only entries "Group only in Connect". Which sets Connect actually renders is still unverified.

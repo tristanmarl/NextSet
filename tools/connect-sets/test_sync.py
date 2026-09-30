@@ -52,6 +52,14 @@ s = sync.exercise_sets([lap(0, 100, "Seated Row Machine", 1), lap(100, 5, "", 0)
                         lap(105, 5, "Seated Row Machine", 1)])
 assert len(active(s)) == 1
 
+# 0.2.5 lap codes are used without exercises.json; empty code -> group only; old lap -> exercises.json
+s = sync.exercise_sets([lap(0, 100, "Not In Json", 1) | {"garmin_category": "ROW", "garmin_code": "SEATED_CABLE_ROW"}])
+assert s[0]["exercises"][0]["category"] == "ROW" and s[0]["exercises"][0]["name"] == "SEATED_CABLE_ROW"
+s = sync.exercise_sets([lap(0, 100, "Not In Json", 1) | {"garmin_category": "BENCH_PRESS", "garmin_code": ""}])
+assert s[0]["exercises"][0]["category"] == "BENCH_PRESS" and s[0]["exercises"][0]["name"] is None
+s = sync.exercise_sets([lap(0, 100, "Seated Row Machine", 1) | {"garmin_category": "", "garmin_code": ""}])
+assert s[0]["exercises"][0]["category"] == "ROW"
+
 # unknown exercise raises
 try:
     sync.exercise_sets([lap(0, 100, "No Such Exercise", 1)])

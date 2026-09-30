@@ -137,3 +137,4 @@ A short start/log/save path and saved Strength FIT were recorded on the FR965. T
 
 - [ ] **PENDING** In the Garmin exercise picker, "Group only in Connect" is readable under entries such as Bench Press (Bench Press category) without clipping, and selecting one adds it to the routine.
 - [ ] **PENDING** Existing routines and history still load after installing 0.2.5 over 0.2.4.
+- [ ] **PENDING** Inspect a 0.2.5 FIT: every set lap carries lap developer fields `garmin_category` (id 10) and `garmin_code` (id 11) (code empty for group-only exercises), even without `fitContributions` entries for them.
