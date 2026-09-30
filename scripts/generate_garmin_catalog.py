@@ -30,9 +30,8 @@ from the previous per-row JSON format with:
 where old-garmin.xml is the previous format (git show 0640a4c:resources/data/garmin.xml) and
 original-garmin.xml carries the unvalidated Connect codes (git show 513e7cb^:resources/data/garmin.xml).
 
-Seeds (fail on an invalid garminCode) and tools/connect-sets/exercises.json (name -> category/name):
-  python3 scripts/generate_garmin_catalog.py --seeds tools/connect-sets/exercises.json \
-    resources/data/seeds.xml private/resources/data/seeds.xml
+Seeds (fail on an invalid garminCode):
+  python3 scripts/generate_garmin_catalog.py --seeds resources/data/seeds.xml private/resources/data/seeds.xml
 """
 
 import hashlib
@@ -156,12 +155,10 @@ def main(source, output):
 if __name__ == "__main__":
     if len(sys.argv) == 5 and sys.argv[1] == "--convert":
         convert(*sys.argv[2:])
-    elif len(sys.argv) >= 4 and sys.argv[1] == "--seeds":
-        with open(sys.argv[2], "w") as out:
-            json.dump(seed_exercises(sys.argv[3:]), out, indent=2)
-            out.write("\n")
+    elif len(sys.argv) >= 3 and sys.argv[1] == "--seeds":
+        print("%d seed exercises valid" % len(seed_exercises(sys.argv[2:])))
     elif len(sys.argv) == 3:
         main(sys.argv[1], sys.argv[2])
     else:
         raise SystemExit("usage: generate_garmin_catalog.py Exercises.json output.xml | "
-                         "--convert old.xml original.xml output.xml | --seeds exercises.json seeds.xml...")
+                         "--convert old.xml original.xml output.xml | --seeds seeds.xml...")

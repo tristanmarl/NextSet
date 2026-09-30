@@ -25,9 +25,9 @@ Each logged set is one FIT lap with developer fields:
 
 Session summary fields: `total_sets`, `volume_kg`, `exercises`, `nextset_version`. Leaving the app saves the segment so far, and reopening starts a new recording.
 
-### Garmin Connect exercise sets
+### Archive and Liftosaur sync
 
-Connect IQ cannot write native strength sets, and Connect does not display developer fields from a sideloaded build. The optional job in [tools/connect-sets](tools/connect-sets/README.md) runs on a home server, reads these laps from your synced activities and writes native exercise sets through Garmin's unofficial `exerciseSets` endpoint. It is for personal use and may break at any time.
+Connect IQ cannot write native strength sets, and Connect does not display developer fields from a sideloaded build. The optional job in [tools/connect-sets](tools/connect-sets/README.md) runs on a home server (read-only against Garmin), reads these laps from your synced activities, archives every workout (JSON + SQLite) and can log it into the matching [Liftosaur](https://www.liftosaur.com) workout via its REST API (see docs/LIFTOSAUR_PLAN.md). It writes nothing to Garmin Connect.
 
 ## Build and test
 
@@ -76,8 +76,7 @@ The key is `~/.garmin-keys/NextSetDeveloperKey.der` (PEM beside it). Keep it out
 ```sh
 python3 scripts/generate_garmin_catalog.py /private/tmp/NextSet-Garmin-Exercises.json resources/data/garmin.xml
 python3 scripts/generate_garmin_catalog.py --convert old.xml original.xml resources/data/garmin.xml  # one-off: old per-row format -> compact
-python3 scripts/generate_garmin_catalog.py --seeds tools/connect-sets/exercises.json \
-    resources/data/seeds.xml private/resources/data/seeds.xml                         # validate seeds, write exercises.json
+python3 scripts/generate_garmin_catalog.py --seeds resources/data/seeds.xml private/resources/data/seeds.xml  # validate seed codes
 ```
 
 Copy a regenerated catalog to `private/resources/data/garmin.xml` too.
@@ -90,7 +89,7 @@ Copy a regenerated catalog to `private/resources/data/garmin.xml` too.
 - `resources/`: public strings, drawables, seeds (no routines), Garmin catalog, FIT contribution fields.
 - `private/resources/`: same plus the private Upper/Lower seeds; used by beta, local and test builds only.
 - `scripts/`: catalog generator.
-- `tools/connect-sets/`: optional Garmin Connect sync job (Docker, Python).
+- `tools/connect-sets/`: optional NextSet archive + Liftosaur sync job (Docker, Python; directory name is historical).
 - `docs/`: toolchain, device evidence, plans. See also `AGENTS.md` and `CLAUDE.md`.
 
 ## Status and limitations

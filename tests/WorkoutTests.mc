@@ -62,7 +62,7 @@ function testGarminCodeMayBeNull(logger as Test.Logger) as Boolean {
         }
     }
     return check(logger, Model.sameString(chest["garminCategory"], "BENCH_PRESS") &&
-            chest["garminCode"] == null, "Machine Chest Press must be group-only BENCH_PRESS") &&
+            chest["garminCode"] == null, "Chest Press must be group-only BENCH_PRESS") &&
         check(logger, Catalog.validRoutine(routine), "routine with a null garminCode must be valid") &&
         check(logger, sawGroupOnly, "catalog must contain group-only entries");
 }
@@ -111,7 +111,7 @@ function testSeedSemantics(logger as Test.Logger) as Boolean {
     return check(logger, ((press["slots"] as Array)[0]["draft"])["load100"] == 21300,
             "Leg Press must retain 213 kg") &&
         check(logger, Model.sameString(hyper["loadType"], "bodyweight") && hyper["loadUnit"] == null,
-            "Hyperextension must be bodyweight") &&
+            "Back Extension must be bodyweight") &&
         check(logger, Model.sameString(deadBug["loadType"], "timed") && deadBug["targetDurationSec"] == 35,
             "Dead Bug must be timed with a 35-second target");
 }

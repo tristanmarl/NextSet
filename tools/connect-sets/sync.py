@@ -1,16 +1,18 @@
-"""Copy NextSet per-set laps into Garmin Connect's native exercise sets.
+"""NextSet archive + Liftosaur sync (formerly: copy laps into Garmin Connect exercise sets; dropped).
 
-NextSet (a Connect IQ app) cannot write FIT `set` messages, so it writes one lap per set with
-developer fields (exercise, set, reps, weight_kg, duration_s, active_s). This job downloads each new
-NextSet activity's original FIT from Garmin Connect, turns the laps into exercise sets and writes
-them through Connect's unofficial exerciseSets endpoint (the one Connect web's set editor uses).
+NextSet (a Connect IQ app) writes one FIT lap per set with developer fields (exercise, set, reps,
+weight_kg, duration_s, active_s, ...). This job downloads each new NextSet activity's original FIT
+from Garmin Connect (read-only), archives it (data/archive/<activityId>.json + nextset.db) and, when
+LIFTOSAUR_SYNC=1, logs it into the matching Liftosaur workout (start/sets/finish).
 
 Commands:
-  login              prompt for Garmin email/password once, store tokens in $DATA/tokens
-  dump ACTIVITY_ID   print an activity's current exerciseSets JSON
-  run [--dry-run] [--only ID] [--force]
-                     process recent strength activities; --dry-run prints payloads only
-  loop               run every $INTERVAL_SEC seconds (container entrypoint)
+  login                          prompt for Garmin email/password once, store tokens in $DATA/tokens
+  run [--dry-run] [--only ID]    archive recent strength activities (+ Liftosaur write-back if enabled)
+  archive-backfill --lookback N  archive the last N strength activities (read-only, skips archived ones)
+  liftosaur-discover             GET-only: save Liftosaur settings/program/workout JSON to data/liftosaur-discovery/
+  liftosaur-sync [--dry-run] [--only ID]
+                                 write archived workouts to Liftosaur (default: those started since LIFTOSAUR_SINCE)
+  loop                           run every $INTERVAL_SEC seconds (container entrypoint)
 """
 
 import datetime as dt
@@ -26,42 +28,36 @@ import zipfile
 from pathlib import Path
 
 import fitdecode
-from garmin_fit_sdk import Profile
 from garminconnect import Garmin
+
+import archive
+import liftosaur
 
 DATA = Path(os.environ.get("DATA", "/data"))
 TOKENS = DATA / "tokens"
 STATE = DATA / "state.json"
-EXERCISES = json.loads((Path(__file__).parent / "exercises.json").read_text())
+ARCHIVE = DATA / "archive"
+DISCOVERY = DATA / "liftosaur-discovery"
 LOOKBACK = int(os.environ.get("LOOKBACK", "20"))  # most recent strength activities checked per run
 INTERVAL_SEC = int(os.environ.get("INTERVAL_SEC", "600"))
 FAIL_ALERT_AFTER = int(os.environ.get("FAIL_ALERT_AFTER", "3"))
 NTFY_URL = os.environ.get("NTFY_URL", "")
-# ponytail: a lap spans rest + set and the watch only knows when the set was logged, so a
-# non-timed set is assumed to take ACTIVE_SEC before its lap ends; the rest fills the remainder.
-ACTIVE_SEC = float(os.environ.get("ACTIVE_SEC", "40"))
+LIFTOSAUR_SYNC = os.environ.get("LIFTOSAUR_SYNC", "0") == "1"  # nothing is written to Liftosaur unless 1
+
+
+def parse_since(v):
+    """LIFTOSAUR_SINCE: ISO datetime (naive = UTC) or unix seconds -> aware datetime, None when unset."""
+    if not v:
+        return None
+    t = dt.datetime.fromtimestamp(float(v), dt.timezone.utc) if v.replace(".", "", 1).isdigit() else dt.datetime.fromisoformat(v.replace("Z", "+00:00"))
+    return t if t.tzinfo else t.replace(tzinfo=dt.timezone.utc)
+
+
+# The loop only writes activities that started at or after this; unset = write nothing (never a default window).
+LIFTOSAUR_SINCE = parse_since(os.environ.get("LIFTOSAUR_SINCE", ""))
+LIFTOSAUR_MIN_SEC = int(os.environ.get("LIFTOSAUR_MIN_SEC", "300"))  # shorter workouts are skipped (test logs)
 
 log = logging.getLogger("connect-sets")
-_warned = set()
-
-
-def garmin_exercise(name, category=None, sub=None):
-    """(category, name) checked against the pinned garmin-fit-sdk profile: Garmin rejects unknown names with
-    400 "Invalid Sub-Category", so degrade to name None / UNKNOWN. Uses the lap's `category`/`sub` (0.2.5+
-    FITs) when given, else the exercises.json entry `name`."""
-    if not category:
-        category, sub = EXERCISES[name]["category"], EXERCISES[name]["name"]
-    types = Profile["types"]
-    if category.lower() not in types["exercise_category"].values():
-        category, sub, why = "UNKNOWN", None, "category is not in the FIT profile"
-    elif sub is not None and sub.lower() not in types.get(category.lower() + "_exercise_name", {}).values():
-        sub, why = None, "name is not in the FIT profile"
-    else:
-        return category, sub
-    if name not in _warned:
-        _warned.add(name)
-        log.warning("%s: %s; sending %s/None", name, why, category)
-    return category, sub
 
 
 def client():
@@ -93,8 +89,8 @@ def fit_bytes(api, activity_id):
         return z.read(name)
 
 
-def nextset_laps(data):
-    """Lap dicts carrying NextSet fields, or None when the FIT was not written by NextSet."""
+def read_fit(data):
+    """{"start", "end", "laps"} from a NextSet FIT, or None when it was not written by NextSet."""
     laps, is_nextset = [], False
     with fitdecode.FitReader(io.BytesIO(data)) as fit:
         for frame in fit:
@@ -108,82 +104,52 @@ def nextset_laps(data):
                               "weight_kg", "duration_s")}
                             | {f: frame.get_value(f, fallback=None) for f in
                                   ("active_s", "garmin_category", "garmin_code", "void")})  # 0.2.4+, 0.2.5+
-    return laps if is_nextset else None
+    if not is_nextset or not laps:
+        return None
+    # The FIT session start_time was observed equal to the stop time (0.2.5), so the span comes from the laps.
+    start = min(l["start_time"] for l in laps)
+    end = max(l["start_time"] + dt.timedelta(seconds=l["total_timer_time"] or 0) for l in laps)
+    return {"start": start, "end": end, "laps": laps}
 
 
-def iso(t):
-    return t.astimezone(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.0")
-
-
-def exercise_sets(laps):
-    """Connect exerciseSets from laps. Raises KeyError for an old-FIT exercise missing in exercises.json."""
-    # A correction or undo writes another lap for the same (exercise, set). Values come from the last
-    # lap (dropped when void); timing (the lap window) from the first lap, because a correction lap is
-    # short and late. After a void lap the re-logged lap is the real set and supplies timing too.
-    # The blank closing lap (0.2.3+) is not a set. Old FITs have no void.
-    last, timing = {}, {}
-    for lap in laps:
-        name = (lap["exercise"] or "").strip()
-        if name:
-            key = (name, lap["set"])
-            if key not in last or last[key].get("void"):
-                timing[key] = lap
-            last[key] = lap
-    kept = sorted(((k[0], l | {"start_time": timing[k]["start_time"],
-                              "total_timer_time": timing[k]["total_timer_time"]})
-                   for k, l in last.items() if not l.get("void")),
-                  key=lambda nl: nl[1]["start_time"])
-    sets = []
-    for name, lap in kept:
-        category, sub = garmin_exercise(name, lap.get("garmin_category"), lap.get("garmin_code") or None)
-        end = lap["start_time"] + dt.timedelta(seconds=lap["total_timer_time"] or 0)
-        timed = bool(lap["duration_s"])
-        measured = lap.get("active_s") or 0  # set time from an explicit START press (0.2.4+)
-        active = float(lap["duration_s"]) if timed else (float(measured) if measured >= 3 else ACTIVE_SEC)
-        active = min(active, lap["total_timer_time"] or active)
-        start = end - dt.timedelta(seconds=active)
-        rest = (start - lap["start_time"]).total_seconds()
-        if rest >= 1 and sets:
-            sets.append({"exercises": [], "duration": rest, "repetitionCount": None,
-                         "weight": None, "setType": "REST", "startTime": iso(lap["start_time"]),
-                         "wktStepIndex": None})
-        weight = lap["weight_kg"] or 0
-        sets.append({
-            "exercises": [{"category": category, "name": sub, "probability": 100.0}],
-            "duration": active,
-            "repetitionCount": None if timed else lap["reps"],
-            # Connect stores grams. Assistance is logged as negative kg, which Connect cannot show.
-            "weight": weight * 1000 if weight > 0 else None,
-            "setType": "ACTIVE",
-            "startTime": iso(start),
-            "wktStepIndex": None,
-        })
-    for i, s in enumerate(sets):
-        s["messageIndex"] = i
-    return sets
-
-
-def process(api, activity_id, dry_run, force):
-    """True when finished with this activity (written, not NextSet, or already has sets)."""
-    if not force and (api.get_activity_exercise_sets(activity_id) or {}).get("exerciseSets"):
-        log.info("%s already has exercise sets, leaving it alone", activity_id)
-        return True
-    laps = nextset_laps(fit_bytes(api, activity_id))
-    if laps is None:
+def process(api, activity_id, dry_run=False):
+    """Archive one activity. Returns "archived", "ignored" (not NextSet) or "dry" (printed only)."""
+    fit = read_fit(fit_bytes(api, activity_id))
+    if fit is None:
         log.info("%s is not a NextSet activity", activity_id)
-        return True
-    try:
-        sets = exercise_sets(laps)
-    except KeyError as e:
-        log.error("%s: exercise %s missing in exercises.json; not written", activity_id, e)
-        return False
-    payload = {"activityId": int(activity_id), "exerciseSets": sets}
+        return "ignored"
+    name = (api.get_activity(activity_id) or {}).get("activityName") or ""
+    w = archive.normalize(activity_id, name, fit["start"], fit["end"], fit["laps"])
     if dry_run:
-        print(json.dumps(payload, indent=1))
-        return False
-    api.set_activity_exercise_sets(activity_id, payload)
-    log.info("%s: wrote %d sets", activity_id, sum(s["setType"] == "ACTIVE" for s in sets))
-    return True
+        print(json.dumps(w, indent=1))
+        return "dry"
+    archive.store(ARCHIVE, w)
+    log.info("%s archived: %s, %d sets", activity_id, name, len(w["sets"]))
+    return "archived"
+
+
+def strength_ids(api, count):
+    """Most recent `count` strength activity ids. Garmin rejects a "strength_training" type filter (it is a
+    sub type), so filter client-side; pages of 50."""
+    ids, offset = [], 0
+    while offset < count:
+        page = api.get_activities(offset, min(50, count - offset))
+        ids += [a["activityId"] for a in page if a.get("activityType", {}).get("typeKey") == "strength_training"]
+        if len(page) < min(50, count - offset):
+            break
+        offset += len(page)
+    return ids
+
+
+def backfill(api, lookback):
+    """Read-only on Garmin. Returns (archived, skipped_existing, ignored)."""
+    n = [0, 0, 0]
+    for i in strength_ids(api, lookback):
+        if (ARCHIVE / f"{i}.json").exists():
+            n[1] += 1
+            continue
+        n[0 if process(api, i) == "archived" else 2] += 1
+    return tuple(n)
 
 
 def ntfy(title, body):
@@ -217,31 +183,75 @@ class Alerter:
             self.send("NextSet sync failing", error[:300])
 
 
-def run(dry_run=False, only=None, force=False):
+def liftosaur_client():
+    key = os.environ["LIFTOSAUR_API_KEY"]
+    return liftosaur.Client(key, liftosaur.device_id(DATA))
+
+
+def liftosaur_pass(state, dry_run=False, only=None, lifto=None):
+    """Write archived workouts to Liftosaur, oldest first. Status per activity in state["liftosaur"]:
+    done/skipped are final, blocked/failed are retried. Without --only, only workouts started at or after
+    LIFTOSAUR_SINCE and at least LIFTOSAUR_MIN_SEC long are considered; --only bypasses both.
+    Returns the number failed."""
+    if not only and not LIFTOSAUR_SINCE:
+        log.warning("LIFTOSAUR_SINCE is not set: writing nothing to Liftosaur")
+        return 0
+    lifto = lifto or liftosaur_client()
+    st = state.setdefault("liftosaur", {})
+    ws = sorted((archive.load(ARCHIVE, p.stem) for p in ARCHIVE.glob("*.json")), key=lambda w: w["start"])
+    failed, days = 0, None
+    for w in ws:
+        key = str(w["activityId"])
+        start = dt.datetime.fromisoformat(w["start"].replace("Z", "+00:00"))
+        secs = (dt.datetime.fromisoformat(w["end"].replace("Z", "+00:00")) - start).total_seconds()
+        if only:
+            if key != str(only):
+                continue
+            status = detail = None
+        elif st.get(key, {}).get("status") in ("done", "skipped") or start < LIFTOSAUR_SINCE:
+            continue
+        elif secs < LIFTOSAUR_MIN_SEC:
+            status, detail = "skipped", f"workout is {secs:.0f}s, shorter than LIFTOSAUR_MIN_SEC={LIFTOSAUR_MIN_SEC}"
+        else:
+            status = detail = None
+        if status is None:
+            try:
+                days = days or liftosaur.program_days(lifto)  # once per pass
+                status, detail = liftosaur.sync_one(lifto, w, dry_run, days=days)
+            except Exception as e:  # network etc.; the type only, error text may echo request data
+                status, detail = "failed", type(e).__name__
+        log.info("liftosaur %s %s: %s %s", key, w["name"], status, detail)
+        if dry_run:
+            continue
+        if st.get(key, {}).get("status") != status:  # notify on transitions only
+            if status in ("skipped", "blocked") or (status == "done" and detail != "ok"):
+                ntfy(f"Liftosaur: {w['name']} {status}", detail)
+        st[key] = {"status": status, "detail": detail}
+        save_state(state)
+        failed += status == "failed"
+    return failed
+
+
+def run(dry_run=False, only=None):
     api = client()
     state = load_state()
     handled = set(state["done"]) | set(state["ignored"])
-    if only:
-        ids = [int(only)]
-    else:
-        # Garmin rejects a "strength_training" type filter (it is a sub type), so filter client-side
-        ids = [a["activityId"] for a in api.get_activities(0, LOOKBACK)
-               if a.get("activityType", {}).get("typeKey") == "strength_training"]
+    ids = [int(only)] if only else strength_ids(api, LOOKBACK)
     failed = 0
     for activity_id in ids:
         if activity_id in handled and not only:
             continue
         try:
-            finished = process(api, activity_id, dry_run, force)
+            result = process(api, activity_id, dry_run)
         except Exception:
             log.exception("%s failed; retried next run", activity_id)
             failed += 1
             continue
-        if finished and not dry_run:
-            state["done"].append(activity_id)
+        if not dry_run:
+            state["done" if result == "archived" else "ignored"].append(activity_id)
             save_state(state)
-        elif not finished and not dry_run:
-            failed += 1  # e.g. exercise missing in exercises.json: retried next run, must alert
+    if LIFTOSAUR_SYNC and not dry_run and not only:
+        failed += liftosaur_pass(state)
     return failed
 
 
@@ -249,16 +259,23 @@ def main(argv):
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     DATA.mkdir(parents=True, exist_ok=True)
     cmd = argv[1] if len(argv) > 1 else "run"
+    opt = lambda f: argv[argv.index(f) + 1] if f in argv else None
     if cmd == "login":
         api = Garmin(input("Garmin email: "), getpass.getpass("Garmin password: "))
         api.login(str(TOKENS))
         TOKENS.chmod(0o700) if TOKENS.is_dir() else TOKENS.chmod(0o600)
         print("Logged in; tokens saved to", TOKENS)
-    elif cmd == "dump":
-        print(json.dumps(client().get_activity_exercise_sets(argv[2]), indent=1))
     elif cmd == "run":
-        only = argv[argv.index("--only") + 1] if "--only" in argv else None
-        run("--dry-run" in argv, only, "--force" in argv)
+        run("--dry-run" in argv, opt("--only"))
+    elif cmd == "archive-backfill":
+        a, s, i = backfill(client(), int(opt("--lookback") or LOOKBACK))
+        print(f"archived {a}, already archived {s}, not NextSet {i}")
+    elif cmd == "liftosaur-discover":
+        liftosaur.discover(liftosaur_client(), DISCOVERY)
+        print("saved to", DISCOVERY)
+    elif cmd == "liftosaur-sync":
+        state = load_state()
+        liftosaur_pass(state, "--dry-run" in argv, opt("--only"))
     elif cmd == "loop":
         alerter = Alerter(ntfy, FAIL_ALERT_AFTER)
         while True:

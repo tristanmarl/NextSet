@@ -181,6 +181,8 @@ Per-exercise summary lines (0.2.3 draft, removed): twelve 20-byte `Ex N` session
 
 ## Exercise codes and Connect validation (0.2.5)
 
+Superseded 2026-09-30: the sync job no longer writes Connect exerciseSets or reads `exercises.json` (removed); `--seeds` only validates seed codes. See LIFTOSAUR_PLAN.md.
+
 - **Source of truth:** the FIT profile of Garmin's `garmin-fit-sdk` 21.217.0 (PyPI). Connect's exerciseSets API validates `category`/`name` against its `<category>_exercise_name` enums and rejected `BENCH_PRESS`/`BENCH_PRESS`.
 - **Group-only rule:** a catalog or seed exercise whose code is not a valid enum value (generic code equal to its category, or names missing from the profile such as `ruck_*`) keeps its category and has `garminCode` null. Connect then shows the exercise under its category group only, not a specific exercise. Connect's `_3_way...` codes are normalised to the profile spelling `3_way...`. Result: 1494 valid, 37 group-only.
 - **Snapshot:** the 2026-09-29 `Exercises.json` input is no longer available locally, so `resources/data/garmin.xml` was revalidated in place (`generate_garmin_catalog.py --revalidate`; only `code` fields changed) and copied to `private/resources/data/garmin.xml`. Exercise ids are unchanged.

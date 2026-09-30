@@ -2,20 +2,20 @@
   <jsonData id="Seeds">
     {
       "exercises": [
-        {"id":"seated-row-machine","name":"Seated Row Machine","loadType":"weight","unit":"kg","increment100":500,"defaultRestSec":120,"garminCategory":"ROW","garminCode":"SEATED_CABLE_ROW"},
-        {"id":"machine-chest-press","name":"Machine Chest Press","loadType":"weight","unit":"kg","increment100":500,"defaultRestSec":120,"garminCategory":"BENCH_PRESS","garminCode":null},
-        {"id":"reverse-pec-deck","name":"Reverse Pec Deck","loadType":"weight","unit":"kg","increment100":500,"defaultRestSec":60,"garminCategory":"FLYE","garminCode":"INCLINE_REVERSE_FLYE"},
-        {"id":"machine-shoulder-press","name":"Machine Shoulder Press","loadType":"weight","unit":"kg","increment100":500,"defaultRestSec":120,"garminCategory":"SHOULDER_PRESS","garminCode":"SMITH_MACHINE_OVERHEAD_PRESS"},
-        {"id":"assisted-pull-up","name":"Assisted Pull-up","loadType":"assistance","unit":"kg","increment100":500,"defaultRestSec":120,"garminCategory":"PULL_UP","garminCode":"BAND_ASSISTED_PULL_UP"},
-        {"id":"assisted-dip","name":"Assisted Dip","loadType":"assistance","unit":"kg","increment100":500,"defaultRestSec":75,"garminCategory":"TRICEPS_EXTENSION","garminCode":"BODY_WEIGHT_DIP","isBodyWeight":true},
-        {"id":"machine-lateral-raise","name":"Machine Lateral Raise","loadType":"weight","unit":"kg","increment100":500,"defaultRestSec":60,"garminCategory":"LATERAL_RAISE","garminCode":"SEATED_LATERAL_RAISE"},
-        {"id":"machine-preacher-curl","name":"Machine Preacher Curl","loadType":"weight","unit":"kg","increment100":500,"defaultRestSec":75,"garminCategory":"CURL","garminCode":"PREACHER_CURL_WITH_CABLE"},
+        {"id":"seated-row-machine","name":"Seated Row","loadType":"weight","unit":"kg","increment100":500,"defaultRestSec":120,"garminCategory":"ROW","garminCode":"SEATED_CABLE_ROW"},
+        {"id":"machine-chest-press","name":"Chest Press","loadType":"weight","unit":"kg","increment100":500,"defaultRestSec":120,"garminCategory":"BENCH_PRESS","garminCode":null},
+        {"id":"reverse-pec-deck","name":"Reverse Fly","loadType":"weight","unit":"kg","increment100":500,"defaultRestSec":60,"garminCategory":"FLYE","garminCode":"INCLINE_REVERSE_FLYE"},
+        {"id":"machine-shoulder-press","name":"Shoulder Press","loadType":"weight","unit":"kg","increment100":500,"defaultRestSec":120,"garminCategory":"SHOULDER_PRESS","garminCode":"SMITH_MACHINE_OVERHEAD_PRESS"},
+        {"id":"assisted-pull-up","name":"Pull Up","loadType":"assistance","unit":"kg","increment100":500,"defaultRestSec":120,"garminCategory":"PULL_UP","garminCode":"BAND_ASSISTED_PULL_UP"},
+        {"id":"assisted-dip","name":"Triceps Dip","loadType":"assistance","unit":"kg","increment100":500,"defaultRestSec":75,"garminCategory":"TRICEPS_EXTENSION","garminCode":"BODY_WEIGHT_DIP","isBodyWeight":true},
+        {"id":"machine-lateral-raise","name":"Lateral Raise","loadType":"weight","unit":"kg","increment100":500,"defaultRestSec":60,"garminCategory":"LATERAL_RAISE","garminCode":"SEATED_LATERAL_RAISE"},
+        {"id":"machine-preacher-curl","name":"Preacher Curl","loadType":"weight","unit":"kg","increment100":500,"defaultRestSec":75,"garminCategory":"CURL","garminCode":"PREACHER_CURL_WITH_CABLE"},
         {"id":"leg-press","name":"Leg Press","loadType":"weight","unit":"kg","increment100":500,"defaultRestSec":150,"garminCategory":"SQUAT","garminCode":"LEG_PRESS"},
         {"id":"lying-leg-curl","name":"Lying Leg Curl","loadType":"weight","unit":"kg","increment100":500,"defaultRestSec":90,"garminCategory":"LEG_CURL","garminCode":"WEIGHTED_LEG_CURL"},
-        {"id":"single-leg-machine-hip-thrust","name":"Single-leg Machine Hip Thrust","loadType":"weight","unit":"kg","increment100":500,"defaultRestSec":90,"notes":"One set = both sides; load is machine setting.","garminCategory":"HIP_RAISE","garminCode":"WEIGHTED_SINGLE_LEG_HIP_RAISE_WITH_FOOT_ON_BENCH"},
+        {"id":"single-leg-machine-hip-thrust","name":"Single Leg Hip Thrust","loadType":"weight","unit":"kg","increment100":500,"defaultRestSec":90,"notes":"One set = both sides; load is machine setting.","garminCategory":"HIP_RAISE","garminCode":"WEIGHTED_SINGLE_LEG_HIP_RAISE_WITH_FOOT_ON_BENCH"},
         {"id":"leg-extension","name":"Leg Extension","loadType":"weight","unit":"kg","increment100":500,"defaultRestSec":60,"garminCategory":"BANDED_EXERCISES","garminCode":"LEG_EXTENSION"},
-        {"id":"hip-abduction-machine","name":"Hip Abduction Machine","loadType":"weight","unit":"kg","increment100":500,"defaultRestSec":60,"garminCategory":"HIP_STABILITY","garminCode":"STANDING_HIP_ABDUCTION","isBodyWeight":true},
-        {"id":"hyperextension","name":"Hyperextension","loadType":"bodyweight","unit":null,"increment100":null,"defaultRestSec":60,"garminCategory":"HYPEREXTENSION","garminCode":null},
+        {"id":"hip-abduction-machine","name":"Hip Abductor","loadType":"weight","unit":"kg","increment100":500,"defaultRestSec":60,"garminCategory":"HIP_STABILITY","garminCode":"STANDING_HIP_ABDUCTION","isBodyWeight":true},
+        {"id":"hyperextension","name":"Back Extension","loadType":"bodyweight","unit":null,"increment100":null,"defaultRestSec":60,"garminCategory":"HYPEREXTENSION","garminCode":null},
         {"id":"dead-bug","name":"Dead Bug","loadType":"timed","unit":null,"increment100":null,"defaultRestSec":60,"garminCategory":"HIP_STABILITY","garminCode":"DEAD_BUG","isBodyWeight":true}
       ],
       "templates": [
