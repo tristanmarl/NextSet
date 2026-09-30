@@ -16,7 +16,7 @@ monkeydo bin/NextSet.prg fr965
 
 # Unit tests (tests.jungle adds tests/ to sourcePath)
 monkeyc --unit-test -f tests.jungle -d fr965 -o bin/NextSet-tests.prg -y ~/.garmin-keys/NextSetDeveloperKey.der
-monkeydo bin/NextSet-tests.prg fr965
+monkeydo bin/NextSet-tests.prg fr965 -t   # without -t it launches as an app and hangs
 # Single test
 monkeydo bin/NextSet-tests.prg fr965 -t testSeedCatalog
 ```

@@ -14,7 +14,11 @@
   Probably a rendering or reporting artifact of the decimal.
 - Connect IQ cannot write native FIT `set` messages; that is out of scope.
 
-## B. Per-exercise text lines in the session summary
+## B. Per-exercise text lines in the session summary — DROPPED
+
+Implemented, then removed: at 20 bytes per line the exercise names were cut too short to be useful.
+
+### Original proposal
 
 Add session STRING fields, one per exercise in session order, each labelled "Ex 1" … "Ex 12"
 (sessions hold at most `Model.MAX_ENTRIES` = 12 exercises, validated in `Model`).

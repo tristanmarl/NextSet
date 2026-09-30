@@ -160,10 +160,11 @@ Fields (ids match `resources/fitcontributions/fitcontributions.xml`; labels are 
 | 6 | session | volume_kg | FLOAT | 4 | Sum of weight x reps over weight exercises (assistance and bodyweight excluded); shown with precision 0 |
 | 7 | session | exercises | UINT8 | 1 | Exercises with at least one completed set |
 | 8 | session | nextset_version | STRING, count 8 | 8 | App version (string resource `AppVersion`; keep equal to `manifest.xml`) |
-| 9-20 | session | ex_1 ... ex_12 | STRING, count 20 | 240 | One line per exercise with a completed set, in session order, at most 19 bytes: `Row 55kg 9/9/9`, `Row 9@55 8@60` (mixed loads), `Dip -30kg 10/10` (assistance), `Push-up 15/12/10`, `Plank 45s/40s`. Labels `Ex 1` ... `Ex 12`; built by `SessionLogic.fitExerciseLines` |
 
-Limits from the `createField` docs: apps get 256 bytes per message type (lap fields use 74, session fields 255: 15 + 12 x 20; the docs state no field-count limit, only the byte limit, so 12 x 20 was chosen over the 6 x 40 fallback); field names need at least 64 bytes and units at least 16. The `Fit` permission is not enough for `FitContributor`; `manifest.xml` now also declares `FitContributor` (the compiler requires it).
+Limits from the `createField` docs: apps get 256 bytes per message type (lap fields use 74, session fields 15); field names need at least 64 bytes and units at least 16. The `Fit` permission is not enough for `FitContributor`; `manifest.xml` now also declares `FitContributor` (the compiler requires it).
 
 Verification so far: unit tests cover the lap payload and summary calculation. A simulator probe created all nine fields, set maximum-length values, closed laps and saved without exceptions. The simulator's FIT file could not be located or parsed, so field values in the file are not verified. Garmin Connect does not render Connect IQ developer fields for a sideloaded app; the app must be approved and published in the Connect IQ store for those fields to display. The FIT lap and summary values still need inspection on a physical watch (see `docs/DEVICE_TESTS.md`).
 
 Activity type (2026-09-29, Connect web imports of a patched copy of a 0.2.1 beta FIT): sub sport generic still showed as Strength Training with no set breakdown; Training/Cardio showed as Cardio; sport Generic showed as Other with a Laps tab that stayed empty, also with laps stretched to 1.5-2.5 min. No tested type shows the lap developer fields, so the activity stays Strength Training.
+
+Per-exercise summary lines (0.2.3 draft, removed): twelve 20-byte `Ex N` session string fields fit the 256-byte budget but forced exercise names to be cut to a few characters, which was not acceptable; removed before release.

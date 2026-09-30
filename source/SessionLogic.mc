@@ -611,75 +611,6 @@ module SessionLogic {
         };
     }
 
-    // Whole kg without ".0", up to two decimals ("55", "52.5", "52.25").
-    function loadText(load100 as Number) as String {
-        var text = (load100 / 100).toString();
-        var frac = load100 % 100;
-        if (frac != 0) {
-            text += "." + (frac < 10 ? "0" : "") + frac.toString();
-            if (frac % 10 == 0) {
-                text = text.substring(0, text.length() - 1) as String;
-            }
-        }
-        return text;
-    }
-
-    // One summary line per exercise with a completed set, at most 19 bytes (FIT string of 20 with
-    // terminator): "Row 55kg 9/9/9", "Row 9@55 8@60" (mixed loads), "Push-up 15/12/10",
-    // "Plank 45s/40s". Assistance loads are negative. The name is cut before the numbers.
-    function fitExerciseLines(session as Dictionary) as Array<String> {
-        var lines = [] as Array<String>;
-        var exercises = session["exercises"] as Array;
-        for (var i = 0; i < exercises.size(); i++) {
-            var exercise = exercises[i] as Dictionary;
-            var type = exercise["loadType"];
-            var weighted = Model.sameString(type, "weight") || Model.sameString(type, "assistance");
-            var sign = Model.sameString(type, "assistance") ? "-" : "";
-            var slots = exercise["slots"] as Array;
-            var loads = [] as Array<String>;
-            var values = [] as Array<String>;
-            var same = true;
-            var firstLoad = -1;
-            for (var j = 0; j < slots.size(); j++) {
-                var completed = (slots[j] as Dictionary)["completed"];
-                if (!(completed instanceof Dictionary)) {
-                    continue;
-                }
-                var load100 = completed["load100"] instanceof Number ? completed["load100"] as Number : 0;
-                var reps = (completed["reps"] instanceof Number ? completed["reps"] as Number : 0).toString();
-                if (Model.sameString(type, "timed")) {
-                    reps = (completed["durationSec"] instanceof Number ?
-                        completed["durationSec"] as Number : 0).toString() + "s";
-                }
-                if (values.size() == 0) {
-                    firstLoad = load100;
-                } else if (load100 != firstLoad) {
-                    same = false;
-                }
-                loads.add(sign + loadText(load100));
-                values.add(reps);
-            }
-            if (values.size() == 0) {
-                continue;
-            }
-            var suffix = "";
-            for (var j = 0; j < values.size(); j++) {
-                if (weighted && !same) {
-                    suffix += " " + values[j] + "@" + loads[j];
-                } else {
-                    suffix += (j == 0 ? " " : "/") + values[j];
-                }
-            }
-            if (weighted && same) {
-                suffix = " " + loads[0] + "kg" + suffix;
-            }
-            var room = 19 - Model.byteLength(suffix);
-            var name = exercise["name"] as String;
-            lines.add(room > 0 ? truncateBytes(name, room) + suffix : truncateBytes(name + suffix, 19));
-        }
-        return lines;
-    }
-
     // Session-level FIT summary: completed sets, volume (weight x reps, weight exercises only,
     // kg) and the number of exercises with at least one completed set.
     function fitSummary(session as Dictionary) as Dictionary {
@@ -705,7 +636,6 @@ module SessionLogic {
                 }
             }
         }
-        return {"sets" => sets, "volumeKg" => volume100 / 100.0, "exercises" => exerciseCount,
-            "lines" => fitExerciseLines(session)};
+        return {"sets" => sets, "volumeKg" => volume100 / 100.0, "exercises" => exerciseCount};
     }
 }

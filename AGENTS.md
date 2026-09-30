@@ -18,7 +18,7 @@ The first command builds the app; the second launches it in the FR965 simulator.
 
 ```sh
 monkeyc --unit-test -f tests.jungle -d fr965 -o bin/NextSet-tests.prg -y ~/.garmin-keys/NextSetDeveloperKey.der
-monkeydo bin/NextSet-tests.prg fr965
+monkeydo bin/NextSet-tests.prg fr965 -t   # without -t it launches as an app and hangs
 ```
 
 Always pass `-y ~/.garmin-keys/NextSetDeveloperKey.der` to `monkeyc`, including simulator and unit-test builds. This checkout's SDK exits 101 with “The private key was not specified” if it is omitted; do not try an unsigned build first.

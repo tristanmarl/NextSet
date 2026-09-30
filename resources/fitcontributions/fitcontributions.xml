@@ -20,29 +20,5 @@
                   dataLabel="@Strings.FitExercises" unitLabel="@Strings.FitUnitNone" />
         <fitField id="8" displayInActivitySummary="true" sortOrder="8"
                   dataLabel="@Strings.FitVersion" unitLabel="@Strings.FitUnitNone" />
-        <fitField id="9" displayInActivitySummary="true" sortOrder="9"
-                  dataLabel="@Strings.FitEx1" unitLabel="@Strings.FitUnitNone" />
-        <fitField id="10" displayInActivitySummary="true" sortOrder="10"
-                  dataLabel="@Strings.FitEx2" unitLabel="@Strings.FitUnitNone" />
-        <fitField id="11" displayInActivitySummary="true" sortOrder="11"
-                  dataLabel="@Strings.FitEx3" unitLabel="@Strings.FitUnitNone" />
-        <fitField id="12" displayInActivitySummary="true" sortOrder="12"
-                  dataLabel="@Strings.FitEx4" unitLabel="@Strings.FitUnitNone" />
-        <fitField id="13" displayInActivitySummary="true" sortOrder="13"
-                  dataLabel="@Strings.FitEx5" unitLabel="@Strings.FitUnitNone" />
-        <fitField id="14" displayInActivitySummary="true" sortOrder="14"
-                  dataLabel="@Strings.FitEx6" unitLabel="@Strings.FitUnitNone" />
-        <fitField id="15" displayInActivitySummary="true" sortOrder="15"
-                  dataLabel="@Strings.FitEx7" unitLabel="@Strings.FitUnitNone" />
-        <fitField id="16" displayInActivitySummary="true" sortOrder="16"
-                  dataLabel="@Strings.FitEx8" unitLabel="@Strings.FitUnitNone" />
-        <fitField id="17" displayInActivitySummary="true" sortOrder="17"
-                  dataLabel="@Strings.FitEx9" unitLabel="@Strings.FitUnitNone" />
-        <fitField id="18" displayInActivitySummary="true" sortOrder="18"
-                  dataLabel="@Strings.FitEx10" unitLabel="@Strings.FitUnitNone" />
-        <fitField id="19" displayInActivitySummary="true" sortOrder="19"
-                  dataLabel="@Strings.FitEx11" unitLabel="@Strings.FitUnitNone" />
-        <fitField id="20" displayInActivitySummary="true" sortOrder="20"
-                  dataLabel="@Strings.FitEx12" unitLabel="@Strings.FitUnitNone" />
     </fitContributions>
 </resources>

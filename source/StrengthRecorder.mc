@@ -8,8 +8,7 @@ import Toybox.WatchUi;
 // Connect IQ activity, so each logged set becomes one lap carrying the set as lap fields, and the
 // session gets summary fields. Field ids match resources/fitcontributions.
 // Limits (createField docs): apps get 256 bytes per message type; lap fields use 74 (name 65 incl.
-// terminator, set 1, reps 2, weight 4, duration 2) and session fields 255 (total_sets 2, volume 4,
-// exercises 1, version 8, twelve 20-byte exercise lines = 240). The docs state no field-count limit.
+// terminator, set 1, reps 2, weight 4, duration 2) and session fields 15.
 // The firmware keeps one lap per second: a set logged in the same second as the previous lap is
 // queued and written by flush() on a later tick.
 // Any FitContributor failure is swallowed: logging a set must never depend on it.
@@ -24,7 +23,6 @@ class StrengthRecorder {
     private var _volumeField as FitContributor.Field? = null;
     private var _exercisesField as FitContributor.Field? = null;
     private var _versionField as FitContributor.Field? = null;
-    private var _lineFields as Array<FitContributor.Field?> = [] as Array<FitContributor.Field?>;
     private var _pending as Array<Dictionary> = [] as Array<Dictionary>;
     private var _lastLapAt as Number = 0;
 
@@ -67,7 +65,6 @@ class StrengthRecorder {
         _volumeField = null;
         _exercisesField = null;
         _versionField = null;
-        _lineFields = [] as Array<FitContributor.Field?>;
         _pending = [] as Array<Dictionary>;
         _lastLapAt = 0;
         try {
@@ -94,10 +91,6 @@ class StrengthRecorder {
                 {:mesgType => summary});
             _versionField = session.createField("nextset_version", 8, FitContributor.DATA_TYPE_STRING,
                 {:mesgType => summary, :count => 8});
-            for (var i = 0; i < 12; i++) {
-                _lineFields.add(session.createField("ex_" + (i + 1).toString(), 9 + i,
-                    FitContributor.DATA_TYPE_STRING, {:mesgType => summary, :count => 20}));
-            }
         } catch (error) {
             // Keep whatever was created; missing fields are skipped when writing.
         }
@@ -171,12 +164,6 @@ class StrengthRecorder {
             if (_versionField != null) {
                 (_versionField as FitContributor.Field).setData(
                     WatchUi.loadResource($.Rez.Strings.AppVersion) as String);
-            }
-            var lines = summary["lines"] as Array?;
-            for (var i = 0; lines != null && i < lines.size() && i < _lineFields.size(); i++) {
-                if (_lineFields[i] != null) {
-                    (_lineFields[i] as FitContributor.Field).setData(lines[i] as String);
-                }
             }
         } catch (error) {
         }

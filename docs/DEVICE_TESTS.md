@@ -119,8 +119,7 @@ A short start/log/save path and saved Strength FIT were recorded on the FR965. T
 
 ## 0.2.3 FIT set breakdown — PENDING
 
-- **Build and simulator tests (2026-09-29):** signed public, beta and test builds succeeded for FR965; simulator reported 38/38 passed (incl. `testFitExerciseLines`). The simulator only connected after quitting and relaunching it. Lap queue, closing-lap blanking and Connect rendering are not verified on a watch.
+- **Build and simulator tests (2026-09-29):** signed public, beta and test builds succeeded for FR965; simulator reported 37/37 passed (after removing the summary lines). The simulator only connected after quitting and relaunching it. Lap queue, closing-lap blanking and Connect rendering are not verified on a watch.
 - [ ] **PENDING** Log sets less than 1 s apart: every set appears as its own lap in the FIT file (0.2.1 lost 2 of 19; queued laps are written on the 1 s tick).
 - [ ] **PENDING** No trailing lap that repeats the last set (the closing lap has an empty exercise name and zeros).
-- [ ] **PENDING** Garmin Connect (store beta upload, physical workout) shows the session fields `Ex 1` ... `Ex n` with lines such as `Row 55kg 9/9/9`, and volume without the odd "65256" rendering.
-- [ ] **PENDING** A workout with 12 exercises writes all 12 `ex_` lines without a "New Field out of memory for FIT data" error (255 of 256 session bytes).
+- [ ] **PENDING** Garmin Connect shows volume as a whole number (0.2.1 was reported as "65256 kg" for 6525.0).
