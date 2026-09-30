@@ -1,0 +1,10 @@
+services:
+  connect-sets:
+    build: .
+    restart: unless-stopped
+    volumes:
+      - ./data:/data
+    environment:
+      INTERVAL_SEC: 1800
+      ACTIVE_SEC: 40
+      LOOKBACK: 20

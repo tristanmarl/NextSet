@@ -3,3 +3,5 @@
 *.prg
 *.der
 *.pem
+tools/connect-sets/data/
+__pycache__/

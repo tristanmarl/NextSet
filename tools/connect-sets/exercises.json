@@ -1,0 +1,62 @@
+{
+  "Seated Row Machine": {
+    "category": "ROW",
+    "name": "SEATED_CABLE_ROW"
+  },
+  "Machine Chest Press": {
+    "category": "BENCH_PRESS",
+    "name": "BENCH_PRESS"
+  },
+  "Reverse Pec Deck": {
+    "category": "FLYE",
+    "name": "INCLINE_REVERSE_FLYE"
+  },
+  "Machine Shoulder Press": {
+    "category": "SHOULDER_PRESS",
+    "name": "SMITH_MACHINE_OVERHEAD_PRESS"
+  },
+  "Assisted Pull-up": {
+    "category": "PULL_UP",
+    "name": "BAND_ASSISTED_PULL_UP"
+  },
+  "Assisted Dip": {
+    "category": "TRICEPS_EXTENSION",
+    "name": "BODY_WEIGHT_DIP"
+  },
+  "Machine Lateral Raise": {
+    "category": "LATERAL_RAISE",
+    "name": "SEATED_LATERAL_RAISE"
+  },
+  "Machine Preacher Curl": {
+    "category": "CURL",
+    "name": "PREACHER_CURL_WITH_CABLE"
+  },
+  "Leg Press": {
+    "category": "SQUAT",
+    "name": "LEG_PRESS"
+  },
+  "Lying Leg Curl": {
+    "category": "LEG_CURL",
+    "name": "WEIGHTED_LEG_CURL"
+  },
+  "Single-leg Machine Hip Thrust": {
+    "category": "HIP_RAISE",
+    "name": "WEIGHTED_SINGLE_LEG_HIP_RAISE_WITH_FOOT_ON_BENCH"
+  },
+  "Leg Extension": {
+    "category": "BANDED_EXERCISES",
+    "name": "LEG_EXTENSION"
+  },
+  "Hip Abduction Machine": {
+    "category": "HIP_STABILITY",
+    "name": "STANDING_HIP_ABDUCTION"
+  },
+  "Hyperextension": {
+    "category": "HYPEREXTENSION",
+    "name": "HYPEREXTENSION"
+  },
+  "Dead Bug": {
+    "category": "HIP_STABILITY",
+    "name": "DEAD_BUG"
+  }
+}
