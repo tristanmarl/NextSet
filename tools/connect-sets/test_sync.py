@@ -1,5 +1,6 @@
-"""Self-check: python test_sync.py (needs fitdecode + garminconnect installed, as sync.py imports them)."""
+"""Self-check: python test_sync.py (needs fitdecode + garmin-fit-sdk + garminconnect installed, as sync.py imports them)."""
 import datetime as dt
+import json
 import os
 
 os.environ["DATA"] = "/tmp"
@@ -57,5 +58,33 @@ try:
     raise SystemExit("expected KeyError")
 except KeyError:
     pass
+
+# invalid name -> None, invalid category -> UNKNOWN/None, every exercises.json entry valid
+sync.EXERCISES["Bad Name"] = {"category": "ROW", "name": "NOT_A_REAL_NAME"}
+sync.EXERCISES["Bad Cat"] = {"category": "NOPE", "name": "X"}
+assert sync.garmin_exercise("Bad Name") == ("ROW", None)
+sync.EXERCISES["Generic"] = {"category": "BENCH_PRESS", "name": "BENCH_PRESS"}
+assert sync.garmin_exercise("Generic") == ("BENCH_PRESS", None)
+assert sync.garmin_exercise("Bad Cat") == ("UNKNOWN", None)
+for n, e in json.loads(open("exercises.json").read()).items():
+    assert sync.garmin_exercise(n) == (e["category"], e["name"]), n
+
+# alerter: none before threshold, one at threshold, no repeats, one recovery, quiet success
+sent = []
+a = sync.Alerter(lambda title, body: sent.append((title, body)), 3)
+a.record(None)
+assert sent == []
+a.record("x"); a.record("x")
+assert sent == []
+a.record("e" * 500)
+assert [s[0] for s in sent] == ["NextSet sync failing"] and len(sent[0][1]) == 300
+a.record("x"); a.record("x")
+assert len(sent) == 1
+a.record(None)
+assert [s[0] for s in sent] == ["NextSet sync failing", "NextSet sync recovered"]
+a.record(None)
+assert len(sent) == 2
+a.record("x"); a.record(None)  # below threshold then success: nothing
+assert len(sent) == 2
 
 print("ok")

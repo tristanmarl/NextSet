@@ -5,3 +5,4 @@
 *.pem
 tools/connect-sets/data/
 __pycache__/
+tools/connect-sets/.env

@@ -21,10 +21,12 @@ import logging
 import os
 import sys
 import time
+import urllib.request
 import zipfile
 from pathlib import Path
 
 import fitdecode
+from garmin_fit_sdk import Profile
 from garminconnect import Garmin
 
 DATA = Path(os.environ.get("DATA", "/data"))
@@ -32,12 +34,32 @@ TOKENS = DATA / "tokens"
 STATE = DATA / "state.json"
 EXERCISES = json.loads((Path(__file__).parent / "exercises.json").read_text())
 LOOKBACK = int(os.environ.get("LOOKBACK", "20"))  # most recent strength activities checked per run
-INTERVAL_SEC = int(os.environ.get("INTERVAL_SEC", "1800"))
+INTERVAL_SEC = int(os.environ.get("INTERVAL_SEC", "600"))
+FAIL_ALERT_AFTER = int(os.environ.get("FAIL_ALERT_AFTER", "3"))
+NTFY_URL = os.environ.get("NTFY_URL", "")
 # ponytail: a lap spans rest + set and the watch only knows when the set was logged, so a
 # non-timed set is assumed to take ACTIVE_SEC before its lap ends; the rest fills the remainder.
 ACTIVE_SEC = float(os.environ.get("ACTIVE_SEC", "40"))
 
 log = logging.getLogger("connect-sets")
+_warned = set()
+
+
+def garmin_exercise(name):
+    """(category, name) for exercises.json entry `name`, checked against the pinned garmin-fit-sdk profile: Garmin
+    rejects unknown names with 400 "Invalid Sub-Category", so degrade to name None / UNKNOWN."""
+    category, sub = EXERCISES[name]["category"], EXERCISES[name]["name"]
+    types = Profile["types"]
+    if category.lower() not in types["exercise_category"].values():
+        category, sub, why = "UNKNOWN", None, "category is not in the FIT profile"
+    elif sub is not None and sub.lower() not in types.get(category.lower() + "_exercise_name", {}).values():
+        sub, why = None, "name is not in the FIT profile"
+    else:
+        return category, sub
+    if name not in _warned:
+        _warned.add(name)
+        log.warning("%s: %s; sending %s/None", name, why, category)
+    return category, sub
 
 
 def client():
@@ -94,7 +116,7 @@ def exercise_sets(laps):
         if not name or key == previous:
             continue
         previous = key
-        code = EXERCISES[name]
+        category, sub = garmin_exercise(name)
         end = lap["start_time"] + dt.timedelta(seconds=lap["total_timer_time"] or 0)
         timed = bool(lap["duration_s"])
         measured = lap.get("active_s") or 0  # set time from an explicit START press (0.2.4+)
@@ -108,7 +130,7 @@ def exercise_sets(laps):
                          "wktStepIndex": None})
         weight = lap["weight_kg"] or 0
         sets.append({
-            "exercises": [{"category": code["category"], "name": code["name"], "probability": 100.0}],
+            "exercises": [{"category": category, "name": sub, "probability": 100.0}],
             "duration": active,
             "repetitionCount": None if timed else lap["reps"],
             # Connect stores grams. Assistance is logged as negative kg, which Connect cannot show.
@@ -145,6 +167,37 @@ def process(api, activity_id, dry_run, force):
     return True
 
 
+def ntfy(title, body):
+    if not NTFY_URL:
+        log.warning("%s: %s (NTFY_URL not set)", title, body)
+        return
+    try:
+        req = urllib.request.Request(NTFY_URL, body.encode(), {"Title": title, "Priority": "high"})
+        urllib.request.urlopen(req, timeout=10).close()
+    except Exception as e:
+        log.warning("ntfy failed: %s", type(e).__name__)
+
+
+class Alerter:
+    """Alert once after `after` consecutive failed runs, once on recovery. send(title, body) is injected.
+    ponytail: in-memory only, a container restart resets the counter."""
+
+    def __init__(self, send, after):
+        self.send, self.after, self.fails, self.alerted = send, after, 0, False
+
+    def record(self, error=None):
+        """error: None on a successful run, else a short summary string."""
+        if error is None:
+            if self.alerted:
+                self.send("NextSet sync recovered", "Sync is working again.")
+            self.fails, self.alerted = 0, False
+            return
+        self.fails += 1
+        if self.fails >= self.after and not self.alerted:
+            self.alerted = True
+            self.send("NextSet sync failing", error[:300])
+
+
 def run(dry_run=False, only=None, force=False):
     api = client()
     state = load_state()
@@ -152,7 +205,10 @@ def run(dry_run=False, only=None, force=False):
     if only:
         ids = [int(only)]
     else:
-        ids = [a["activityId"] for a in api.get_activities(0, LOOKBACK, "strength_training")]
+        # Garmin rejects a "strength_training" type filter (it is a sub type), so filter client-side
+        ids = [a["activityId"] for a in api.get_activities(0, LOOKBACK)
+               if a.get("activityType", {}).get("typeKey") == "strength_training"]
+    failed = 0
     for activity_id in ids:
         if activity_id in handled and not only:
             continue
@@ -160,10 +216,12 @@ def run(dry_run=False, only=None, force=False):
             finished = process(api, activity_id, dry_run, force)
         except Exception:
             log.exception("%s failed; retried next run", activity_id)
+            failed += 1
             continue
         if finished and not dry_run:
             state["done"].append(activity_id)
             save_state(state)
+    return failed
 
 
 def main(argv):
@@ -181,11 +239,14 @@ def main(argv):
         only = argv[argv.index("--only") + 1] if "--only" in argv else None
         run("--dry-run" in argv, only, "--force" in argv)
     elif cmd == "loop":
+        alerter = Alerter(ntfy, FAIL_ALERT_AFTER)
         while True:
             try:
-                run()
-            except Exception:
+                n = run()
+                alerter.record(f"{n} activities failed (see container logs)" if n else None)
+            except Exception as e:
                 log.exception("run failed")
+                alerter.record(f"{type(e).__name__}: {e}")
             time.sleep(INTERVAL_SEC)
     else:
         sys.exit(__doc__)

@@ -5,6 +5,8 @@ services:
     volumes:
       - ./data:/data
     environment:
-      INTERVAL_SEC: 1800
-      ACTIVE_SEC: 40
-      LOOKBACK: 20
+      INTERVAL_SEC: ${INTERVAL_SEC:-600}
+      ACTIVE_SEC: ${ACTIVE_SEC:-40}
+      LOOKBACK: ${LOOKBACK:-20}
+      NTFY_URL: ${NTFY_URL:-}
+      FAIL_ALERT_AFTER: ${FAIL_ALERT_AFTER:-3}

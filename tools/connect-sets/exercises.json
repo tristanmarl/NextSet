@@ -5,7 +5,7 @@
   },
   "Machine Chest Press": {
     "category": "BENCH_PRESS",
-    "name": "BENCH_PRESS"
+    "name": null
   },
   "Reverse Pec Deck": {
     "category": "FLYE",
@@ -53,7 +53,7 @@
   },
   "Hyperextension": {
     "category": "HYPEREXTENSION",
-    "name": "HYPEREXTENSION"
+    "name": null
   },
   "Dead Bug": {
     "category": "HIP_STABILITY",
