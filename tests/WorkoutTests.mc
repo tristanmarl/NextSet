@@ -831,3 +831,78 @@ function testFitSummaryVolume(logger as Test.Logger) as Boolean {
         check(logger, summary["volumeKg"] == 625.0,
             "volume is weight x reps for weight exercises only (62.5 x 10)");
 }
+
+(:test)
+function testSetStartLogAndCancel(logger as Test.Logger) as Boolean {
+    var session = Catalog.createSession("upper", "setrun-1", 1, 100, null, null) as Dictionary;
+    var row = {"load100" => 5500, "reps" => 9};
+    var started = SessionLogic.startSet(session, "upper-row", 0, 1000) as Dictionary;
+    var run = started["setRun"] as Dictionary;
+    var doubleStart = SessionLogic.startSet(started, "upper-row", 0, 1001);
+    var logged = SessionLogic.completeSet(started, "upper-row", 0, row, 1042) as Dictionary;
+    var exercise = (logged["exercises"] as Array)[SessionLogic.exerciseIndex(logged, "upper-row")] as Dictionary;
+    var completed = ((exercise["slots"] as Array)[0] as Dictionary)["completed"] as Dictionary;
+    var payload = SessionLogic.lapPayload(exercise, 0) as Dictionary;
+    var plain = SessionLogic.completeSet(session, "upper-row", 0, row, 1042) as Dictionary;
+    var plainExercise = (plain["exercises"] as Array)[SessionLogic.exerciseIndex(plain, "upper-row")] as Dictionary;
+    var otherSlot = SessionLogic.completeSet(started, "upper-row", 1, row, 1042) as Dictionary;
+    var canceled = SessionLogic.cancelSet(started, "upper-row", 0) as Dictionary;
+    return check(logger, run["entryId"].equals("upper-row") && run["slot"] == 0 &&
+            run["startedAt"] == 1000 && session["setRun"] == null && Model.validStoredSession(started, false),
+            "start records the set run and leaves the input untouched") &&
+        check(logger, doubleStart == null, "a second set cannot start while one runs") &&
+        check(logger, completed["activeSec"] == 42 && payload["activeSec"] == 42 &&
+            logged["setRun"] == null && Model.validStoredSession(logged, false),
+            "logging a started set stores activeSec and clears the run") &&
+        check(logger, SessionLogic.lapPayload(plainExercise, 0)["activeSec"] == 0,
+            "logging without a start has unknown (0) activeSec") &&
+        check(logger, otherSlot["setRun"] != null && otherSlot["setRun"]["slot"] == 0 &&
+            Model.validStoredSession(otherSlot, false) &&
+            ((((otherSlot["exercises"] as Array)[SessionLogic.exerciseIndex(otherSlot, "upper-row")]
+                as Dictionary)["slots"] as Array)[1]["completed"]["activeSec"]) == null,
+            "logging another slot keeps the running set and does not use its start time") &&
+        check(logger, canceled["setRun"] == null && SessionLogic.cancelSet(canceled, "upper-row", 0) == null,
+            "cancel clears the run; canceling nothing is null");
+}
+
+(:test)
+function testSetStartEndsRestAndRejectsInvalid(logger as Test.Logger) as Boolean {
+    var session = Catalog.createSession("upper", "setrun-2", 1, 100, null, null) as Dictionary;
+    var row = {"load100" => 5500, "reps" => 9};
+    var resting = SessionLogic.completeSet(session, "upper-row", 0, row, 1000) as Dictionary;
+    var started = SessionLogic.startSet(resting, "upper-row", 1, 1005) as Dictionary;
+    var timedStart = SessionLogic.startSet(session, "lower-dead-bug", 0, 1000);
+    var timedSession = Catalog.createSession("lower", "setrun-3", 1, 100, null, null) as Dictionary;
+    var timedRejected = SessionLogic.startSet(timedSession, "lower-dead-bug", 0, 1000) == null;
+    return check(logger, Model.sameString(resting["rest"]["state"], "running") &&
+            Model.sameString(started["rest"]["state"], "dismissed"),
+            "starting a set dismisses the running rest") &&
+        check(logger, SessionLogic.startSet(session, "nope", 0, 1000) == null &&
+            SessionLogic.startSet(session, "upper-row", 99, 1000) == null &&
+            SessionLogic.startSet(resting, "upper-row", 0, 1005) == null &&
+            SessionLogic.startSet(session, "upper-row", 0, -1) == null,
+            "unknown exercise, bad slot, completed slot and bad time are rejected") &&
+        check(logger, timedStart == null && timedRejected, "timed exercises keep their own timer flow");
+}
+
+(:test)
+function testStoredSetRunValidation(logger as Test.Logger) as Boolean {
+    var session = Catalog.createSession("lower", "setrun-4", 1, 100, null, null) as Dictionary;
+    var good = SessionLogic.copyDictionary(session);
+    good["setRun"] = {"entryId" => "lower-leg-press", "slot" => 0, "startedAt" => 5};
+    var bad = [
+        {"entryId" => "lower-leg-press", "slot" => 99, "startedAt" => 5},
+        {"entryId" => "missing", "slot" => 0, "startedAt" => 5},
+        {"entryId" => "lower-dead-bug", "slot" => 0, "startedAt" => 5},
+        {"entryId" => "lower-leg-press", "slot" => 0, "startedAt" => -5},
+        "junk"];
+    var ok = true;
+    for (var i = 0; i < bad.size(); i++) {
+        var candidate = SessionLogic.copyDictionary(session);
+        candidate["setRun"] = bad[i];
+        ok = ok && !Model.validStoredSession(candidate, false);
+    }
+    return check(logger, Model.validStoredSession(session, false) && Model.validStoredSession(good, false),
+            "sessions without or with a valid setRun are valid") &&
+        check(logger, ok, "malformed or mismatched setRun is rejected");
+}

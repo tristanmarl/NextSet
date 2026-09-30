@@ -1257,6 +1257,39 @@ class SessionController {
         return true;
     }
 
+    public function startSet(entryId as String, slot as Number, now as Number) as Boolean {
+        if (!isWorkoutRunning()) {
+            return false;
+        }
+        var candidate = SessionLogic.startSet(_session as Dictionary, entryId, slot, now);
+        return candidate != null && commit(candidate as Dictionary);
+    }
+
+    public function cancelSet(entryId as String, slot as Number) as Boolean {
+        if (!isWorkoutRunning()) {
+            return false;
+        }
+        var candidate = SessionLogic.cancelSet(_session as Dictionary, entryId, slot);
+        return candidate != null && commit(candidate as Dictionary);
+    }
+
+    // Cancels a running set on this exercise, whichever slot it is on; true when none was running.
+    public function cancelSetForEntry(entryId as String) as Boolean {
+        if (!isWorkoutRunning() || !(_session["setRun"] instanceof Dictionary)) {
+            return true;
+        }
+        var run = _session["setRun"] as Dictionary;
+        return !Model.sameString(run["entryId"], entryId) ||
+            cancelSet(entryId, run["slot"] as Number);
+    }
+
+    public function setElapsed(now as Number) as Number {
+        if (_session != null && _session["setRun"] instanceof Dictionary) {
+            return SessionLogic.setElapsedSec(_session["setRun"] as Dictionary, now);
+        }
+        return 0;
+    }
+
     public function timedElapsed(now as Number) as Number {
         if (_session != null && _session["timedRun"] instanceof Dictionary) {
             return SessionLogic.timedElapsedSec(_session["timedRun"] as Dictionary, now);
@@ -1285,6 +1318,10 @@ class SessionController {
     public function hasRunningRest() as Boolean {
         return isWorkoutRunning() && _session["rest"] instanceof Dictionary &&
             Model.sameString(_session["rest"]["state"], "running");
+    }
+
+    public function hasRunningSet() as Boolean {
+        return isWorkoutRunning() && _session["setRun"] instanceof Dictionary;
     }
 
     public function hasRunningTimed() as Boolean {
@@ -1401,6 +1438,7 @@ class SessionController {
                 candidate["rest"] = RestClock.resume(pausedRest as Dictionary, now);
             }
             candidate["status"] = "active";
+            candidate["setRun"] = null;  // a set start does not survive a (legacy) pause
         }
         var run = candidate["timedRun"];
         if (run instanceof Dictionary) {
@@ -1660,6 +1698,7 @@ class SessionController {
             fresh[clockKeys[i]] = clock[clockKeys[i]];
         }
         fresh["timedRun"] = null;
+        fresh["setRun"] = null;
         fresh["fitState"] = "recording";
         fresh["fitSegments"] = 0;
         fresh["fitUnknownSegments"] = 0;
@@ -1846,6 +1885,7 @@ class SessionController {
         if (rest instanceof Dictionary && Model.sameString(rest["entryId"], entryId)) {
             candidate["rest"] = null;
         }
+        candidate["setRun"] = null;
         candidate["nextSetSequence"] = (candidate["nextSetSequence"] as Number) + 1;
         return commit(candidate);
     }
@@ -1897,6 +1937,7 @@ class SessionController {
         if (rest instanceof Dictionary && Model.sameString(rest["entryId"], entryId)) {
             candidate["rest"] = null;
         }
+        candidate["setRun"] = null;
         candidate["nextSetSequence"] = (candidate["nextSetSequence"] as Number) + 1;
         if (SessionLogic.totals(candidate)["planned"] > Model.MAX_SETS_PER_WORKOUT) {
             _errorCode = Err.ROUTINE_LIMIT_REACHED;
@@ -1932,6 +1973,7 @@ class SessionController {
             _errorCode = Err.LOG_A_SET_BEFORE_SAVING;
             return false;
         }
+        candidate["setRun"] = null;
         candidate["status"] = "finalizing";
         candidate["finishOutcome"] = outcome;
         var skipped = false;

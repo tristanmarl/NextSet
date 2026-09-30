@@ -276,6 +276,9 @@ module Model {
         if (record["timedRun"] != null && !validTimedRun(record["timedRun"], exercises)) {
             return false;
         }
+        if (record["setRun"] != null && !validSetRun(record["setRun"], exercises)) {
+            return false;
+        }
         if (record["rest"] != null && !validRest(record["rest"], exercises)) {
             return false;
         }
@@ -315,7 +318,8 @@ module Model {
         var set = completed as Dictionary;
         if (set["slot"] != slot || !inRange(set["sequence"], 1, 2147483647, false) ||
             !inRange(set["completedAt"], 0, 2147483647, false) ||
-            (set["updatedAt"] != null && !inRange(set["updatedAt"], 0, 2147483647, false))) {
+            (set["updatedAt"] != null && !inRange(set["updatedAt"], 0, 2147483647, false)) ||
+            (set["activeSec"] != null && !inRange(set["activeSec"], 0, MAX_DURATION_SEC, false))) {
             return false;
         }
         if (sameString(type, "weight") || sameString(type, "assistance")) {
@@ -363,6 +367,27 @@ module Model {
             if (sameString(item["entryId"], exercise["entryId"])) {
                 var slot = item["slot"] as Number;
                 return sameString(exercise["loadType"], "timed") &&
+                    slot < (exercise["slots"] as Array).size() &&
+                    (exercise["slots"] as Array)[slot]["completed"] == null;
+            }
+        }
+        return false;
+    }
+
+    function validSetRun(run as Object?, exercises as Array) as Boolean {
+        if (!(run instanceof Dictionary)) {
+            return false;
+        }
+        var item = run as Dictionary;
+        if (!validId(item["entryId"]) || !inRange(item["slot"], 0, MAX_SETS - 1, false) ||
+            !inRange(item["startedAt"], 0, 2147483647, false)) {
+            return false;
+        }
+        for (var i = 0; i < exercises.size(); i++) {
+            var exercise = exercises[i] as Dictionary;
+            if (sameString(item["entryId"], exercise["entryId"])) {
+                var slot = item["slot"] as Number;
+                return !sameString(exercise["loadType"], "timed") &&
                     slot < (exercise["slots"] as Array).size() &&
                     (exercise["slots"] as Array)[slot]["completed"] == null;
             }

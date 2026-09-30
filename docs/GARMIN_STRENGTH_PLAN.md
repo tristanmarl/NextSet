@@ -156,15 +156,18 @@ Fields (ids match `resources/fitcontributions/fitcontributions.xml`; labels are 
 | 2 | lap | reps | UINT16 | 2 | Reps; 0 for timed sets |
 | 3 | lap | weight_kg | FLOAT | 4 | kg; negative for assistance exercises (the assistance offset), 0 for bodyweight and timed |
 | 4 | lap | duration_s | UINT16 | 2 | Seconds for timed sets; 0 otherwise |
+| 9 | lap | active_s | UINT16 | 2 | Set time in seconds (0.2.4): start press to log press for non-timed sets, measured duration for timed sets; 0 when the set was logged without a start press (unknown) |
 | 5 | session | total_sets | UINT16 | 2 | Completed sets |
 | 6 | session | volume_kg | FLOAT | 4 | Sum of weight x reps over weight exercises (assistance and bodyweight excluded); shown with precision 0 |
 | 7 | session | exercises | UINT8 | 1 | Exercises with at least one completed set |
 | 8 | session | nextset_version | STRING, count 8 | 8 | App version (string resource `AppVersion`; keep equal to `manifest.xml`) |
 
-Limits from the `createField` docs: apps get 256 bytes per message type (lap fields use 74, session fields 15); field names need at least 64 bytes and units at least 16. The `Fit` permission is not enough for `FitContributor`; `manifest.xml` now also declares `FitContributor` (the compiler requires it).
+Limits from the `createField` docs: apps get 256 bytes per message type (lap fields use 76, session fields 15); field names need at least 64 bytes and units at least 16. The `Fit` permission is not enough for `FitContributor`; `manifest.xml` now also declares `FitContributor` (the compiler requires it).
 
 Verification so far: unit tests cover the lap payload and summary calculation. A simulator probe created all nine fields, set maximum-length values, closed laps and saved without exceptions. The simulator's FIT file could not be located or parsed, so field values in the file are not verified. Garmin Connect does not render Connect IQ developer fields for a sideloaded app; the app must be approved and published in the Connect IQ store for those fields to display. The FIT lap and summary values still need inspection on a physical watch (see `docs/DEVICE_TESTS.md`).
 
 Activity type (2026-09-29, Connect web imports of a patched copy of a 0.2.1 beta FIT): sub sport generic still showed as Strength Training with no set breakdown; Training/Cardio showed as Cardio; sport Generic showed as Other with a Laps tab that stayed empty, also with laps stretched to 1.5-2.5 min. No tested type shows the lap developer fields, so the activity stays Strength Training.
+
+Explicit set start (0.2.4): on the Exercise screen of a non-timed exercise the first START stores `setRun = {entryId, slot, startedAt}` in the session (validated by `Model.validSetRun`, optional so older sessions stay valid) and ends any running or expired rest; the screen shows `SET m:ss` and the cue `START log`. The second START logs the set as before, stores `activeSec = completedAt - startedAt` in the completed set and clears `setRun`. BACK cancels the start (like a timed set is paused on BACK). Switching exercise (BACK), finishing, aborting, closing the exercise, replacing it or adding an alternative clear `setRun`. There is no workout pause any more, so the only pause path is legacy paused-session recovery, which clears it; a running set otherwise survives an app restart and keeps counting wall-clock time. Menu, correction or any other logging without a start has `activeSec` 0 (unknown). `tools/connect-sets/sync.py` uses lap `active_s` as the set duration when it is at least 3 s, else its `ACTIVE_SEC` fallback (older FITs have no such field).
 
 Per-exercise summary lines (0.2.3 draft, removed): twelve 20-byte `Ex N` session string fields fit the 256-byte budget but forced exercise names to be cut to a few characters, which was not acceptable; removed before release.

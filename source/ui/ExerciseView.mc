@@ -70,7 +70,12 @@ class ExerciseView extends WatchUi.View {
         var valueFont = Graphics.FONT_MEDIUM;
         var valueHeight = dc.getFontHeight(valueFont);
         var mainHeight = titleLines.size() * titleHeight + 5 + setHeight + 8 + valueHeight;
-        var restStatus = slot < 0 ? null : UiFormat.restStatus(session as Dictionary);
+        // A started set shows its elapsed time where the rest countdown would be (starting a set
+        // ends rest), which also hides the lower-priority lines.
+        var restStatus = slot < 0 ? null : UiFormat.setStatus(session as Dictionary, _entryId);
+        if (restStatus == null && slot >= 0) {
+            restStatus = UiFormat.restStatus(session as Dictionary);
+        }
         var last = slot < 0 || restStatus != null ? null : UiFormat.lastLine(current, slot);
         // Target is lowest priority: only shown when notes and messages leave room.
         var target = slot < 0 || restStatus != null || _message != null ||
@@ -168,9 +173,11 @@ class ExerciseView extends WatchUi.View {
         var draft = ((current["slots"] as Array)[slot] as Dictionary)["draft"] as Dictionary;
         var measured = draft["measuredSec"] instanceof Number && draft["measuredSec"] > 0;
         var manuallyEdited = draft["durationEdited"] == true;
+        var setRunning = !timed && SessionLogic.setRunMatches(session as Dictionary, _entryId, slot);
         var cue = timed ? (isRunning ? "START finish" :
             (measured ? "START resume" :
-            (manuallyEdited ? "START log" : "START begin"))) : "UP/DOWN reps · START log";
+            (manuallyEdited ? "START log" : "START begin"))) :
+            (setRunning ? "UP/DOWN reps · START log" : "UP/DOWN reps · START set");
         UiFormat.drawLine(dc, cue, y + 2, caption);
     }
 
@@ -302,8 +309,14 @@ class ExerciseView extends WatchUi.View {
                 WatchUi.requestUpdate();
                 return saved;
             }
-        } else {
+        } else if (SessionLogic.setRunMatches(session as Dictionary, _entryId, slot)) {
             saved = controller.completeDraft(_entryId, slot, now);
+        } else {
+            // First START starts the set (and ends rest); the second START logs it.
+            saved = controller.startSet(_entryId, slot, now);
+            _message = saved ? null : "Set not started";
+            WatchUi.requestUpdate();
+            return saved;
         }
         if (saved) {
             afterSetSaved();
@@ -416,11 +429,16 @@ class ExerciseDelegate extends WatchUi.BehaviorDelegate {
         return true;
     }
 
-    // BACK returns to Overview; a running timed set on this exercise is paused first.
+    // BACK returns to Overview; a running timed set on this exercise is paused first and a
+    // started (non-timed) set is canceled.
     public function onBack() as Boolean {
         var controller = getApp().controller();
         var session = controller.session();
         if (session != null) {
+            if (!controller.cancelSetForEntry(_view.entryId())) {
+                Navigator.feedback("Set start could not be canceled");
+                return true;
+            }
             var run = (session as Dictionary)["timedRun"];
             if (run instanceof Dictionary && Model.sameString(run["entryId"], _view.entryId()) &&
                 !controller.pauseTimedForEntry(_view.entryId(), Time.now().value())) {

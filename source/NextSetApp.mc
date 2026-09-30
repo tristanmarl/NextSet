@@ -209,7 +209,7 @@ class NextSetApp extends Application.AppBase {
             } catch (error) {
             }
         }
-        if (_controller.hasRunningRest() || _controller.hasRunningTimed() || vibrate) {
+        if (_controller.hasRunningRest() || _controller.hasRunningTimed() || _controller.hasRunningSet() || vibrate) {
             WatchUi.requestUpdate();
         }
     }

@@ -119,6 +119,18 @@ module UiFormat {
             (remainder < 10 ? "0" : "") + remainder.toString();
     }
 
+    // "SET m:ss" while a non-timed set on this exercise has been started with START.
+    function setStatus(session as Dictionary, entryId as String) as String? {
+        var run = session["setRun"];
+        if (!(run instanceof Dictionary) || !Model.sameString(run["entryId"], entryId)) {
+            return null;
+        }
+        var seconds = SessionLogic.setElapsedSec(run as Dictionary, Time.now().value());
+        var remainder = seconds % 60;
+        return "SET " + (seconds / 60).toString() + ":" + (remainder < 10 ? "0" : "") +
+            remainder.toString();
+    }
+
     function draftLine(exercise as Dictionary, slotIndex as Number) as String {
         var slots = exercise["slots"] as Array;
         var draft = slots[slotIndex]["draft"] as Dictionary;

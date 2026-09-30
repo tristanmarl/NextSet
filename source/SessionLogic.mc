@@ -209,6 +209,52 @@ module SessionLogic {
         return changed;
     }
 
+    function setRunMatches(session as Dictionary, entryId as String, slotIndex as Number) as Boolean {
+        var run = session["setRun"];
+        return run instanceof Dictionary && Model.sameString(run["entryId"], entryId) &&
+            run["slot"] == slotIndex;
+    }
+
+    function setElapsedSec(run as Dictionary, now as Number) as Number {
+        var startedAt = run["startedAt"] instanceof Number ? run["startedAt"] as Number : now;
+        var elapsed = now - startedAt;
+        return elapsed < 0 ? 0 : (elapsed > Model.MAX_DURATION_SEC ? Model.MAX_DURATION_SEC : elapsed);
+    }
+
+    // Explicit "start set" for non-timed sets: records when the set began so the logged set can
+    // carry its real duration. Starting a set also ends a running or expired rest.
+    function startSet(session as Dictionary, entryId as String, slotIndex as Number,
+                      now as Number) as Dictionary? {
+        var index = exerciseIndex(session, entryId);
+        if (index < 0 || session["setRun"] != null || session["timedRun"] != null ||
+            !Model.inRange(now, 0, 2147483647, false)) {
+            return null;
+        }
+        var exercise = (session["exercises"] as Array)[index] as Dictionary;
+        var slots = exercise["slots"] as Array;
+        if (Model.sameString(exercise["loadType"], "timed") || exercise["closedEarly"] ||
+            slotIndex < 0 || slotIndex >= slots.size() || slots[slotIndex]["completed"] != null) {
+            return null;
+        }
+        var candidate = copyDictionary(session);
+        candidate["setRun"] = {"entryId" => entryId, "slot" => slotIndex, "startedAt" => now};
+        var rest = session["rest"];
+        if (rest instanceof Dictionary && (Model.sameString(rest["state"], "running") ||
+            Model.sameString(rest["state"], "expired"))) {
+            candidate["rest"] = RestClock.skip(rest as Dictionary);
+        }
+        return candidate;
+    }
+
+    function cancelSet(session as Dictionary, entryId as String, slotIndex as Number) as Dictionary? {
+        if (!setRunMatches(session, entryId, slotIndex)) {
+            return null;
+        }
+        var candidate = copyDictionary(session);
+        candidate["setRun"] = null;
+        return candidate;
+    }
+
     function validActual(exercise as Dictionary, actual as Dictionary) as Boolean {
         var type = exercise["loadType"];
         if (Model.sameString(type, "weight") || Model.sameString(type, "assistance")) {
@@ -270,6 +316,10 @@ module SessionLogic {
         } else {
             completed["durationSec"] = actual["durationSec"];
             completed["durationSource"] = "manual";
+        }
+        if (setRunMatches(session, entryId, slotIndex)) {
+            completed["activeSec"] = setElapsedSec(session["setRun"] as Dictionary, now);
+            candidate["setRun"] = null;
         }
         applyActual(changedExercise, slot, actual);
         if (Model.sameString(changedExercise["loadType"], "timed")) {
@@ -482,6 +532,7 @@ module SessionLogic {
         var exercise = state["exercise"] as Dictionary;
         exercise["closedEarly"] = closed;
         var candidate = state["session"] as Dictionary;
+        candidate["setRun"] = null;
         var rest = candidate["rest"];
         if (closed && rest instanceof Dictionary && Model.sameString(rest["entryId"], entryId)) {
             candidate["rest"] = null;
@@ -587,7 +638,8 @@ module SessionLogic {
 
     // Values for one FIT lap developer-field set, from a completed set. Weight is kg: negative for
     // assistance (the offset from bodyweight), 0 for bodyweight and timed. Reps and duration are
-    // 0 when they do not apply.
+    // 0 when they do not apply. activeSec is the set time: the measured duration for timed sets,
+    // else the start-to-log time (0 when the set was not started explicitly, i.e. unknown).
     function lapPayload(exercise as Dictionary, slotIndex as Number) as Dictionary? {
         var completed = ((exercise["slots"] as Array)[slotIndex] as Dictionary)["completed"];
         if (!(completed instanceof Dictionary)) {
@@ -607,7 +659,10 @@ module SessionLogic {
             "reps" => completed["reps"] instanceof Number ? completed["reps"] as Number : 0,
             "weightKg" => kg,
             "durationSec" => completed["durationSec"] instanceof Number ?
-                completed["durationSec"] as Number : 0
+                completed["durationSec"] as Number : 0,
+            "activeSec" => Model.sameString(type, "timed") ?
+                (completed["durationSec"] instanceof Number ? completed["durationSec"] as Number : 0) :
+                (completed["activeSec"] instanceof Number ? completed["activeSec"] as Number : 0)
         };
     }
 

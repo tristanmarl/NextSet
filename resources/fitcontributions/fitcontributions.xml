@@ -11,6 +11,8 @@
                   dataLabel="@Strings.FitWeight" unitLabel="@Strings.FitUnitKg" />
         <fitField id="4" displayInActivityLaps="true" sortOrder="4" precision="0"
                   dataLabel="@Strings.FitDuration" unitLabel="@Strings.FitUnitSec" />
+        <fitField id="9" displayInActivityLaps="true" sortOrder="9" precision="0"
+                  dataLabel="@Strings.FitActive" unitLabel="@Strings.FitUnitSec" />
         <!-- Session summary fields. -->
         <fitField id="5" displayInActivitySummary="true" sortOrder="5" precision="0"
                   dataLabel="@Strings.FitTotalSets" unitLabel="@Strings.FitUnitNone" />

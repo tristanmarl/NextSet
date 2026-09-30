@@ -123,3 +123,12 @@ A short start/log/save path and saved Strength FIT were recorded on the FR965. T
 - [ ] **PENDING** Log sets less than 1 s apart: every set appears as its own lap in the FIT file (0.2.1 lost 2 of 19; queued laps are written on the 1 s tick).
 - [ ] **PENDING** No trailing lap that repeats the last set (the closing lap has an empty exercise name and zeros).
 - [ ] **PENDING** Garmin Connect shows volume as a whole number (0.2.1 was reported as "65256 kg" for 6525.0).
+
+## 0.2.4 explicit set start — PENDING
+
+- **Build and simulator tests:** only the pure logic is unit-tested; nothing below is verified on a watch.
+- [ ] **PENDING** Press flow on the watch: on a weight exercise the first START shows `SET 0:00` counting up and the cue `START log`; the second START logs the set and starts rest; a START within 800 ms of the first is ignored.
+- [ ] **PENDING** The `SET m:ss` line and cue fit the round FR965 screen without clipping (long exercise names, two-line titles).
+- [ ] **PENDING** BACK while a set runs cancels the start and returns to the overview; reopening the exercise shows the idle cue `START set`.
+- [ ] **PENDING** Starting a set during rest ends the rest countdown.
+- [ ] **PENDING** Inspect the FIT lap developer field `active_s` (id 9): start-to-log seconds for started sets, measured duration for timed sets, 0 for sets logged without a start.
