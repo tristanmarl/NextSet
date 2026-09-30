@@ -1,61 +1,104 @@
 # NextSet
 
-NextSet is an offline strength-training log for the Garmin Forerunner 965 and selected AMOLED fēnix 8/9 models (Connect IQ watch app, version 0.2.2). It logs sets with button-only navigation and records a Garmin Strength activity while you train. No phone connection is needed.
+NextSet is a Connect IQ watch app for logging strength training with buttons only, no phone needed. The primary device is the Garmin Forerunner 965 (`fr965`). The public package also targets the fēnix 8 47 mm, fēnix 8 Pro 47 mm, fēnix 9 47 mm, fēnix 9 Pro 47 mm and fēnix 9 Pro 51 mm (see `manifest.xml`); their UI has been checked only where [docs/DEVICE_TESTS.md](docs/DEVICE_TESTS.md) says so. Current version: 0.2.5. Minimum API 5.2.0.
 
 ## Features
 
-- Routines: production installs start with an empty routine. Create, rename, and delete routines (up to 8, at least one kept), with up to 12 exercises and 60 sets per routine. Edit sets, rep range, starting load, load increment, and rest per exercise; reorder, replace, and remove exercises. Exercises come from the Garmin exercise list (category browser, plus Recent and Used shortcuts) with weight, assistance, bodyweight, or timed tracking.
-- Workout: one press logs a set; UP/DOWN adjusts reps and the load can be edited. Sets are prefilled from your last performance. A rest timer vibrates when rest ends, and timed sets have their own timer. You can correct or delete the last set, add a set, skip or replace an exercise for the day, then finish (or cancel) the workout.
-- Safety: workout state is checkpointed to storage, so a workout survives leaving the app or a crash and resumes on the next launch.
-- History: the last four finished workouts, with per-set details.
-- Garmin activity: a Strength activity is recorded for the workout and saved when it finishes. Each logged set is also written as a lap with the exercise, set number, reps, weight and duration, and the activity summary carries total sets, volume and exercise count (Connect IQ developer fields; see docs/GARMIN_STRENGTH_PLAN.md). Leaving the app saves the segment so far; reopening starts a new recording.
-- Settings: default rest for new exercises, vibration on or off.
+- **Routines.** Create, rename and delete routines and edit them on the watch: exercises, sets, rep range, starting load, load increment and rest per exercise. Exercises come from a bundled offline Garmin exercise catalog (47 categories, 1,531 exercises) via a category picker. Entries whose exact Garmin exercise code is not valid are marked "Category only" (Connect shows them under the category group only). Production installs start with one empty routine.
+- **Workout flow.** On a weight exercise, START starts the set (a `SET m:ss` timer counts up) and the next START logs it and starts the rest timer, which vibrates when rest ends. Timed sets have their own timer. UP/DOWN adjusts reps and the load can be edited. You can correct or undo the last set, add a set, and skip or replace an exercise for the day. Sets are prefilled from your last performance for that exercise.
+- **Local history.** Recent finished workouts with per-set details are kept in watch storage. Workout state is checkpointed, so a workout survives leaving the app or a crash and resumes on the next launch.
+- **Settings.** Default rest for new exercises, vibration on or off.
 
-## Install (sideload)
+## Garmin recording
 
-The current GitHub release is 0.2.1 as an FR965 `.prg`. Version 0.2.2 is being prepared for a private FR965 Connect IQ beta and a public package supporting FR965, fēnix 8 47/51 mm AMOLED, fēnix 8 Pro 47/51 mm AMOLED, fēnix 9 47/51 mm, and fēnix 9 Pro 47/51 mm. Smaller 43 mm and Solar displays are excluded.
+A FIT activity is recorded through `ActivityRecording` as sport Training / sub-sport Generic. Garmin Connect still shows it as Strength Training; Generic avoids the firmware's native "Set 1" overlay at start (A/B-tested on an FR965, 2026-09-30). Details are in [docs/GARMIN_STRENGTH_PLAN.md](docs/GARMIN_STRENGTH_PLAN.md).
 
-1. Download the `.prg` from GitHub Releases.
-2. Connect the FR965 to your computer by USB. On macOS use OpenMTP (or Android File Transfer); on Windows the watch shows up as a normal drive.
-3. Copy the file to `GARMIN/APPS` on the watch.
-4. Unplug the watch. NextSet appears in the apps list.
-5. To update, copy the new file over the old one. Your routines and history stay on the watch.
+Each logged set is one FIT lap with developer fields:
 
-## Build, test, release
+| Lap field | Meaning |
+| --- | --- |
+| `exercise`, `set`, `reps` | Exercise name, set number, reps (0 for timed) |
+| `weight_kg`, `duration_s` | Load (negative for assistance) and timed-set seconds |
+| `active_s` | Start-to-log seconds (measured duration for timed sets, 0 if no start press) |
+| `garmin_category`, `garmin_code` | Garmin exercise category and code (code empty for category-only exercises) |
+| `void` | 1 on the lap that retracts an undone set; corrections add a lap with the new values |
 
-Install Connect IQ SDK 9.2.0 and put its `bin` directory on `PATH`. Every `monkeyc` call needs the developer key (keep it out of the repository; reuse the same key for every release):
+Session summary fields: `total_sets`, `volume_kg`, `exercises`, `nextset_version`. Leaving the app saves the segment so far, and reopening starts a new recording.
+
+### Garmin Connect exercise sets
+
+Connect IQ cannot write native strength sets, and Connect does not display developer fields from a sideloaded build. The optional job in [tools/connect-sets](tools/connect-sets/README.md) runs on a home server, reads these laps from your synced activities and writes native exercise sets through Garmin's unofficial `exerciseSets` endpoint. It is for personal use and may break at any time.
+
+## Build and test
+
+Install Connect IQ SDK 9.2.0 and put its `bin` directory on `PATH`. Every `monkeyc` call needs the developer key, including simulator and test builds (SDK 9.2.0 exits 101 without it).
 
 ```sh
 KEY="$HOME/.garmin-keys/NextSetDeveloperKey.der"
 mkdir -p bin
 
-# Debug build for the simulator
+# Simulator build and run
 monkeyc -f monkey.jungle -d fr965 -o bin/NextSet.prg -y "$KEY"
 monkeydo bin/NextSet.prg fr965
 
-# Unit tests (the runner may exit 1 even when every test passes; read the summary)
+# Unit tests (without -t it launches as an app and hangs)
 monkeyc --unit-test -f tests.jungle -d fr965 -o bin/NextSet-tests.prg -y "$KEY"
 monkeydo bin/NextSet-tests.prg fr965 -t
-
-# Public release package (no personal routines)
-monkeyc -e -r -f monkey.jungle -o bin/NextSet-public.iq -y "$KEY"
-
-# FR965-only private Store beta (Upper/Lower included; alternate app ID)
-monkeyc -e -r -f monkey.beta.jungle -o bin/NextSet-private-beta.iq -y "$KEY"
-
-# FR965 sideload build from public resources
-monkeyc -r -f monkey.jungle -d fr965 -o bin/NextSet-release.prg -y "$KEY"
-
-# Personal sideload build with the private Upper/Lower seeds
-monkeyc -f monkey.local.jungle -d fr965 -o bin/NextSet-local.prg -y "$KEY"
+monkeydo bin/NextSet-tests.prg fr965 -t testSeedCatalog   # single test
 ```
 
-See [docs/TOOLCHAIN.md](docs/TOOLCHAIN.md) for details.
-See [docs/PRIVATE_ROUTINE_RELEASE_PLAN.md](docs/PRIVATE_ROUTINE_RELEASE_PLAN.md) for the beta and public package split.
+`monkeydo` may exit 1 even when every test passes; read the PASS/FAIL summary. There is no linter; the compiler's type checking is the check.
 
-## Known limitations
+### Packages
 
-- Connect IQ cannot write native strength set rows. Garmin Connect does not display developer fields from a sideloaded build, so its activity can look empty even when the FIT file contains set laps. The private Store beta can test developer-field visibility. Lap values are not rewritten when a set is corrected or deleted afterwards. NextSet's own history is the complete record.
-- The 0.2.1 FIT lap and summary values have not yet been verified on a physical watch.
-- The additional fēnix targets have compile and limited simulator evidence only; physical device checks remain pending. See [docs/DEVICE_TESTS.md](docs/DEVICE_TESTS.md).
-- The simulator does not enforce the 32 KB storage limit per value, so size is checked by estimate; each routine is stored separately to stay under it (see [docs/STABILITY_AUDIT_PLAN.md](docs/STABILITY_AUDIT_PLAN.md)).
+```sh
+# Public package (all manifest.xml devices, no personal routines)
+monkeyc -e -r -f monkey.jungle -o bin/NextSet-public.iq -y "$KEY"
+
+# Private FR965-only beta (Upper/Lower seeds, separate app ID)
+monkeyc -e -r -f monkey.beta.jungle -o bin/NextSet-private-beta.iq -y "$KEY"
+
+# FR965 sideload builds
+monkeyc -r -f monkey.jungle -d fr965 -o bin/NextSet-release.prg -y "$KEY"        # public resources
+monkeyc -f monkey.local.jungle -d fr965 -o bin/NextSet-local.prg -y "$KEY"       # private seeds
+```
+
+To sideload, copy the `.prg` to `GARMIN/APPS` on the watch over USB. Never use the private jungles for the public `.iq`; see [docs/PRIVATE_ROUTINE_RELEASE_PLAN.md](docs/PRIVATE_ROUTINE_RELEASE_PLAN.md).
+
+### Signing key
+
+The key is `~/.garmin-keys/NextSetDeveloperKey.der` (PEM beside it). Keep it outside the repository, never commit, upload or package either file, and keep an offline backup. Reuse the same key for every build of an installed app; a build signed with a different key requires reinstalling on the watch.
+
+### Garmin catalog generator
+
+`scripts/generate_garmin_catalog.py` builds `resources/data/garmin.xml` from a pinned Garmin Connect exercise snapshot (the input must match the SHA-256 in the script). Codes are validated against the FIT profile of `garmin-fit-sdk==21.217.0` (`pip install`); invalid codes become null (category only).
+
+```sh
+python3 scripts/generate_garmin_catalog.py /private/tmp/NextSet-Garmin-Exercises.json resources/data/garmin.xml
+python3 scripts/generate_garmin_catalog.py --revalidate resources/data/garmin.xml     # revalidate in place
+python3 scripts/generate_garmin_catalog.py --seeds tools/connect-sets/exercises.json \
+    resources/data/seeds.xml private/resources/data/seeds.xml                         # validate seeds, write exercises.json
+```
+
+Copy a regenerated catalog to `private/resources/data/garmin.xml` too.
+
+## Repository layout
+
+- `source/`: pure logic (`SessionLogic`, `WorkoutClock`, `RestClock`, `LastPerformance`, `Model`, `Catalog`), `Store` (two-generation storage), `SessionController` (state owner), `StrengthRecorder` (FIT), `NextSetApp`.
+- `source/ui/`: views, menu delegates, `Navigator`.
+- `tests/`: unit tests for the pure modules, included via `tests.jungle`.
+- `resources/`: public strings, drawables, seeds (no routines), Garmin catalog, FIT contribution fields.
+- `private/resources/`: same plus the private Upper/Lower seeds; used by beta, local and test builds only.
+- `scripts/`: catalog generator.
+- `tools/connect-sets/`: optional Garmin Connect sync job (Docker, Python).
+- `docs/`: toolchain, device evidence, plans. See also `AGENTS.md` and `CLAUDE.md`.
+
+## Status and limitations
+
+Verified on a physical FR965 ([docs/DEVICE_TESTS.md](docs/DEVICE_TESTS.md)): a short start, log and save path; a saved FIT with sport Training (Strength sub-sport at that time); fixes for the finish-timer callback crash and workout-start/save watchdog trips; the Generic sub-sport avoiding the "Set 1" overlay, with Connect showing Strength Training; Garmin Connect showing the session summary fields for the store beta; native exercise sets written by the NAS job appearing in Connect (2026-09-30).
+
+Simulator only: layout of Home, overview and exercise screens; persistence across relaunch; unit tests pass in the simulator. The fēnix targets compile; only the fēnix 9 Pro 51 mm empty starter routine was checked in the simulator, with no physical check.
+
+Not yet verified (marked PENDING in DEVICE_TESTS.md): the 0.2.3 to 0.2.5 changes on a watch (lap queue, `active_s`, category/code fields, correction and undo laps, "Category only" label, upgrade over 0.2.4), the full acceptance list (long sessions, touch-off, pause, recovery), watch history label and training load for a Generic recording, and Garmin Connect rendering of the lap developer fields.
+
+Known limits: lap values are recorded when a set is logged, so corrections and undo add extra laps instead of rewriting; the firmware keeps at most one lap per second, so simultaneous laps are queued and may collapse if written in the final second before save. NextSet's own history is the complete record. The simulator does not enforce the 32 KB per-value storage limit, so each routine is stored separately and sized by estimate.

@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-NextSet: Monkey C Connect IQ strength-training watch app for Garmin Forerunner 965 (`fr965`, min API 5.2.0). `AGENTS.md` holds the canonical repo rules (style, commits, key handling); this file adds commands and architecture. README.md is stale (says no FIT recording, unsigned build) — trust AGENTS.md and `docs/TOOLCHAIN.md`.
+NextSet: Monkey C Connect IQ strength-training watch app for Garmin Forerunner 965 (`fr965`, min API 5.2.0). `AGENTS.md` holds the canonical repo rules (style, commits, key handling); this file adds commands and architecture.
 
 ## Commands
 
