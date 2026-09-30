@@ -116,3 +116,11 @@ A short start/log/save path and saved Strength FIT were recorded on the FR965. T
 - **Simulator tests:** signed FR965 target reported 37/37 passed, 0 failures, 0 errors. `monkeydo` returned 1 after the passing summary. The initial simulator connection failed; quitting and relaunching the simulator resolved it.
 - **Startup UI:** public FR965 showed `Routine 1`, `0 ex · 0 sets`, and an add-exercise prompt. Private beta FR965 showed Upper with 8 exercises and 19 sets. Public fēnix 9 Pro 51 mm showed the empty starter routine on its 466×466 display without visible clipping. Screenshots: `NextSet-public-fr965-0.2.2.png`, `NextSet-private-beta-fr965-0.2.2.png`, `NextSet-public-fenix9pro51mm-0.2.2.png` in this directory. Other fēnix targets compiled but have no UI or physical-watch check yet.
 - **Pending physical beta check:** install the beta through Connect IQ Store, log a short workout, sync, and inspect the developer fields in Garmin Connect. The simulator and package inspection do not establish Connect rendering.
+
+## 0.2.3 FIT set breakdown — PENDING
+
+- **Build and simulator tests (2026-09-29):** signed public, beta and test builds succeeded for FR965; simulator reported 38/38 passed (incl. `testFitExerciseLines`). The simulator only connected after quitting and relaunching it. Lap queue, closing-lap blanking and Connect rendering are not verified on a watch.
+- [ ] **PENDING** Log sets less than 1 s apart: every set appears as its own lap in the FIT file (0.2.1 lost 2 of 19; queued laps are written on the 1 s tick).
+- [ ] **PENDING** No trailing lap that repeats the last set (the closing lap has an empty exercise name and zeros).
+- [ ] **PENDING** Garmin Connect (store beta upload, physical workout) shows the session fields `Ex 1` ... `Ex n` with lines such as `Row 55kg 9/9/9`, and volume without the odd "65256" rendering.
+- [ ] **PENDING** A workout with 12 exercises writes all 12 `ex_` lines without a "New Field out of memory for FIT data" error (255 of 256 session bytes).

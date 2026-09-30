@@ -1,13 +1,17 @@
 import Toybox.ActivityRecording;
 import Toybox.FitContributor;
 import Toybox.Lang;
+import Toybox.Time;
 import Toybox.WatchUi;
 
 // Owns the recording and its FIT developer fields. Garmin Connect has no native set rows for a
 // Connect IQ activity, so each logged set becomes one lap carrying the set as lap fields, and the
 // session gets summary fields. Field ids match resources/fitcontributions.
 // Limits (createField docs): apps get 256 bytes per message type; lap fields use 74 (name 65 incl.
-// terminator, set 1, reps 2, weight 4, duration 2) and session fields 15.
+// terminator, set 1, reps 2, weight 4, duration 2) and session fields 255 (total_sets 2, volume 4,
+// exercises 1, version 8, twelve 20-byte exercise lines = 240). The docs state no field-count limit.
+// The firmware keeps one lap per second: a set logged in the same second as the previous lap is
+// queued and written by flush() on a later tick.
 // Any FitContributor failure is swallowed: logging a set must never depend on it.
 class StrengthRecorder {
     private var _session as ActivityRecording.Session? = null;
@@ -20,6 +24,9 @@ class StrengthRecorder {
     private var _volumeField as FitContributor.Field? = null;
     private var _exercisesField as FitContributor.Field? = null;
     private var _versionField as FitContributor.Field? = null;
+    private var _lineFields as Array<FitContributor.Field?> = [] as Array<FitContributor.Field?>;
+    private var _pending as Array<Dictionary> = [] as Array<Dictionary>;
+    private var _lastLapAt as Number = 0;
 
     public function start(name as String) as Boolean {
         if (_session != null) {
@@ -60,6 +67,9 @@ class StrengthRecorder {
         _volumeField = null;
         _exercisesField = null;
         _versionField = null;
+        _lineFields = [] as Array<FitContributor.Field?>;
+        _pending = [] as Array<Dictionary>;
+        _lastLapAt = 0;
         try {
             if (!(session has :createField)) {
                 return;
@@ -84,6 +94,10 @@ class StrengthRecorder {
                 {:mesgType => summary});
             _versionField = session.createField("nextset_version", 8, FitContributor.DATA_TYPE_STRING,
                 {:mesgType => summary, :count => 8});
+            for (var i = 0; i < 12; i++) {
+                _lineFields.add(session.createField("ex_" + (i + 1).toString(), 9 + i,
+                    FitContributor.DATA_TYPE_STRING, {:mesgType => summary, :count => 20}));
+            }
         } catch (error) {
             // Keep whatever was created; missing fields are skipped when writing.
         }
@@ -108,17 +122,34 @@ class StrengthRecorder {
         }
     }
 
-    // One lap per logged set. Do not clear fields immediately after addLap(): setData() can
-    // replace a value before the device writes it to FIT.
+    // One lap per logged set. The firmware writes at most one lap per second, so a set logged in
+    // the same second as the previous lap is queued and written by flush() on the next tick.
+    // Do not clear fields immediately after addLap(): setData() can replace a value before the
+    // device writes it to FIT.
     public function recordSet(payload as Dictionary?) as Void {
         if (payload == null || !isRecording()) {
             return;
         }
+        _pending.add(payload as Dictionary);
+        flush();
+    }
+
+    // Writes the oldest queued set once the clock has moved past the last lap's second.
+    public function flush() as Void {
+        if (_pending.size() == 0 || !isRecording() || Time.now().value() <= _lastLapAt) {
+            return;
+        }
+        writeLap(_pending[0]);
+        _pending = _pending.slice(1, null) as Array<Dictionary>;
+    }
+
+    private function writeLap(payload as Dictionary) as Void {
         try {
             setLapFields(payload["name"] as String, payload["set"] as Number,
                 payload["reps"] as Number, payload["weightKg"] as Float,
                 payload["durationSec"] as Number);
             (_session as ActivityRecording.Session).addLap();
+            _lastLapAt = Time.now().value();
         } catch (error) {
         }
     }
@@ -140,6 +171,12 @@ class StrengthRecorder {
             if (_versionField != null) {
                 (_versionField as FitContributor.Field).setData(
                     WatchUi.loadResource($.Rez.Strings.AppVersion) as String);
+            }
+            var lines = summary["lines"] as Array?;
+            for (var i = 0; lines != null && i < lines.size() && i < _lineFields.size(); i++) {
+                if (_lineFields[i] != null) {
+                    (_lineFields[i] as FitContributor.Field).setData(lines[i] as String);
+                }
             }
         } catch (error) {
         }
@@ -176,6 +213,15 @@ class StrengthRecorder {
         try {
             var session = _session as ActivityRecording.Session;
             setSummaryFields(summary);
+            // Best effort: anything still queued goes out now, even in the same second.
+            while (_pending.size() > 0 && session.isRecording()) {
+                writeLap(_pending[0]);
+                _pending = _pending.slice(1, null) as Array<Dictionary>;
+            }
+            // stop() closes a final lap; blank its fields so it is not a copy of the last set.
+            if (Time.now().value() > _lastLapAt) {
+                setLapFields("", 0, 0, 0.0, 0);
+            }
             if (session.isRecording() && !session.stop()) {
                 return false;
             }
@@ -193,6 +239,7 @@ class StrengthRecorder {
         if (_session == null) {
             return true;
         }
+        _pending = [] as Array<Dictionary>;
         try {
             var session = _session as ActivityRecording.Session;
             if (session.isRecording() && !session.stop()) {

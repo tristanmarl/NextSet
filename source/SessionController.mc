@@ -1295,6 +1295,7 @@ class SessionController {
         if (!isWorkoutRunning()) {
             return false;
         }
+        _recorder.flush();
         var candidate = null;
         var restAlert = false;
         var timedAlert = false;

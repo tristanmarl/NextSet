@@ -1,7 +1,7 @@
 <strings xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://developer.garmin.com/downloads/connect-iq/resources.xsd">
     <string id="AppName">NextSet</string>
     <!-- Keep equal to the version in manifest.xml; written into the FIT session summary. -->
-    <string id="AppVersion">0.2.1</string>
+    <string id="AppVersion">0.2.3</string>
     <string id="FitExercise">Exercise</string>
     <string id="FitSet">Set</string>
     <string id="FitReps">Reps</string>
@@ -11,6 +11,18 @@
     <string id="FitVolume">Volume</string>
     <string id="FitExercises">Exercises</string>
     <string id="FitVersion">NextSet version</string>
+    <string id="FitEx1">Ex 1</string>
+    <string id="FitEx2">Ex 2</string>
+    <string id="FitEx3">Ex 3</string>
+    <string id="FitEx4">Ex 4</string>
+    <string id="FitEx5">Ex 5</string>
+    <string id="FitEx6">Ex 6</string>
+    <string id="FitEx7">Ex 7</string>
+    <string id="FitEx8">Ex 8</string>
+    <string id="FitEx9">Ex 9</string>
+    <string id="FitEx10">Ex 10</string>
+    <string id="FitEx11">Ex 11</string>
+    <string id="FitEx12">Ex 12</string>
     <string id="FitUnitKg">kg</string>
     <string id="FitUnitSec">s</string>
     <string id="FitUnitNone"> </string>
