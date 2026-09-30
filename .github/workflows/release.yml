@@ -86,5 +86,5 @@ jobs:
         run: |
           notes="$(git tag -l --format='%(contents)' "$TAG" 2>/dev/null || true)"
           [ -n "$notes" ] || notes="NextSet ${TAG#v}: private beta .iq and sideload .prg for the Forerunner 965."
-          gh release create "$TAG" dist/* --prerelease --title "NextSet ${TAG#v}" --notes "$notes" \
+          gh release create "$TAG" dist/*.iq dist/*.prg --prerelease --title "NextSet ${TAG#v}" --notes "$notes" \
             --target "$GITHUB_SHA"
