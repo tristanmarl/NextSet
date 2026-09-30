@@ -106,7 +106,7 @@ class Store {
             var item = rows[i] as Dictionary;
             if (!Model.validId(item["id"]) || !Model.validNonblankText(item["name"], 64) ||
                 !Model.validText(item["category"], 48, false) ||
-                !Model.validText(item["code"], 64, false) ||
+                !Model.validText(item["code"], 64, true) ||
                 !Model.inRange(item["categoryIndex"], 0, 46, false) ||
                 (item["isBodyWeight"] != null && !(item["isBodyWeight"] instanceof Boolean))) {
                 return false;

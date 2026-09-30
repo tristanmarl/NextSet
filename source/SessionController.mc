@@ -790,7 +790,7 @@ class SessionController {
         var category = definition["category"];
         var code = definition["code"];
         if (!Model.validId(exerciseId) || !Model.validText(name, 64, false) ||
-            !Model.validText(category, 48, false) || !Model.validText(code, 64, false) ||
+            !Model.validText(category, 48, false) || !Model.validText(code, 64, true) ||
             !Model.validLoadType(loadType)) {
             return null;
         }
@@ -974,7 +974,7 @@ class SessionController {
             for (var e = 0; e < entries.size(); e++) {
                 var entry = entries[e] as Dictionary;
                 if (!(entry["garminCategory"] instanceof String) ||
-                    !(entry["garminCode"] instanceof String) || seen[entry["exerciseId"]] == true) {
+                    seen[entry["exerciseId"]] == true) {
                     continue;
                 }
                 var definition = Catalog.exerciseForEntry(entry);
@@ -999,13 +999,14 @@ class SessionController {
         var code = definition["code"] instanceof String ? definition["code"] :
             definition["garminCode"];
         if (!Model.validId(definition["id"]) || !(category instanceof String) ||
-            !(code instanceof String) || categoryIndex < 0) {
+            !Model.validText(code, 64, true) || categoryIndex < 0) {
             return false;
         }
         var items = [];
         var recent = recentGarminExercises();
         items.add({"id" => definition["id"],
-            "name" => Catalog.garminName(category as String, code as String),
+            "name" => code instanceof String ? Catalog.garminName(category as String, code as String) :
+                definition["name"],
             "category" => category, "code" => code, "categoryIndex" => categoryIndex,
             "isBodyWeight" => definition["isBodyWeight"]});
         for (var i = 0; i < recent.size() && items.size() < 8; i++) {

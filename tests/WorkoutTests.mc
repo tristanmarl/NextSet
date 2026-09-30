@@ -42,6 +42,32 @@ function testSeedCatalog(logger as Test.Logger) as Boolean {
 }
 
 (:test)
+function testGarminCodeMayBeNull(logger as Test.Logger) as Boolean {
+    var chest = Catalog.exercise("machine-chest-press") as Dictionary;
+    var routine = sizedRoutine("null-code", 0, 8, 8, 8, 0);
+    var first = (routine["entries"] as Array)[0] as Dictionary;
+    first["garminCode"] = null;
+    var sawGroupOnly = false;
+    var categories = Catalog.garminCategories();
+    for (var c = 0; c < categories.size(); c++) {
+        var rows = Catalog.garminExercises(c);
+        for (var i = 0; i < rows.size(); i++) {
+            var code = rows[i]["code"];
+            if (code == null) {
+                sawGroupOnly = true;
+            } else if (!check(logger, (code as String).substring(0, 1).equals("_") == false,
+                "catalog code has the Connect-only leading underscore: " + code)) {
+                return false;
+            }
+        }
+    }
+    return check(logger, Model.sameString(chest["garminCategory"], "BENCH_PRESS") &&
+            chest["garminCode"] == null, "Machine Chest Press must be group-only BENCH_PRESS") &&
+        check(logger, Catalog.validRoutine(routine), "routine with a null garminCode must be valid") &&
+        check(logger, sawGroupOnly, "catalog must contain group-only entries");
+}
+
+(:test)
 function testSessionCommands(logger as Test.Logger) as Boolean {
     var session = Catalog.createSession("upper", "test-1", 1, 100, null, null) as Dictionary;
     var original = session;

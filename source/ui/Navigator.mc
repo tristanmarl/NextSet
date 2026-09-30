@@ -390,8 +390,9 @@ module Navigator {
             end = rows.size();
         }
         for (var i = start; i < end; i++) {
+            // code is null when Garmin Connect only knows the category, not this exercise
             menu.addItem(new WatchUi.MenuItem(rows[i]["name"] as String,
-                null, rows[i]["id"], null));
+                rows[i]["code"] == null ? "Group only in Connect" : null, rows[i]["id"], null));
         }
         if (page > 0) {
             menu.addItem(new WatchUi.MenuItem("Previous exercises", null, "prev", null));
