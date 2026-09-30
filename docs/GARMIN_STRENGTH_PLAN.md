@@ -5,6 +5,8 @@ installed NextSet can update without losing its local data.
 
 ## Outcome
 
+> Update 2026-09-30: the recording now uses sub-sport `GENERIC` (sport `TRAINING` unchanged). A/B sideload on a physical FR965: `STRENGTH_TRAINING` shows the native "Set 1" screen for a few seconds at start (also when `createField` precedes `session.start`); `GENERIC` does not, and Garmin Connect still shows it as Strength Training. The text below describes the original plan.
+
 - Finishing a NextSet workout records a Garmin FIT **Activity** with sport
   `TRAINING` and sub-sport `STRENGTH_TRAINING`. Verify that it appears as Strength
   in the FR965 activity history and in Garmin Connect after sync.

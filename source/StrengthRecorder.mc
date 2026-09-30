@@ -39,7 +39,8 @@ class StrengthRecorder {
             _session = ActivityRecording.createSession({
                 :name => name,
                 :sport => Activity.SPORT_TRAINING,
-                :subSport => Activity.SUB_SPORT_STRENGTH_TRAINING
+                // GENERIC: STRENGTH_TRAINING triggers the native Strength UI "Set 1" overlay; Connect still shows Strength Training.
+                :subSport => Activity.SUB_SPORT_GENERIC
             });
             if (_session == null) {
                 return false;
