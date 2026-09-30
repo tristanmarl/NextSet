@@ -1,0 +1,25 @@
+# Compile check only (monkeyc needs the developer key even for builds). No unit tests here: the
+# simulator needs a GUI, so run scripts/test.sh locally.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: write  # reads the draft "ci-devices" release that holds the FR965 device files
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-ciq
+        with:
+          dev-key: ${{ secrets.NEXTSET_DEV_KEY }}
+          token: ${{ github.token }}
+      - run: monkeyc -f monkey.jungle -d fr965 -o NextSet.prg -y "$CIQ_KEY"
+      - name: Remove key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/key.der"

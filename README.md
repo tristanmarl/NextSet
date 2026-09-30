@@ -36,6 +36,14 @@ Confirmed on an FR965 (see [docs/DEVICE_TESTS.md](docs/DEVICE_TESTS.md) for the 
 
 Still true: the watch records a Garmin activity (Training, Generic) whose laps carry NextSet set fields; it does not create native Garmin strength sets, and Connect may not show the custom fields. Prompt-variable answers are not collected, so prompt-driven programs are not supported. Unilateral `repsLeft` and timed-set progression are not verified against Liftosaur. Unsupported program data can make a sync fail; fix the program in Liftosaur and retry.
 
+## Release from anywhere
+
+GitHub Actions builds and publishes without the Mac. Bump the version with `scripts/bump-version.sh X.Y.Z` (manifest.xml, manifest.beta.xml and both `AppVersion` strings), run `scripts/test.sh` locally, commit, then push a tag `vX.Y.Z` (or run the **release** workflow from the GitHub app with the tag as input; without a tag it only builds artifacts). The workflow checks that the tag matches the manifest version, builds `NextSet-X.Y.Z-private-beta.iq` and `NextSet-X.Y.Z.prg`, fails if either contains an `lftsk_` string, and creates a pre-release with both files. A lighter **ci** workflow compiles `monkey.jungle` on pushes to main and pull requests. Unit tests do not run in CI (the simulator needs a GUI).
+
+- **Key:** the repository secret `NEXTSET_DEV_KEY` holds the base64 of the developer `.der`. To rotate it: `base64 -i ~/.garmin-keys/NextSetDeveloperKey.der | gh secret set NEXTSET_DEV_KEY` (a new key means a one-time reinstall on the watch).
+- **Device files:** the FR965 definition is not in the Linux SDK. Zip the `Devices/fr965` folder of the Connect IQ install (so it unzips to `fr965/...`) and upload it as `fr965-device.zip` to a release tagged `ci-devices` (a draft is fine; the workflow token has `contents: write`, which reading drafts needs). Re-upload it when the SDK or device definition changes.
+- **SDK:** Connect IQ 9.2.0 for Linux is downloaded from Garmin and cached; bump the URL and cache key in `.github/actions/setup-ciq/action.yml` to change it.
+
 ## Build and test
 
 Install Connect IQ SDK 9.2.0 and put its `bin` directory on `PATH`; every build needs `-y` with your developer key. `scripts/test.sh` builds and runs the unit tests in the simulator. Commands, conventions and architecture notes are in [CLAUDE.md](CLAUDE.md), [AGENTS.md](AGENTS.md) and [docs/TOOLCHAIN.md](docs/TOOLCHAIN.md). Never trigger real Liftosaur POST requests from development or tests.

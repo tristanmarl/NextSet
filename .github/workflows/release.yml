@@ -1,0 +1,90 @@
+# Builds NextSet on GitHub's Linux runners and, for a version tag, publishes a pre-release with the
+# beta .iq and the sideload .prg. The unit tests are not run here: they need the simulator GUI,
+# so run scripts/test.sh on the Mac before tagging.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (e.g. v0.3.5); leave empty to only build artifacts"
+        required: false
+
+permissions:
+  contents: write  # reading the draft "ci-devices" release and creating the release both need it
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+      tag: ${{ steps.ver.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup-ciq
+        with:
+          dev-key: ${{ secrets.NEXTSET_DEV_KEY }}
+          token: ${{ github.token }}
+      - name: Version and tag check
+        id: ver
+        run: |
+          version="$(grep -E '^[[:space:]]+version="' manifest.xml | head -1 | sed -E 's/.*version="([^"]+)".*/\1/')"
+          tag=""
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then tag="${GITHUB_REF_NAME}"; fi
+          if [ -n "${{ inputs.tag }}" ]; then tag="${{ inputs.tag }}"; fi
+          if [ -n "$tag" ] && [ "${tag#v}" != "$version" ]; then
+            echo "Tag $tag does not match manifest version $version"; exit 1
+          fi
+          beta="$(grep -E '^[[:space:]]+version="' manifest.beta.xml | head -1 | sed -E 's/.*version="([^"]+)".*/\1/')"
+          [ "$beta" = "$version" ] || { echo "manifest.beta.xml is $beta, manifest.xml is $version"; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+      - name: Build
+        run: |
+          v="${{ steps.ver.outputs.version }}"
+          mkdir -p dist
+          monkeyc -e -r -f monkey.beta.jungle -o "dist/NextSet-$v-private-beta.iq" -y "$CIQ_KEY"
+          monkeyc -r -f monkey.local.jungle -d fr965 -o "dist/NextSet-$v.prg" -y "$CIQ_KEY"
+          ls -l dist
+      - name: Scan for API keys
+        run: |
+          mkdir -p "$RUNNER_TEMP/scan"
+          cp dist/*.prg "$RUNNER_TEMP/scan/"
+          # .iq packages are 7z archives, not zip.
+          for f in dist/*.iq; do 7z x -y -bd -o"$RUNNER_TEMP/scan/$(basename "$f")" "$f" > /dev/null; done
+          if grep -rqa 'lftsk_' "$RUNNER_TEMP/scan"; then
+            echo "An artifact contains an API key prefix"; exit 1
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NextSet-${{ steps.ver.outputs.version }}
+          path: dist/*
+      - name: Remove key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/key.der"
+
+  release:
+    needs: build
+    if: needs.build.outputs.tag != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: NextSet-${{ needs.build.outputs.version }}
+          path: dist
+      - name: Create pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.build.outputs.tag }}
+        run: |
+          notes="$(git tag -l --format='%(contents)' "$TAG" 2>/dev/null || true)"
+          [ -n "$notes" ] || notes="NextSet ${TAG#v}: private beta .iq and sideload .prg for the Forerunner 965."
+          gh release create "$TAG" dist/* --prerelease --title "NextSet ${TAG#v}" --notes "$notes" \
+            --target "$GITHUB_SHA"
