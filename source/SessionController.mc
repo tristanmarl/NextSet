@@ -33,6 +33,12 @@ class SessionController {
         _sync = new LiftosaurSync(store, self);
         _recorder = new StrengthRecorder();
         _session = _store.loadPair("active");
+        if (_session != null && _session["setRun"] != null) {
+            // 0.3.1 kept a per-set clock; sets now log in one press, so a saved one is dropped.
+            var cleaned = SessionLogic.copyDictionary(_session as Dictionary);
+            cleaned.remove("setRun");
+            _session = cleaned;
+        }
         _activeUnsupported = _store.hasUnsupportedRecord();
         _activeCorrupt = _session == null && _store.hasCorruptRecord();
         if (_session != null &&
@@ -760,14 +766,6 @@ class SessionController {
         return true;
     }
 
-    public function startSet(entryId as String, slot as Number, now as Number) as Boolean {
-        if (!isWorkoutRunning()) {
-            return false;
-        }
-        var candidate = SessionLogic.startSet(_session as Dictionary, entryId, slot, now);
-        return candidate != null && commit(candidate as Dictionary);
-    }
-
     public function timedElapsed(now as Number) as Number {
         if (_session != null && _session["timedRun"] instanceof Dictionary) {
             return SessionLogic.timedElapsedSec(_session["timedRun"] as Dictionary, now);
@@ -790,10 +788,6 @@ class SessionController {
     public function hasRunningRest() as Boolean {
         return isWorkoutRunning() && _session["rest"] instanceof Dictionary &&
             Model.sameString(_session["rest"]["state"], "running");
-    }
-
-    public function hasRunningSet() as Boolean {
-        return isWorkoutRunning() && _session["setRun"] instanceof Dictionary;
     }
 
     public function hasRunningTimed() as Boolean {
@@ -1078,15 +1072,11 @@ class SessionController {
             var discarding = SessionLogic.copyDictionary(frozen);
             // No recorder session in memory means the process restarted after the
             // discard commit began; a restart drops the in-memory session, so treat
-            // it as discarded (there is nothing left to discard).
+            // it as discarded (there is nothing left to discard). The result goes straight
+            // into the tombstone below; a crash before it resumes here and discards nothing.
             discarding["fitState"] = !_recorder.hasSession() || _recorder.discard() ?
                 "discarded" : "discard_failed";
-            if (!_store.commitPair("active", discarding)) {
-                _errorCode = Err.ACTIVITY_STATE_SAVE_FAILED;
-                return false;
-            }
-            _session = discarding;
-            return false;
+            frozen = discarding;
         }
         var ended = SessionLogic.copyDictionary(frozen);
         ended["status"] = outcome;
@@ -1237,7 +1227,6 @@ class SessionController {
             fresh[clockKeys[i]] = clock[clockKeys[i]];
         }
         fresh["timedRun"] = null;
-        fresh["setRun"] = null;
         fresh["fitState"] = "recording";
         fresh["fitSegments"] = 0;
         fresh["fitUnknownSegments"] = 0;
@@ -1469,7 +1458,6 @@ class SessionController {
         if (rest instanceof Dictionary && Model.sameString(rest["entryId"], entryId)) {
             candidate["rest"] = null;
         }
-        candidate["setRun"] = null;
         candidate["nextSetSequence"] = (candidate["nextSetSequence"] as Number) + 1;
         return commit(candidate);
     }
@@ -1528,7 +1516,6 @@ class SessionController {
         if (rest instanceof Dictionary && Model.sameString(rest["entryId"], entryId)) {
             candidate["rest"] = null;
         }
-        candidate["setRun"] = null;
         candidate["nextSetSequence"] = (candidate["nextSetSequence"] as Number) + 1;
         if (SessionLogic.totals(candidate)["planned"] > Model.MAX_SETS_PER_WORKOUT) {
             _errorCode = Err.ROUTINE_LIMIT_REACHED;
@@ -1564,7 +1551,6 @@ class SessionController {
             _errorCode = Err.LOG_A_SET_BEFORE_SAVING;
             return false;
         }
-        candidate["setRun"] = null;
         candidate["status"] = "finalizing";
         candidate["finishOutcome"] = outcome;
         var skipped = false;

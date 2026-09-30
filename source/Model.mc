@@ -766,9 +766,7 @@ module Model {
         if (record["timedRun"] != null && !validTimedRun(record["timedRun"], exercises)) {
             return false;
         }
-        if (record["setRun"] != null && !validSetRun(record["setRun"], exercises)) {
-            return false;
-        }
+        // A "setRun" saved by 0.3.1 (set clock) is ignored and dropped on the next save.
         if (record["rest"] != null && !validRest(record["rest"], exercises)) {
             return false;
         }
@@ -888,28 +886,6 @@ module Model {
                 var slot = item["slot"] as Number;
                 var target = slotAt(exercise, slot);
                 return sameString(exercise["loadType"], "timed") && target != null &&
-                    (target as Dictionary)["completed"] == null;
-            }
-        }
-        return false;
-    }
-
-    function validSetRun(run as Object?, exercises as Array) as Boolean {
-        if (!(run instanceof Dictionary)) {
-            return false;
-        }
-        var item = run as Dictionary;
-        if (!validId(item["entryId"]) ||
-            !inRange(item["slot"], 0, WARMUP_BASE + MAX_WARMUP_SLOTS - 1, false) ||
-            !inRange(item["startedAt"], 0, 2147483647, false)) {
-            return false;
-        }
-        for (var i = 0; i < exercises.size(); i++) {
-            var exercise = exercises[i] as Dictionary;
-            if (sameString(item["entryId"], exercise["entryId"])) {
-                var slot = item["slot"] as Number;
-                var target = slotAt(exercise, slot);
-                return !sameString(exercise["loadType"], "timed") && target != null &&
                     (target as Dictionary)["completed"] == null;
             }
         }

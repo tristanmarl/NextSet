@@ -216,9 +216,7 @@ class NextSetApp extends Application.AppBase {
             } catch (error) {
             }
         }
-        // The set clock is only drawn by ExerciseView; other screens need no redraw for it.
-        if (_controller.hasRunningRest() || _controller.hasRunningTimed() || vibrate ||
-            (_controller.hasRunningSet() && WatchUi.getCurrentView()[0] instanceof ExerciseView)) {
+        if (_controller.hasRunningRest() || _controller.hasRunningTimed() || vibrate) {
             WatchUi.requestUpdate();
         }
     }

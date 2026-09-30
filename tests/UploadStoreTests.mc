@@ -4,12 +4,14 @@ import Toybox.Test;
 class UploadMemoryStore extends Store {
     private var _values as Dictionary = {};
     private var _failNextKey as String? = null;
+    public var writes as Array = [];
 
     public function readKey(key as String) as Object? {
         return _values[key];
     }
 
     public function writeKey(key as String, value as Object) as Void {
+        writes.add(key);
         if (_failNextKey != null && Model.sameString(_failNextKey, key)) {
             _failNextKey = null;
             throw new Lang.Exception();

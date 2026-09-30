@@ -129,7 +129,6 @@ module SessionLogic {
             return null;
         }
         var candidate = state["session"] as Dictionary;
-        candidate["setRun"] = null;  // a timed set replaces a started plain set
         var rest = candidate["rest"];
         if (rest instanceof Dictionary && (Model.sameString(rest["state"], "running") ||
             Model.sameString(rest["state"], "expired"))) {
@@ -227,44 +226,6 @@ module SessionLogic {
         return changed;
     }
 
-    function setRunMatches(session as Dictionary, entryId as String, slotIndex as Number) as Boolean {
-        var run = session["setRun"];
-        return run instanceof Dictionary && Model.sameString(run["entryId"], entryId) &&
-            run["slot"] == slotIndex;
-    }
-
-    function setElapsedSec(run as Dictionary, now as Number) as Number {
-        var startedAt = run["startedAt"] instanceof Number ? run["startedAt"] as Number : now;
-        var elapsed = now - startedAt;
-        return elapsed < 0 ? 0 : (elapsed > Model.MAX_DURATION_SEC ? Model.MAX_DURATION_SEC : elapsed);
-    }
-
-    // Explicit "start set" for non-timed sets: records when the set began so the logged set can
-    // carry its real duration. Starting a set also ends a running or expired rest and replaces a
-    // started set on another slot; it is refused while a timed set runs.
-    function startSet(session as Dictionary, entryId as String, slotIndex as Number,
-                      now as Number) as Dictionary? {
-        var index = exerciseIndex(session, entryId);
-        if (index < 0 || session["timedRun"] != null ||
-            !Model.inRange(now, 0, 2147483647, false)) {
-            return null;
-        }
-        var exercise = (session["exercises"] as Array)[index] as Dictionary;
-        var existing = Model.slotAt(exercise, slotIndex);
-        if (Model.sameString(exercise["loadType"], "timed") || exercise["closedEarly"] ||
-            existing == null || (existing as Dictionary)["completed"] != null) {
-            return null;
-        }
-        var candidate = copyDictionary(session);
-        candidate["setRun"] = {"entryId" => entryId, "slot" => slotIndex, "startedAt" => now};
-        var rest = session["rest"];
-        if (rest instanceof Dictionary && (Model.sameString(rest["state"], "running") ||
-            Model.sameString(rest["state"], "expired"))) {
-            candidate["rest"] = RestClock.skip(rest as Dictionary);
-        }
-        return candidate;
-    }
-
     function validActual(exercise as Dictionary, actual as Dictionary) as Boolean {
         var type = exercise["loadType"];
         if (Model.sameString(type, "weight") || Model.sameString(type, "assistance")) {
@@ -326,10 +287,6 @@ module SessionLogic {
         } else {
             completed["durationSec"] = actual["durationSec"];
             completed["durationSource"] = "manual";
-        }
-        if (setRunMatches(session, entryId, slotIndex)) {
-            completed["activeSec"] = setElapsedSec(session["setRun"] as Dictionary, now);
-            candidate["setRun"] = null;
         }
         applyActual(changedExercise, slot, actual);
         if (Model.sameString(changedExercise["loadType"], "timed")) {
@@ -519,7 +476,6 @@ module SessionLogic {
         var slot = state["slot"] as Dictionary;
         slot["completed"] = null;
         changedExercise["closedEarly"] = false;
-        candidate["setRun"] = null;
         var rest = candidate["rest"];
         if (rest instanceof Dictionary && Model.sameString(rest["entryId"], entryId) &&
             rest["slot"] == slotIndex) {
@@ -567,7 +523,6 @@ module SessionLogic {
         var exercise = state["exercise"] as Dictionary;
         exercise["closedEarly"] = closed;
         var candidate = state["session"] as Dictionary;
-        candidate["setRun"] = null;
         var rest = candidate["rest"];
         if (closed && rest instanceof Dictionary && Model.sameString(rest["entryId"], entryId)) {
             candidate["rest"] = null;
@@ -724,13 +679,7 @@ module SessionLogic {
         var state = exerciseCandidate(session, index);
         var changed = state["exercise"] as Dictionary;
         changed["warmupSkipped"] = true;
-        var candidate = state["session"] as Dictionary;
-        var run = candidate["setRun"];
-        if (run instanceof Dictionary && Model.sameString(run["entryId"], entryId) &&
-            (run["slot"] as Number) >= Model.WARMUP_BASE) {
-            candidate["setRun"] = null;
-        }
-        return candidate;
+        return state["session"] as Dictionary;
     }
 
     function completedCount(exercise as Dictionary) as Number {
@@ -862,9 +811,9 @@ module SessionLogic {
             "weightKg" => kg,
             "durationSec" => completed["durationSec"] instanceof Number ?
                 completed["durationSec"] as Number : 0,
-            "activeSec" => Model.sameString(type, "timed") ?
-                (completed["durationSec"] instanceof Number ? completed["durationSec"] as Number : 0) :
-                (completed["activeSec"] instanceof Number ? completed["activeSec"] as Number : 0)
+            // Only timed sets have an active time now; plain sets log in one press.
+            "activeSec" => Model.sameString(type, "timed") &&
+                completed["durationSec"] instanceof Number ? completed["durationSec"] as Number : 0
         };
     }
 

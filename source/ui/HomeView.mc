@@ -179,7 +179,10 @@ class FinishingWorkoutView extends WatchUi.View {
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
         dc.clear();
         var error = getApp().controller().errorMessage();
-        var message = error == null ? "Saving workout…" : error as String;
+        var session = getApp().controller().session();
+        var cancelling = session != null && Model.sameString((session as Dictionary)["finishOutcome"], "aborted");
+        var message = error == null ? (cancelling ? "Cancelling workout…" : "Saving workout…") :
+            error as String;
         var y = (dc.getHeight() - dc.getFontHeight(Graphics.FONT_SMALL)) / 2;
         UiFormat.drawLine(dc, message, y, Graphics.FONT_SMALL);
         if (error != null) {
