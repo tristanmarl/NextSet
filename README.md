@@ -1,6 +1,6 @@
 # NextSet
 
-NextSet is a button-operated strength workout logger for Garmin watches. The FR965 is the primary device; the manifest also targets several fēnix 8 and 9 models. The working tree reports version 0.3.0. Direct Liftosaur sync is still under validation; see [device and simulator evidence](docs/DEVICE_TESTS.md).
+NextSet is a button-operated strength workout logger for Garmin watches. The FR965 is the primary device; the manifest also targets several fēnix 8 and 9 models. The working tree reports version 0.3.1. Direct Liftosaur sync is still under validation; see [device and simulator evidence](docs/DEVICE_TESTS.md).
 
 ## Set up and sync
 
@@ -11,6 +11,8 @@ NextSet is a button-operated strength workout logger for Garmin watches. The FR9
 After routines are cached, the workout can be logged without a phone connection. Syncing routines and uploading completed workouts need a phone connection and internet. Requests run asynchronously and may take several seconds.
 
 ## Workouts and uploads
+
+Warmups from the synced program are tracked: an exercise opens on "Warmup 1/2" with its planned load and reps, logged with START twice like a working set (same edit, undo and rest; a warmup's own timer or 60 s). **Menu → Skip warmups** goes straight to the working sets. Warmups never count in the set totals or last-time prefill, show as "W1 …" in History, and upload into the matching Liftosaur warmup sets (extra warmups are only listed in the workout notes; Liftosaur's acceptance of completed warmups is unverified until the next real upload). In a superset, a member does its warmups back to back before joining the A1/A2 rotation.
 
 Exercises that share a Liftosaur superset label alternate automatically: after a set is logged the watch opens the next member with an open set (Overview shows "A1 Pull Up", "A2 Triceps Dip"), and the rest timer runs only when the round ends. "Edit last set" targets the exercise where the set was logged. During rest the exercise screen shows "Next: <exercise> <load> × <reps>", and a short vibration warns 10 s before a rest of 20 s or more ends. Sets with a rep range from Liftosaur (both `minReps` and `reps` present) show it as "8–10". Weight exercises step 1 kg by default; **Menu → Weight step** (0.5/1/2.5/5 kg) is stored per exercise name and survives re-sync. History shows "Liftosaur ✓", "pending" or "skipped" for each workout.
 

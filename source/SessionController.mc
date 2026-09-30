@@ -823,7 +823,11 @@ class SessionController {
                 var exercise = (_session["exercises"] as Array)[index] as Dictionary;
                 var target = exercise["targetDurationSec"];
                 var plans = exercise["planTargets"];
-                if (plans instanceof Array && run["slot"] instanceof Number &&
+                var runSlot = run["slot"] instanceof Number ?
+                    Model.slotAt(exercise, run["slot"] as Number) : null;
+                if (runSlot != null && (run["slot"] as Number) >= Model.WARMUP_BASE) {
+                    target = ((runSlot as Dictionary)["draft"] as Dictionary)["durationSec"];
+                } else if (plans instanceof Array && run["slot"] instanceof Number &&
                     (run["slot"] as Number) < (plans as Array).size()) {
                     target = (plans as Array)[run["slot"] as Number]["durationSec"];
                 }
@@ -1290,11 +1294,11 @@ class SessionController {
             return false;
         }
         var exercise = (session["exercises"] as Array)[index] as Dictionary;
-        var slots = exercise["slots"] as Array;
-        if (slot < 0 || slot >= slots.size()) {
+        var found = Model.slotAt(exercise, slot);
+        if (found == null) {
             return false;
         }
-        var draft = slots[slot]["draft"] as Dictionary;
+        var draft = (found as Dictionary)["draft"] as Dictionary;
         if (Model.sameString(exercise["loadType"], "timed")) {
             var run = session["timedRun"];
             if (run instanceof Dictionary && Model.sameString(run["entryId"], entryId) &&
@@ -1342,6 +1346,14 @@ class SessionController {
             _recorder.recordSet(retract);
         }
         return true;
+    }
+
+    public function skipWarmups(entryId as String) as Boolean {
+        if (!isWorkoutRunning()) {
+            return false;
+        }
+        var candidate = SessionLogic.skipWarmups(_session as Dictionary, entryId);
+        return candidate != null && commit(candidate as Dictionary);
     }
 
     public function closeExercise(entryId as String, closed as Boolean) as Boolean {

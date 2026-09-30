@@ -167,6 +167,24 @@ class HistoryView extends WatchUi.View {
             var planned = exercise["plannedSetCount"] as Number;
             var name = shortText(exercise["name"], 28, "Exercise");
             lines.add(name + "  " + done.toString() + "/" + planned.toString());
+            var warmupLine = "";
+            var warmups = exercise["warmupSlots"];
+            for (var w = 0; warmups instanceof Array && w < (warmups as Array).size(); w++) {
+                var warmupDone = (warmups as Array)[w]["completed"];
+                if (!(warmupDone instanceof Dictionary)) {
+                    continue;
+                }
+                var entry = "W" + (w + 1).toString() + " " + setValue(exercise, warmupDone as Dictionary);
+                if (warmupLine.length() > 0 && warmupLine.length() + entry.length() > 32) {
+                    lines.add("  " + warmupLine);
+                    warmupLine = entry;
+                } else {
+                    warmupLine += (warmupLine.length() == 0 ? "" : "  ") + entry;
+                }
+            }
+            if (warmupLine.length() > 0) {
+                lines.add("  " + warmupLine);
+            }
 
             var valueLine = "";
             var found = false;

@@ -88,7 +88,8 @@ module Catalog {
                     warmups.add({
                         "reps" => warmupReps,
                         "load100" => Model.weightLoad100(warmup["weight"]),
-                        "durationSec" => warmup["setTimer"]
+                        "durationSec" => warmup["setTimer"],
+                        "restSec" => warmup["timer"] instanceof Number ? warmup["timer"] : null
                     });
                 }
             }
@@ -255,6 +256,35 @@ module Catalog {
         return result;
     }
 
+    // Trackable warmup slots from the routine's warmup targets (at most MAX_WARMUP_SLOTS); a
+    // target that cannot give a valid draft is dropped. Loads only for weight exercises.
+    function warmupSlotsFor(type as String, warmups as Array, firstTarget as Dictionary) as Array {
+        var slots = [];
+        for (var w = 0; w < warmups.size() && slots.size() < Model.MAX_WARMUP_SLOTS; w++) {
+            var target = warmups[w] as Dictionary;
+            var reps = target["reps"] instanceof Number ? target["reps"] : firstTarget["reps"];
+            var draft = null;
+            if (Model.sameString(type, "timed")) {
+                var duration = target["durationSec"] instanceof Number ? target["durationSec"] :
+                    firstTarget["durationSec"];
+                draft = {"load100" => null, "reps" => null, "durationSec" => duration,
+                    "durationEdited" => false, "targetAlertConsumed" => false};
+            } else {
+                draft = {"load100" => Model.sameString(type, "weight") ? target["load100"] : null,
+                    "reps" => reps, "durationSec" => null,
+                    "durationEdited" => false, "targetAlertConsumed" => false};
+            }
+            var slot = {"draft" => draft, "completed" => null, "restSec" => target["restSec"]};
+            if (Model.validSavedDraft(type, draft) &&
+                (!Model.sameString(type, "weight") || draft["load100"] instanceof Number) &&
+                (Model.sameString(type, "timed") ? draft["durationSec"] instanceof Number :
+                    draft["reps"] instanceof Number)) {
+                slots.add(slot);
+            }
+        }
+        return slots;
+    }
+
     function createSession(templateId as String, id as String, sequence as Number,
                            now as Number, cache as Dictionary?, config as Dictionary?) as Dictionary? {
         var routine = routineTemplate(config, templateId);
@@ -320,6 +350,7 @@ module Catalog {
                     maxReps = maxReps == null || value > maxReps ? value : maxReps;
                 }
             }
+            var warmupSlots = warmupSlotsFor(type, entry["warmups"] as Array, firstTarget);
             var snapshot = {
                 "entryId" => entry["entryId"],
                 "liftosaurEntryId" => entry["liftosaurEntryId"],
@@ -339,6 +370,7 @@ module Catalog {
                 "targetDurationSec" => minDuration,
                 "planTargets" => cloneTargets(targets),
                 "warmups" => cloneTargets(entry["warmups"] as Array),
+                "warmupSlots" => warmupSlots,
                 "notes" => entry["notes"],
                 "closedEarly" => false,
                 "slots" => slots

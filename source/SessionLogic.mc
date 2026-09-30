@@ -34,10 +34,13 @@ module SessionLogic {
         for (var i = 0; i < sourceExercises.size(); i++) {
             if (i == exerciseIndex) {
                 updatedExercise = copyDictionary(sourceExercises[i] as Dictionary);
-                var sourceSlots = sourceExercises[i]["slots"] as Array;
+                var warmup = slotIndex >= Model.WARMUP_BASE;
+                var listKey = warmup ? "warmupSlots" : "slots";
+                var target = warmup ? slotIndex - Model.WARMUP_BASE : slotIndex;
+                var sourceSlots = sourceExercises[i][listKey] as Array;
                 var slots = [];
                 for (var j = 0; j < sourceSlots.size(); j++) {
-                    if (j == slotIndex) {
+                    if (j == target) {
                         updatedSlot = copyDictionary(sourceSlots[j] as Dictionary);
                         updatedSlot["draft"] = copyDictionary(sourceSlots[j]["draft"] as Dictionary);
                         slots.add(updatedSlot);
@@ -45,7 +48,7 @@ module SessionLogic {
                         slots.add(sourceSlots[j]);
                     }
                 }
-                updatedExercise["slots"] = slots;
+                updatedExercise[listKey] = slots;
                 exercises.add(updatedExercise);
             } else {
                 exercises.add(sourceExercises[i]);
@@ -73,6 +76,10 @@ module SessionLogic {
                     copiedSlots.add(slots[j]);
                 }
                 updatedExercise["slots"] = copiedSlots;
+                if (sourceExercises[i]["warmupSlots"] instanceof Array) {
+                    updatedExercise["warmupSlots"] =
+                        (sourceExercises[i]["warmupSlots"] as Array).slice(0, null);
+                }
                 exercises.add(updatedExercise);
             } else {
                 exercises.add(sourceExercises[i]);
@@ -92,9 +99,9 @@ module SessionLogic {
             return null;
         }
         var exercise = (session["exercises"] as Array)[index] as Dictionary;
-        var slots = exercise["slots"] as Array;
+        var existing = Model.slotAt(exercise, slotIndex);
         if (!Model.sameString(exercise["loadType"], "timed") || exercise["closedEarly"] ||
-            slotIndex < 0 || slotIndex >= slots.size() || slots[slotIndex]["completed"] != null) {
+            existing == null || (existing as Dictionary)["completed"] != null) {
             return null;
         }
         return slotCandidate(session, index, slotIndex);
@@ -243,9 +250,9 @@ module SessionLogic {
             return null;
         }
         var exercise = (session["exercises"] as Array)[index] as Dictionary;
-        var slots = exercise["slots"] as Array;
+        var existing = Model.slotAt(exercise, slotIndex);
         if (Model.sameString(exercise["loadType"], "timed") || exercise["closedEarly"] ||
-            slotIndex < 0 || slotIndex >= slots.size() || slots[slotIndex]["completed"] != null) {
+            existing == null || (existing as Dictionary)["completed"] != null) {
             return null;
         }
         var candidate = copyDictionary(session);
@@ -292,9 +299,9 @@ module SessionLogic {
         }
         var exercises = session["exercises"] as Array;
         var exercise = exercises[index] as Dictionary;
-        var slots = exercise["slots"] as Array;
-        if (exercise["closedEarly"] || slotIndex < 0 || slotIndex >= slots.size() ||
-            slots[slotIndex]["completed"] != null || !validActual(exercise, actual)) {
+        var existing = Model.slotAt(exercise, slotIndex);
+        if (exercise["closedEarly"] || existing == null ||
+            (existing as Dictionary)["completed"] != null || !validActual(exercise, actual)) {
             return null;
         }
 
@@ -336,8 +343,9 @@ module SessionLogic {
             session["restGeneration"] as Number : 0;
         var restGeneration = currentRestGeneration + 1;
         candidate["restGeneration"] = restGeneration;
+        var warmupSet = slotIndex >= Model.WARMUP_BASE;
         var wantRest = nextSlot(changedExercise) >= 0;
-        if (inSuperset(changedExercise)) {
+        if (!warmupSet && inSuperset(changedExercise)) {
             // Superset: rest only when the round ends (next member wraps) or the group is done.
             var following = supersetNext(candidate, entryId);
             wantRest = following != null && supersetWraps(candidate, entryId, following as String);
@@ -347,7 +355,8 @@ module SessionLogic {
             entryId,
             slotIndex,
             now,
-            changedExercise["restSec"] as Number
+            warmupSet ? (slot["restSec"] instanceof Number ? slot["restSec"] as Number : 60) :
+                changedExercise["restSec"] as Number
         ) : null;
         var pointer = {};
         pointer["entryId"] = entryId;
@@ -386,9 +395,9 @@ module SessionLogic {
             return null;
         }
         var exercise = (session["exercises"] as Array)[index] as Dictionary;
-        var slots = exercise["slots"] as Array;
-        if (slotIndex < 0 || slotIndex >= slots.size() ||
-            slots[slotIndex]["completed"] == null || !validActual(exercise, actual)) {
+        var existing = Model.slotAt(exercise, slotIndex);
+        if (existing == null || (existing as Dictionary)["completed"] == null ||
+            !validActual(exercise, actual)) {
             return null;
         }
         var state = slotCandidate(session, index, slotIndex);
@@ -411,7 +420,7 @@ module SessionLogic {
         completed["updatedAt"] = now;
         applyActual(changedExercise, slot, actual);
         slot["completed"] = completed;
-        if (loadChanged) {
+        if (loadChanged && slotIndex < Model.WARMUP_BASE) {
             updateFollowingLoads(changedExercise, slotIndex, actual["load100"] as Number);
         }
         return candidate;
@@ -424,10 +433,10 @@ module SessionLogic {
             return null;
         }
         var exercise = (session["exercises"] as Array)[index] as Dictionary;
-        var slots = exercise["slots"] as Array;
+        var existing = Model.slotAt(exercise, slotIndex);
         var run = session["timedRun"];
-        if (slotIndex < 0 || slotIndex >= slots.size() ||
-            slots[slotIndex]["completed"] != null || exercise["closedEarly"] ||
+        if (existing == null ||
+            (existing as Dictionary)["completed"] != null || exercise["closedEarly"] ||
             (run instanceof Dictionary && Model.sameString(run["entryId"], entryId) &&
              run["slot"] == slotIndex)) {
             return null;
@@ -454,7 +463,7 @@ module SessionLogic {
         var slot = state["slot"] as Dictionary;
         var draft = slot["draft"] as Dictionary;
         draft[field] = value;
-        if (Model.sameString(field, "load100")) {
+        if (Model.sameString(field, "load100") && slotIndex < Model.WARMUP_BASE) {
             updateFollowingLoads(changedExercise, slotIndex, value);
         }
         if (Model.sameString(type, "timed") && Model.sameString(field, "durationSec")) {
@@ -500,8 +509,8 @@ module SessionLogic {
             return null;
         }
         var exercise = (session["exercises"] as Array)[index] as Dictionary;
-        var slots = exercise["slots"] as Array;
-        if (slotIndex < 0 || slotIndex >= slots.size() || slots[slotIndex]["completed"] == null) {
+        var existing = Model.slotAt(exercise, slotIndex);
+        if (existing == null || (existing as Dictionary)["completed"] == null) {
             return null;
         }
         var state = slotCandidate(session, index, slotIndex);
@@ -535,6 +544,14 @@ module SessionLogic {
                 if (completed != null && completed["sequence"] > latestSequence) {
                     latestSequence = completed["sequence"];
                     latest = {"entryId" => exercises[i]["entryId"], "slot" => j};
+                }
+            }
+            var warmups = exercises[i]["warmupSlots"];
+            for (var j = 0; warmups instanceof Array && j < (warmups as Array).size(); j++) {
+                var completed = (warmups as Array)[j]["completed"];
+                if (completed != null && completed["sequence"] > latestSequence) {
+                    latestSequence = completed["sequence"];
+                    latest = {"entryId" => exercises[i]["entryId"], "slot" => Model.WARMUP_BASE + j};
                 }
             }
         }
@@ -623,11 +640,11 @@ module SessionLogic {
         if (pointer instanceof Dictionary && !Model.sameString(pointer["entryId"], entryId)) {
             var other = exerciseIndex(session, pointer["entryId"] as String);
             if (other >= 0 && sameGroup(exercises[own] as Dictionary, exercises[other] as Dictionary) &&
-                completedCount(exercises[other] as Dictionary) > 0) {
+                hasLogged(exercises[other] as Dictionary)) {
                 return pointer["entryId"] as String;
             }
         }
-        return completedCount(exercises[own] as Dictionary) > 0 ? entryId : null;
+        return hasLogged(exercises[own] as Dictionary) ? entryId : null;
     }
 
     // Where the lifter goes after the rest that follows entryId: the next open set, or null.
@@ -652,6 +669,68 @@ module SessionLogic {
         }
         var target = exercises[exerciseIndex(session, targetId as String)] as Dictionary;
         return {"entryId" => targetId, "slot" => nextSlot(target)};
+    }
+
+    // First open warmup slot number (WARMUP_BASE + i), or -1 when none or warmups were skipped.
+    function nextWarmupSlot(exercise as Dictionary) as Number {
+        var warmups = exercise["warmupSlots"];
+        if (exercise["warmupSkipped"] == true || !(warmups instanceof Array)) {
+            return -1;
+        }
+        for (var i = 0; i < (warmups as Array).size(); i++) {
+            if ((warmups as Array)[i]["completed"] == null) {
+                return Model.WARMUP_BASE + i;
+            }
+        }
+        return -1;
+    }
+
+    // The slot the set screen works on: open warmups first, then the next working set.
+    function activeSlot(exercise as Dictionary) as Number {
+        var working = nextSlot(exercise);
+        if (working < 0) {
+            return -1;
+        }
+        var warmup = nextWarmupSlot(exercise);
+        return warmup >= 0 ? warmup : working;
+    }
+
+    function warmupCount(exercise as Dictionary) as Number {
+        var warmups = exercise["warmupSlots"];
+        return warmups instanceof Array ? (warmups as Array).size() : 0;
+    }
+
+    function completedWarmups(exercise as Dictionary) as Number {
+        var count = 0;
+        var warmups = exercise["warmupSlots"];
+        for (var i = 0; warmups instanceof Array && i < (warmups as Array).size(); i++) {
+            if ((warmups as Array)[i]["completed"] != null) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    function hasLogged(exercise as Dictionary) as Boolean {
+        return completedCount(exercise) > 0 || completedWarmups(exercise) > 0;
+    }
+
+    // Marks the remaining warmups of an exercise as skipped.
+    function skipWarmups(session as Dictionary, entryId as String) as Dictionary? {
+        var index = exerciseIndex(session, entryId);
+        if (index < 0) {
+            return null;
+        }
+        var state = exerciseCandidate(session, index);
+        var changed = state["exercise"] as Dictionary;
+        changed["warmupSkipped"] = true;
+        var candidate = state["session"] as Dictionary;
+        var run = candidate["setRun"];
+        if (run instanceof Dictionary && Model.sameString(run["entryId"], entryId) &&
+            (run["slot"] as Number) >= Model.WARMUP_BASE) {
+            candidate["setRun"] = null;
+        }
+        return candidate;
     }
 
     function completedCount(exercise as Dictionary) as Number {
@@ -733,6 +812,14 @@ module SessionLogic {
                 archivedSlots.add({"completed" => (slots[j] as Dictionary)["completed"]});
             }
             exercise["slots"] = archivedSlots;
+            var warmups = source["warmupSlots"];
+            if (warmups instanceof Array && (warmups as Array).size() > 0) {
+                var archivedWarmups = [];
+                for (var j = 0; j < (warmups as Array).size(); j++) {
+                    archivedWarmups.add({"completed" => ((warmups as Array)[j] as Dictionary)["completed"]});
+                }
+                exercise["warmupSlots"] = archivedWarmups;
+            }
             archivedExercises.add(exercise);
         }
         archive["exercises"] = archivedExercises;
@@ -753,7 +840,8 @@ module SessionLogic {
     // else the start-to-log time (0 when the set was not started explicitly, i.e. unknown).
     // "void" is 1 only for the lap that retracts an undone set (set by the controller).
     function lapPayload(exercise as Dictionary, slotIndex as Number) as Dictionary? {
-        var completed = ((exercise["slots"] as Array)[slotIndex] as Dictionary)["completed"];
+        var lapSlot = Model.slotAt(exercise, slotIndex);
+        var completed = lapSlot == null ? null : (lapSlot as Dictionary)["completed"];
         if (!(completed instanceof Dictionary)) {
             return null;
         }
@@ -767,7 +855,8 @@ module SessionLogic {
         }
         return {
             "name" => truncateBytes(exercise["name"] as String, 64),
-            "set" => slotIndex + 1,
+            // Set 0 marks a warmup lap; working sets are numbered from 1.
+            "set" => slotIndex >= Model.WARMUP_BASE ? 0 : slotIndex + 1,
             "void" => 0,
             "reps" => completed["reps"] instanceof Number ? completed["reps"] as Number : 0,
             "weightKg" => kg,

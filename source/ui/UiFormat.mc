@@ -136,8 +136,7 @@ module UiFormat {
     }
 
     function draftLine(exercise as Dictionary, slotIndex as Number) as String {
-        var slots = exercise["slots"] as Array;
-        var draft = slots[slotIndex]["draft"] as Dictionary;
+        var draft = (Model.slotAt(exercise, slotIndex) as Dictionary)["draft"] as Dictionary;
         var type = exercise["loadType"];
         if (Model.sameString(type, "weight")) {
             return load100(draft["load100"] as Number) + " kg × " + draft["reps"].toString();
@@ -181,6 +180,9 @@ module UiFormat {
     }
 
     function targetLine(exercise as Dictionary, slotIndex as Number) as String? {
+        if (slotIndex >= Model.WARMUP_BASE) {
+            return null;
+        }
         var plans = exercise["planTargets"];
         if (plans instanceof Array && slotIndex >= 0 && slotIndex < (plans as Array).size()) {
             var target = (plans as Array)[slotIndex] as Dictionary;
@@ -216,7 +218,9 @@ module UiFormat {
 
     function warmupsLine(exercise as Dictionary) as String? {
         var warmups = exercise["warmups"];
-        if (!(warmups instanceof Array) || (warmups as Array).size() == 0) {
+        // Warmups that are tracked as slots are shown as their own sets instead.
+        if (!(warmups instanceof Array) || (warmups as Array).size() == 0 ||
+            SessionLogic.warmupCount(exercise) > 0) {
             return null;
         }
         var line = "WU ";
@@ -243,6 +247,9 @@ module UiFormat {
     }
 
     function lastLine(exercise as Dictionary, slotIndex as Number) as String? {
+        if (slotIndex >= Model.WARMUP_BASE) {
+            return null;
+        }
         var last = exercise["last"];
         if (!(last instanceof Dictionary) || !(last["sets"] instanceof Array)) {
             return null;
@@ -273,6 +280,7 @@ module UiFormat {
         return "LAST " + values[3].toString() + " sec";
     }
 
+    // The most recently logged slot number (a warmup slot is WARMUP_BASE + index), or -1.
     function lastSlot(exercise as Dictionary) as Number {
         var slots = exercise["slots"] as Array;
         var last = -1;
@@ -284,6 +292,20 @@ module UiFormat {
                 last = i;
             }
         }
+        var warmups = exercise["warmupSlots"];
+        for (var i = 0; warmups instanceof Array && i < (warmups as Array).size(); i++) {
+            var completed = (warmups as Array)[i]["completed"];
+            if (completed != null && completed["sequence"] > sequence) {
+                sequence = completed["sequence"];
+                last = Model.WARMUP_BASE + i;
+            }
+        }
         return last;
+    }
+
+    // "3" for working set 3, "W2" for the second warmup.
+    function slotLabel(slot as Number) as String {
+        return slot >= Model.WARMUP_BASE ? "W" + (slot - Model.WARMUP_BASE + 1).toString() :
+            (slot + 1).toString();
     }
 }

@@ -99,7 +99,7 @@ class ExerciseMenuDelegate extends WatchUi.Menu2InputDelegate {
         }
         if (Model.sameString(id, "edit_next")) {
             var nextExercise = UiFormat.exercise(controller.session() as Dictionary, _entryId) as Dictionary;
-            var slot = SessionLogic.nextSlot(nextExercise);
+            var slot = SessionLogic.activeSlot(nextExercise);
             if (Model.sameString(nextExercise["loadType"], "timed")) {
                 var run = (controller.session() as Dictionary)["timedRun"];
                 if (run instanceof Dictionary && Model.sameString(run["entryId"], _entryId) &&
@@ -121,6 +121,12 @@ class ExerciseMenuDelegate extends WatchUi.Menu2InputDelegate {
                 WatchUi.popView(WatchUi.SLIDE_DOWN);
                 Navigator.numberEdit(_entryId, slot, "load100", false);
             }
+            return;
+        }
+        if (Model.sameString(id, "skip_warmups")) {
+            controller.skipWarmups(_entryId);
+            WatchUi.popView(WatchUi.SLIDE_DOWN);
+            WatchUi.requestUpdate();
             return;
         }
         if (Model.sameString(id, "rest_skip")) {

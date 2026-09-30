@@ -145,11 +145,11 @@ class NumberEditView extends WatchUi.View {
         if (exercise == null) {
             return null;
         }
-        var slots = (exercise as Dictionary)["slots"] as Array;
-        if (_slot < 0 || _slot >= slots.size()) {
+        var found = Model.slotAt(exercise as Dictionary, _slot);
+        if (found == null) {
             return null;
         }
-        var slot = slots[_slot] as Dictionary;
+        var slot = found as Dictionary;
         var completed = slot["completed"];
         if (_correcting ? completed == null : completed != null) {
             return null;

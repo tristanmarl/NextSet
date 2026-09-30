@@ -128,7 +128,7 @@ module UploadLogic {
                 });
             }
             if (sets.size() > 0) {
-                mappedExercises.add({
+                var jobExercise = {
                     "entryId" => exercise["entryId"],
                     "liftosaurEntryId" => liftEntryId,
                     "name" => exercise["name"],
@@ -136,7 +136,12 @@ module UploadLogic {
                     "unilateral" => exercise["unilateral"] == true,
                     "plannedSetCount" => planned,
                     "sets" => sets
-                });
+                };
+                var warmupRows = completedWarmupRows(exercise, type, start, end);
+                if (warmupRows.size() > 0) {
+                    jobExercise["warmups"] = warmupRows;
+                }
+                mappedExercises.add(jobExercise);
                 total += sets.size();
             }
         }
@@ -160,6 +165,35 @@ module UploadLogic {
         return Model.validUpload(job) ? job : null;
     }
 
+    // Completed, valid warmups of an exercise as job rows; "index" is the warmup position.
+    function completedWarmupRows(exercise as Dictionary, type as String, start as Number,
+                                 end as Number) as Array {
+        var rows = [];
+        var warmups = exercise["warmupSlots"];
+        var timed = Model.sameString(type, "timed");
+        for (var w = 0; warmups instanceof Array && w < (warmups as Array).size(); w++) {
+            var completed = ((warmups as Array)[w] as Dictionary)["completed"];
+            if (!(completed instanceof Dictionary)) {
+                continue;
+            }
+            var done = completed as Dictionary;
+            var reps = timed ? 1 : done["reps"];
+            var load100 = done["load100"];
+            var loaded = Model.sameString(type, "weight") || Model.sameString(type, "assistance");
+            if (!Model.inRange(reps, 1, Model.MAX_REPS, false) ||
+                (timed && !Model.inRange(done["durationSec"], 1, Model.MAX_DURATION_SEC, false)) ||
+                (loaded && !Model.inRange(load100, 0, Model.MAX_LOAD100, false)) ||
+                !Model.inRange(done["completedAt"], start, end, false)) {
+                continue;
+            }
+            rows.add({"index" => w, "reps" => reps,
+                "kg" => loaded ? (load100 as Number) / 100.0 : 0.0,
+                "timeSec" => timed ? done["durationSec"] : null,
+                "completedAt" => done["completedAt"]});
+        }
+        return rows;
+    }
+
     function startBody(job as Dictionary) as Dictionary {
         var routine = job["routine"] as Dictionary;
         return {"programId" => routine["programId"], "week" => routine["week"],
@@ -179,6 +213,10 @@ module UploadLogic {
             var change = substitutions[i] as Dictionary;
             notes += "; " + (change["from"] as String) + " -> " +
                 (change["to"] as String);
+        }
+        var extras = job["extraWarmups"];
+        for (var i = 0; extras instanceof Array && i < (extras as Array).size(); i++) {
+            notes += "; extra warmups: " + ((extras as Array)[i] as String);
         }
         return {"startTime" => job["startTime"], "endTime" => job["endTime"],
             "notes" => notes};
@@ -330,6 +368,7 @@ module UploadLogic {
         var next = cloneJob(job);
         var entries = workout["entries"] as Array;
         var bodySets = [];
+        var extraWarmups = [];
         var usedIds = [];
         for (var e = 0; e < entries.size(); e++) {
             var source = entries[e] as Dictionary;
@@ -410,9 +449,36 @@ module UploadLogic {
                     bodySets.add(mapped);
                 }
             }
+            // Warmups map by position onto the entry's warmupSets; a count mismatch is never a
+            // failure (extras go to the finish notes, unmatched ones are simply not sent).
+            var savedWarmups = saved["warmups"];
+            var liveWarmups = source["warmupSets"] instanceof Array ?
+                source["warmupSets"] as Array : [];
+            var extraCount = 0;
+            for (var w = 0; savedWarmups instanceof Array && w < (savedWarmups as Array).size(); w++) {
+                var warmup = (savedWarmups as Array)[w] as Dictionary;
+                var position = warmup["index"] as Number;
+                if (position >= liveWarmups.size()) {
+                    extraCount++;
+                    continue;
+                }
+                var livePlan = liveWarmups[position] as Dictionary;
+                var warmupDone = mappedCompleted(saved, warmup, livePlan);
+                var warmupMapped = {"entryId" => source["entryId"], "setId" => livePlan["setId"],
+                    "completed" => warmupDone};
+                if (warmupDone != null && Model.validMappedSet(warmupMapped)) {
+                    bodySets.add(warmupMapped);
+                }
+            }
+            if (extraCount > 0) {
+                extraWarmups.add((saved["name"] as String) + " x" + extraCount.toString());
+            }
         }
         if (bodySets.size() == 0) {
             return null;
+        }
+        if (extraWarmups.size() > 0) {
+            next["extraWarmups"] = extraWarmups;
         }
         next["setsBody"] = {"sets" => bodySets};
         next["state"] = Liftosaur.STATE_SETS;

@@ -46,7 +46,7 @@ class ExerciseView extends WatchUi.View {
             return;
         }
         var current = exercise as Dictionary;
-        var slot = SessionLogic.nextSlot(current);
+        var slot = SessionLogic.activeSlot(current);
         var planned = current["plannedSetCount"] as Number;
         var loadType = current["loadType"] as String;
         var tappableLoad = Model.sameString(loadType, "weight") ||
@@ -125,8 +125,12 @@ class ExerciseView extends WatchUi.View {
 
         y += 4;
         var range = UiFormat.repRange(current, slot);
-        y = UiFormat.drawLine(dc, "Set " + (slot + 1).toString() + "/" +
-            planned.toString() + (range == null ? "" : " · " + range), y, setFont) + 7;
+        var setTitle = slot >= Model.WARMUP_BASE ?
+            "Warmup " + (slot - Model.WARMUP_BASE + 1).toString() + "/" +
+                SessionLogic.warmupCount(current).toString() :
+            "Set " + (slot + 1).toString() + "/" + planned.toString() +
+                (range == null ? "" : " · " + range);
+        y = UiFormat.drawLine(dc, setTitle, y, setFont) + 7;
         var value = exerciseLine(session as Dictionary, current, slot);
         var valueY = y;
         var visibleValue = UiFormat.safeText(dc, value, valueY, valueFont);
@@ -139,7 +143,7 @@ class ExerciseView extends WatchUi.View {
         var lineLeft = (dc.getWidth() - valueWidth) / 2;
         var tapLoadWidth = 0;
         if (tappableLoad) {
-            var draft = ((current["slots"] as Array)[slot] as Dictionary)["draft"] as Dictionary;
+            var draft = (Model.slotAt(current, slot) as Dictionary)["draft"] as Dictionary;
             var loadLabel = UiFormat.load100(draft["load100"] as Number) + " kg";
             if (Model.sameString(loadType, "assistance")) {
                 loadLabel += " assist";
@@ -185,7 +189,7 @@ class ExerciseView extends WatchUi.View {
         var run = (session as Dictionary)["timedRun"];
         var isRunning = run instanceof Dictionary &&
             Model.sameString(run["entryId"], _entryId) && run["slot"] == slot;
-        var draft = ((current["slots"] as Array)[slot] as Dictionary)["draft"] as Dictionary;
+        var draft = (Model.slotAt(current, slot) as Dictionary)["draft"] as Dictionary;
         var measured = draft["measuredSec"] instanceof Number && draft["measuredSec"] > 0;
         var manuallyEdited = draft["durationEdited"] == true;
         var setRunning = !timed && SessionLogic.setRunMatches(session as Dictionary, _entryId, slot);
@@ -210,7 +214,7 @@ class ExerciseView extends WatchUi.View {
             return false;
         }
         var current = exercise as Dictionary;
-        var slot = SessionLogic.nextSlot(current);
+        var slot = SessionLogic.activeSlot(current);
         if (slot < 0 || (!Model.sameString(current["loadType"], "weight") &&
             !Model.sameString(current["loadType"], "assistance"))) {
             return false;
@@ -231,7 +235,7 @@ class ExerciseView extends WatchUi.View {
             return "RUN  " + elapsed.toString() + "/" +
                 targetDurationSec(exercise, slotIndex).toString() + " sec";
         }
-        var draft = (exercise["slots"] as Array)[slotIndex]["draft"] as Dictionary;
+        var draft = (Model.slotAt(exercise, slotIndex) as Dictionary)["draft"] as Dictionary;
         if (draft["measuredSec"] instanceof Number && draft["measuredSec"] > 0) {
             return "PAUSED  " + draft["measuredSec"].toString() + "/" +
                 targetDurationSec(exercise, slotIndex).toString() + " sec";
@@ -244,6 +248,11 @@ class ExerciseView extends WatchUi.View {
     }
 
     private function targetDurationSec(exercise as Dictionary, slotIndex as Number) as Number {
+        if (slotIndex >= Model.WARMUP_BASE) {
+            var warmup = Model.slotAt(exercise, slotIndex);
+            var planned = warmup == null ? null : ((warmup as Dictionary)["draft"] as Dictionary)["durationSec"];
+            return planned instanceof Number ? planned as Number : exercise["targetDurationSec"] as Number;
+        }
         var targets = exercise["planTargets"];
         if (targets instanceof Array && slotIndex >= 0 && slotIndex < (targets as Array).size()) {
             var value = (targets as Array)[slotIndex]["durationSec"];
@@ -265,11 +274,11 @@ class ExerciseView extends WatchUi.View {
             return;
         }
         var current = exercise as Dictionary;
-        var slot = SessionLogic.nextSlot(current);
+        var slot = SessionLogic.activeSlot(current);
         if (slot < 0) {
             return;
         }
-        var draft = ((current["slots"] as Array)[slot] as Dictionary)["draft"] as Dictionary;
+        var draft = (Model.slotAt(current, slot) as Dictionary)["draft"] as Dictionary;
         var timed = Model.sameString(current["loadType"], "timed");
         var run = (session as Dictionary)["timedRun"];
         if (timed && run instanceof Dictionary && Model.sameString(run["entryId"], _entryId) &&
@@ -308,7 +317,7 @@ class ExerciseView extends WatchUi.View {
         if (exercise == null) {
             return false;
         }
-        var slot = SessionLogic.nextSlot(exercise as Dictionary);
+        var slot = SessionLogic.activeSlot(exercise as Dictionary);
         if (slot < 0) {
             return false;
         }
@@ -316,7 +325,7 @@ class ExerciseView extends WatchUi.View {
         var controller = getApp().controller();
         var saved = false;
         var timed = Model.sameString((exercise as Dictionary)["loadType"], "timed");
-        var draft = ((exercise as Dictionary)["slots"] as Array)[slot]["draft"] as Dictionary;
+        var draft = (Model.slotAt(exercise as Dictionary, slot) as Dictionary)["draft"] as Dictionary;
         if (timed) {
             var run = (session as Dictionary)["timedRun"];
             if (run instanceof Dictionary && Model.sameString(run["entryId"], _entryId) &&
@@ -345,7 +354,7 @@ class ExerciseView extends WatchUi.View {
             return saved;
         }
         if (saved) {
-            afterSetSaved();
+            afterSetSaved(slot >= Model.WARMUP_BASE);
         } else {
             _message = getApp().controller().errorMessage() == null ? "Set not saved" : "Save failed";
             WatchUi.requestUpdate();
@@ -362,24 +371,29 @@ class ExerciseView extends WatchUi.View {
         if (exercise == null) {
             return;
         }
-        var slot = SessionLogic.nextSlot(exercise as Dictionary);
+        var slot = SessionLogic.activeSlot(exercise as Dictionary);
         if (slot < 0) {
             return;
         }
-        var draft = ((exercise as Dictionary)["slots"] as Array)[slot]["draft"] as Dictionary;
+        var draft = (Model.slotAt(exercise as Dictionary, slot) as Dictionary)["draft"] as Dictionary;
         if (!(draft["measuredSec"] instanceof Number) || draft["measuredSec"] <= 0) {
             return;
         }
         if (getApp().controller().completeTimed(_entryId, slot, Time.now().value())) {
-            afterSetSaved();
+            afterSetSaved(slot >= Model.WARMUP_BASE);
         } else {
             _message = "Set not saved";
             WatchUi.requestUpdate();
         }
     }
 
-    private function afterSetSaved() as Void {
+    private function afterSetSaved(warmup as Boolean) as Void {
         _message = null;
+        if (warmup) {
+            // Warmups of a member are done back to back before it joins the superset rotation.
+            WatchUi.requestUpdate();
+            return;
+        }
         var session = getApp().controller().session();
         if (session == null) {
             WatchUi.requestUpdate();
@@ -392,7 +406,7 @@ class ExerciseView extends WatchUi.View {
             Navigator.switchToExercise(following as String);
             return;
         }
-        if (exercise == null || SessionLogic.nextSlot(exercise as Dictionary) >= 0) {
+        if (exercise == null || SessionLogic.activeSlot(exercise as Dictionary) >= 0) {
             WatchUi.requestUpdate();
             return;
         }

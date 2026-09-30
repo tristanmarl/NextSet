@@ -293,7 +293,7 @@ module Navigator {
         } else {
             menu.addItem(new WatchUi.MenuItem("Edit reps", null, "corr_reps", null));
         }
-        menu.addItem(new WatchUi.MenuItem("Delete set " + (UiFormat.lastSlot(exercise) + 1).toString(),
+        menu.addItem(new WatchUi.MenuItem("Delete set " + UiFormat.slotLabel(UiFormat.lastSlot(exercise)),
             null, "corr_delete", null));
         WatchUi.pushView(menu, new CorrectionMenuDelegate(entryId, view, fromOverview), WatchUi.SLIDE_UP);
     }
@@ -355,7 +355,7 @@ module Navigator {
 
     function confirmUndo(entryId as String, slot as Number, view as ExerciseView,
                          fromOverview as Boolean) as Void {
-        var menu = new WatchUi.Menu2({:title=>"Delete set " + (slot + 1).toString() + "?"});
+        var menu = new WatchUi.Menu2({:title=>"Delete set " + UiFormat.slotLabel(slot) + "?"});
         menu.addItem(new WatchUi.MenuItem("Cancel", null, "cancel", null));
         menu.addItem(new WatchUi.MenuItem("Delete", null, "undo", null));
         WatchUi.pushView(menu, new UndoConfirmMenuDelegate(entryId, slot, view, fromOverview), WatchUi.SLIDE_UP);
@@ -370,13 +370,13 @@ module Navigator {
         var menu = new WatchUi.Menu2({:title=>"Exercise"});
         var session = getApp().controller().session() as Dictionary;
         var exercise = UiFormat.exercise(session, entryId) as Dictionary;
-        var next = SessionLogic.nextSlot(exercise);
+        var next = SessionLogic.activeSlot(exercise);
         var lastEntry = SessionLogic.lastEditEntryId(session, entryId);
         var last = lastEntry == null ? -1 : 0;
         if (Model.sameString(exercise["loadType"], "weight") ||
             Model.sameString(exercise["loadType"], "assistance")) {
             if (next >= 0) {
-                var draft = ((exercise["slots"] as Array)[next] as Dictionary)["draft"] as Dictionary;
+                var draft = (Model.slotAt(exercise, next) as Dictionary)["draft"] as Dictionary;
                 var loadLabel = UiFormat.load100(draft["load100"] as Number) +
                     (Model.sameString(exercise["loadType"], "assistance") ? " kg assist" : " kg");
                 var action = Model.sameString(exercise["loadType"], "assistance") ?
@@ -389,6 +389,9 @@ module Navigator {
         if (last >= 0) {
             menu.addItem(new WatchUi.MenuItem("Edit last set", null, "edit_last", null));
         }
+        if (SessionLogic.nextWarmupSlot(exercise) >= 0) {
+            menu.addItem(new WatchUi.MenuItem("Skip warmups", null, "skip_warmups", null));
+        }
         if (Model.sameString(exercise["loadType"], "weight")) {
             menu.addItem(new WatchUi.MenuItem("Weight step",
                 UiFormat.load100(exercise["weightIncrement100"] as Number) + " kg", "weight_step", null));
@@ -399,7 +402,7 @@ module Navigator {
         }
         var running = session["timedRun"] instanceof Dictionary;
         if (Model.sameString(exercise["loadType"], "timed") && next >= 0) {
-            var draft = ((exercise["slots"] as Array)[next] as Dictionary)["draft"] as Dictionary;
+            var draft = (Model.slotAt(exercise, next) as Dictionary)["draft"] as Dictionary;
             if (!running && draft["measuredSec"] instanceof Number && draft["measuredSec"] > 0) {
                 menu.addItem(new WatchUi.MenuItem("Log paused set",
                     draft["measuredSec"].toString() + " sec", "log_timed", null));

@@ -5,6 +5,9 @@ module Model {
     const MAX_EXERCISES = 32;
     const MAX_TEMPLATES = 8;
     const MAX_PROGRAM_DAYS = 48;
+    // Warmup slots are addressed as WARMUP_BASE + index so one slot number identifies either kind.
+    const WARMUP_BASE = 100;
+    const MAX_WARMUP_SLOTS = 4;
     const MAX_ENTRIES = 12;
     const MAX_SETS = 10;
     const MAX_SETS_PER_WORKOUT = 60;
@@ -89,6 +92,17 @@ module Model {
             sameString(value, "bodyweight") || sameString(value, "timed");
     }
 
+    // The slot dictionary for a working (0..) or warmup (WARMUP_BASE..) slot number, else null.
+    function slotAt(exercise as Dictionary, slot as Number) as Dictionary? {
+        var warmup = slot >= WARMUP_BASE;
+        var list = exercise[warmup ? "warmupSlots" : "slots"];
+        var index = warmup ? slot - WARMUP_BASE : slot;
+        if (slot < 0 || !(list instanceof Array) || index >= (list as Array).size()) {
+            return null;
+        }
+        return (list as Array)[index] as Dictionary;
+    }
+
     function validPlanTarget(target as Object?, type as Object?) as Boolean {
         if (!(target instanceof Dictionary)) {
             return false;
@@ -114,7 +128,7 @@ module Model {
         var set = target as Dictionary;
         var repsValid = inRange(set["reps"], 1, MAX_REPS, true);
         var durationValid = inRange(set["durationSec"], 1, MAX_DURATION_SEC, true);
-        return repsValid &&
+        return repsValid && inRange(set["restSec"], 0, MAX_REST_SEC, true) &&
             inRange(set["load100"], 0, MAX_LOAD100, true) && durationValid &&
             (set["durationSec"] == null || set["reps"] == 1);
     }
@@ -376,6 +390,45 @@ module Model {
             (values["setTimerLeft"] == null || values["setTimer"] != null);
     }
 
+    function validJobWarmups(warmups as Object?, type as Object?, job as Dictionary) as Boolean {
+        if (warmups == null) {
+            return true;
+        }
+        if (!(warmups instanceof Array) || (warmups as Array).size() > MAX_WARMUP_SLOTS) {
+            return false;
+        }
+        var rows = warmups as Array;
+        for (var w = 0; w < rows.size(); w++) {
+            if (!(rows[w] instanceof Dictionary)) {
+                return false;
+            }
+            var row = rows[w] as Dictionary;
+            if (!inRange(row["index"], 0, MAX_WARMUP_SLOTS - 1, false) ||
+                !inRange(row["reps"], 1, MAX_REPS, false) || !validKg(row["kg"]) ||
+                !inRange(row["timeSec"], 1, MAX_DURATION_SEC, true) ||
+                (row["timeSec"] instanceof Number) != sameString(type, "timed") ||
+                !inRange(row["completedAt"], job["start"] as Number, job["end"] as Number, false)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    function validExtraWarmups(extras as Object?) as Boolean {
+        if (extras == null) {
+            return true;
+        }
+        if (!(extras instanceof Array) || (extras as Array).size() > MAX_ENTRIES) {
+            return false;
+        }
+        for (var i = 0; i < (extras as Array).size(); i++) {
+            if (!validNonblankText((extras as Array)[i], 72)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     function validUpload(payload as Object?) as Boolean {
         if (!(payload instanceof Dictionary)) {
             return false;
@@ -474,6 +527,12 @@ module Model {
                 previousSet = set["set"] as Number;
             }
             totalSets += values.size();
+            if (!validJobWarmups(exercise["warmups"], type, job)) {
+                return false;
+            }
+        }
+        if (!validExtraWarmups(job["extraWarmups"])) {
+            return false;
         }
         if (totalSets < 1 || totalSets > MAX_SETS_PER_WORKOUT) {
             return false;
@@ -689,6 +748,9 @@ module Model {
                     return false;
                 }
             }
+            if (!validWarmupSlots(item, history)) {
+                return false;
+            }
         }
         if (totalSlots > MAX_SETS_PER_WORKOUT) {
             return false;
@@ -712,6 +774,35 @@ module Model {
         }
         if (record["lastCompleted"] != null && !validSessionPointer(record["lastCompleted"], exercises)) {
             return false;
+        }
+        return true;
+    }
+
+    // Optional tracked warmups: at most MAX_WARMUP_SLOTS, validated like working slots.
+    function validWarmupSlots(exercise as Dictionary, history as Boolean) as Boolean {
+        var list = exercise["warmupSlots"];
+        if (exercise["warmupSkipped"] != null && !(exercise["warmupSkipped"] instanceof Boolean)) {
+            return false;
+        }
+        if (list == null) {
+            return true;
+        }
+        if (!(list instanceof Array) || (list as Array).size() > MAX_WARMUP_SLOTS) {
+            return false;
+        }
+        var slots = list as Array;
+        for (var w = 0; w < slots.size(); w++) {
+            if (!(slots[w] instanceof Dictionary)) {
+                return false;
+            }
+            var slot = slots[w] as Dictionary;
+            if ((!history && !(slot["draft"] instanceof Dictionary)) ||
+                (slot["draft"] != null && !validSavedDraft(exercise["loadType"], slot["draft"])) ||
+                !inRange(slot["restSec"], 0, MAX_REST_SEC, true) ||
+                (slot["completed"] != null &&
+                    !validCompletedSet(exercise["loadType"], slot["completed"], WARMUP_BASE + w))) {
+                return false;
+            }
         }
         return true;
     }
@@ -772,7 +863,8 @@ module Model {
         for (var i = 0; i < exercises.size(); i++) {
             var exercise = exercises[i] as Dictionary;
             if (sameString(item["entryId"], exercise["entryId"])) {
-                return inRange(item["slot"], 0, (exercise["slots"] as Array).size() - 1, false);
+                return inRange(item["slot"], 0, WARMUP_BASE + MAX_WARMUP_SLOTS - 1, false) &&
+                    slotAt(exercise, item["slot"] as Number) != null;
             }
         }
         return false;
@@ -784,7 +876,7 @@ module Model {
         }
         var item = run as Dictionary;
         if (!validId(item["entryId"]) ||
-            !inRange(item["slot"], 0, MAX_SETS - 1, false) ||
+            !inRange(item["slot"], 0, WARMUP_BASE + MAX_WARMUP_SLOTS - 1, false) ||
             !inRange(item["startedAt"], 0, 2147483647, false) ||
             !inRange(item["accumulatedSec"], 0, MAX_DURATION_SEC, false) ||
             !(item["targetAlertConsumed"] instanceof Boolean)) {
@@ -794,9 +886,9 @@ module Model {
             var exercise = exercises[i] as Dictionary;
             if (sameString(item["entryId"], exercise["entryId"])) {
                 var slot = item["slot"] as Number;
-                return sameString(exercise["loadType"], "timed") &&
-                    slot < (exercise["slots"] as Array).size() &&
-                    (exercise["slots"] as Array)[slot]["completed"] == null;
+                var target = slotAt(exercise, slot);
+                return sameString(exercise["loadType"], "timed") && target != null &&
+                    (target as Dictionary)["completed"] == null;
             }
         }
         return false;
@@ -807,7 +899,8 @@ module Model {
             return false;
         }
         var item = run as Dictionary;
-        if (!validId(item["entryId"]) || !inRange(item["slot"], 0, MAX_SETS - 1, false) ||
+        if (!validId(item["entryId"]) ||
+            !inRange(item["slot"], 0, WARMUP_BASE + MAX_WARMUP_SLOTS - 1, false) ||
             !inRange(item["startedAt"], 0, 2147483647, false)) {
             return false;
         }
@@ -815,9 +908,9 @@ module Model {
             var exercise = exercises[i] as Dictionary;
             if (sameString(item["entryId"], exercise["entryId"])) {
                 var slot = item["slot"] as Number;
-                return !sameString(exercise["loadType"], "timed") &&
-                    slot < (exercise["slots"] as Array).size() &&
-                    (exercise["slots"] as Array)[slot]["completed"] == null;
+                var target = slotAt(exercise, slot);
+                return !sameString(exercise["loadType"], "timed") && target != null &&
+                    (target as Dictionary)["completed"] == null;
             }
         }
         return false;
@@ -829,7 +922,7 @@ module Model {
         }
         var item = rest as Dictionary;
         if (!inRange(item["id"], 0, 2147483647, false) || !validId(item["entryId"]) ||
-            !inRange(item["slot"], 0, MAX_SETS - 1, false) ||
+            !inRange(item["slot"], 0, WARMUP_BASE + MAX_WARMUP_SLOTS - 1, false) ||
             !inRange(item["startedAt"], 0, 2147483647, false) ||
             !inRange(item["durationSec"], 0, MAX_REST_SEC, false) ||
             !inRange(item["endsAt"], 0, 2147483647, false) ||
@@ -848,7 +941,7 @@ module Model {
         for (var i = 0; i < exercises.size(); i++) {
             var exercise = exercises[i] as Dictionary;
             if (sameString(item["entryId"], exercise["entryId"])) {
-                return (item["slot"] as Number) < (exercise["slots"] as Array).size();
+                return slotAt(exercise, item["slot"] as Number) != null;
             }
         }
         return false;
