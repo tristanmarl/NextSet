@@ -165,7 +165,7 @@ module Catalog {
         if (seeded != null) {
             var copy = SessionLogic.copyDictionary(seeded as Dictionary);
             var keys = ["name", "loadType", "unit",
-                "defaultRestSec", "notes", "isBodyWeight", "garminCategory", "garminCode"];
+                "defaultRestSec", "notes", "isBodyWeight"];
             for (var i = 0; i < keys.size(); i++) {
                 var key = keys[i] as String;
                 if (entry[key] != null || Model.sameString(key, "unit") ||
@@ -176,6 +176,9 @@ module Catalog {
             if (entry["increment100"] instanceof Number) {
                 copy["increment100"] = entry["increment100"];
             }
+            // The seed's Garmin mapping wins over a code stored in an older routine (null allowed).
+            copy["garminCategory"] = seeded["garminCategory"];
+            copy["garminCode"] = seeded["garminCode"];
             return copy;
         }
         var definition = {};
@@ -189,6 +192,17 @@ module Catalog {
         definition["isBodyWeight"] = entry["isBodyWeight"];
         definition["garminCategory"] = entry["garminCategory"];
         definition["garminCode"] = entry["garminCode"];
+        // Catalog ids ("g-...") resolve to the current catalog row, so a corrected code reaches old
+        // routines. Only the entry's stored category resource is loaded (one of 47), not all.
+        var storedCategory = entry["garminCategory"];
+        if ((id as String).find("g-") == 0 && storedCategory instanceof String) {
+            var index = garminCategoryIndex(storedCategory as String);
+            var row = index < 0 ? null : garminExercise(index, id as String);
+            if (row != null) {
+                definition["garminCategory"] = (row as Dictionary)["category"];
+                definition["garminCode"] = (row as Dictionary)["code"];
+            }
+        }
         return definition;
     }
 

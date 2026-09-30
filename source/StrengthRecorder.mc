@@ -7,8 +7,8 @@ import Toybox.WatchUi;
 // Owns the recording and its FIT developer fields. Garmin Connect has no native set rows for a
 // Connect IQ activity, so each logged set becomes one lap carrying the set as lap fields, and the
 // session gets summary fields. Field ids match resources/fitcontributions.
-// Limits (createField docs): apps get 256 bytes per message type; lap fields use 165 (name 65 incl.
-// terminator, set 1, reps 2, weight 4, duration 2, active 2, garmin category 24, garmin code 65)
+// Limits (createField docs): apps get 256 bytes per message type; lap fields use 166 (name 65 incl.
+// terminator, set 1, void 1, reps 2, weight 4, duration 2, active 2, garmin category 24, garmin code 65)
 // and session fields 15. The longest catalog category is 18 bytes; codes are validated to 64.
 // The firmware keeps one lap per second: a set logged in the same second as the previous lap is
 // queued and written by flush() on a later tick.
@@ -17,6 +17,7 @@ class StrengthRecorder {
     private var _session as ActivityRecording.Session? = null;
     private var _nameField as FitContributor.Field? = null;
     private var _setField as FitContributor.Field? = null;
+    private var _voidField as FitContributor.Field? = null;
     private var _repsField as FitContributor.Field? = null;
     private var _weightField as FitContributor.Field? = null;
     private var _durationField as FitContributor.Field? = null;
@@ -62,6 +63,7 @@ class StrengthRecorder {
     private function createFields(session as ActivityRecording.Session) as Void {
         _nameField = null;
         _setField = null;
+        _voidField = null;
         _repsField = null;
         _weightField = null;
         _durationField = null;
@@ -96,6 +98,8 @@ class StrengthRecorder {
                 {:mesgType => lap, :count => 24});
             _codeField = session.createField("garmin_code", 11, FitContributor.DATA_TYPE_STRING,
                 {:mesgType => lap, :count => 65});
+            _voidField = session.createField("void", 12, FitContributor.DATA_TYPE_UINT8,
+                {:mesgType => lap});
             _totalSetsField = session.createField("total_sets", 5, FitContributor.DATA_TYPE_UINT16,
                 {:mesgType => summary});
             _volumeField = session.createField("volume_kg", 6, FitContributor.DATA_TYPE_FLOAT,
@@ -111,12 +115,16 @@ class StrengthRecorder {
 
     private function setLapFields(name as String, setNumber as Number, reps as Number,
                                   weightKg as Float, durationSec as Number,
-                                  activeSec as Number, category as String, code as String) as Void {
+                                  activeSec as Number, category as String, code as String,
+                                  voided as Number) as Void {
         if (_nameField != null) {
             (_nameField as FitContributor.Field).setData(name);
         }
         if (_setField != null) {
             (_setField as FitContributor.Field).setData(setNumber);
+        }
+        if (_voidField != null) {
+            (_voidField as FitContributor.Field).setData(voided);
         }
         if (_repsField != null) {
             (_repsField as FitContributor.Field).setData(reps);
@@ -164,7 +172,8 @@ class StrengthRecorder {
             setLapFields(payload["name"] as String, payload["set"] as Number,
                 payload["reps"] as Number, payload["weightKg"] as Float,
                 payload["durationSec"] as Number, payload["activeSec"] as Number,
-                payload["garminCategory"] as String, payload["garminCode"] as String);
+                payload["garminCategory"] as String, payload["garminCode"] as String,
+                payload["void"] as Number);
             (_session as ActivityRecording.Session).addLap();
             _lastLapAt = Time.now().value();
         } catch (error) {
@@ -231,7 +240,7 @@ class StrengthRecorder {
             }
             // stop() closes a final lap; blank its fields so it is not a copy of the last set.
             if (Time.now().value() > _lastLapAt) {
-                setLapFields("", 0, 0, 0.0, 0, 0, "", "");
+                setLapFields("", 0, 0, 0.0, 0, 0, "", "", 0);
             }
             if (session.isRecording() && !session.stop()) {
                 return false;

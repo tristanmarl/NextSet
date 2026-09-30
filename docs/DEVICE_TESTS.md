@@ -129,12 +129,18 @@ A short start/log/save path and saved Strength FIT were recorded on the FR965. T
 - **Build and simulator tests:** only the pure logic is unit-tested; nothing below is verified on a watch.
 - [ ] **PENDING** Press flow on the watch: on a weight exercise the first START shows `SET 0:00` counting up and the cue `START log`; the second START logs the set and starts rest; a START within 800 ms of the first is ignored.
 - [ ] **PENDING** The `SET m:ss` line and cue fit the round FR965 screen without clipping (long exercise names, two-line titles).
-- [ ] **PENDING** BACK while a set runs cancels the start and returns to the overview; reopening the exercise shows the idle cue `START set`.
+- [ ] **PENDING** BACK while a set runs keeps it running and returns to the overview; reopening the exercise still shows `SET m:ss` and `START log`.
 - [ ] **PENDING** Starting a set during rest ends the rest countdown.
 - [ ] **PENDING** Inspect the FIT lap developer field `active_s` (id 9): start-to-log seconds for started sets, measured duration for timed sets, 0 for sets logged without a start.
 
 ## 0.2.5 group-only Garmin codes — PENDING
 
-- [ ] **PENDING** In the Garmin exercise picker, "Group only in Connect" is readable under entries such as Bench Press (Bench Press category) without clipping, and selecting one adds it to the routine.
+- [ ] **PENDING** In the Garmin exercise picker, "Category only" is readable under entries such as Bench Press (Bench Press category) without clipping, and selecting one adds it to the routine.
 - [ ] **PENDING** Existing routines and history still load after installing 0.2.5 over 0.2.4.
 - [ ] **PENDING** Inspect a 0.2.5 FIT: every set lap carries lap developer fields `garmin_category` (id 10) and `garmin_code` (id 11) (code empty for group-only exercises), even without `fitContributions` entries for them.
+
+## Review fixes on fit-set-breakdown — PENDING
+
+- [ ] **PENDING** Correcting a set and undoing a set each produce an extra lap (developer field `void` id 12: 0 for the correction, 1 for the undo); after NAS sync Connect shows the corrected values and no undone set.
+- [ ] **PENDING** Time the last workout-start stage (`commitWorkoutStart`) on the watch; compare with the 150 ms timer budget and the watchdog limit.
+- [ ] **PENDING** The "Set 1" overlay shown at workout start comes from the firmware; compare with the main build to confirm it is not new.

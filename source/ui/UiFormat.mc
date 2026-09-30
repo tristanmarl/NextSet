@@ -119,10 +119,14 @@ module UiFormat {
             (remainder < 10 ? "0" : "") + remainder.toString();
     }
 
-    // "SET m:ss" while a non-timed set on this exercise has been started with START.
+    // "SET m:ss" while a non-timed set on this exercise has been started with START and is
+    // still this exercise's next slot.
     function setStatus(session as Dictionary, entryId as String) as String? {
         var run = session["setRun"];
-        if (!(run instanceof Dictionary) || !Model.sameString(run["entryId"], entryId)) {
+        var index = SessionLogic.exerciseIndex(session, entryId);
+        if (!(run instanceof Dictionary) || index < 0 ||
+            !SessionLogic.setRunMatches(session, entryId, SessionLogic.nextSlot(
+                (session["exercises"] as Array)[index] as Dictionary))) {
             return null;
         }
         var seconds = SessionLogic.setElapsedSec(run as Dictionary, Time.now().value());

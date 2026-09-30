@@ -1266,24 +1266,6 @@ class SessionController {
         return candidate != null && commit(candidate as Dictionary);
     }
 
-    public function cancelSet(entryId as String, slot as Number) as Boolean {
-        if (!isWorkoutRunning()) {
-            return false;
-        }
-        var candidate = SessionLogic.cancelSet(_session as Dictionary, entryId, slot);
-        return candidate != null && commit(candidate as Dictionary);
-    }
-
-    // Cancels a running set on this exercise, whichever slot it is on; true when none was running.
-    public function cancelSetForEntry(entryId as String) as Boolean {
-        if (!isWorkoutRunning() || !(_session["setRun"] instanceof Dictionary)) {
-            return true;
-        }
-        var run = _session["setRun"] as Dictionary;
-        return !Model.sameString(run["entryId"], entryId) ||
-            cancelSet(entryId, run["slot"] as Number);
-    }
-
     public function setElapsed(now as Number) as Number {
         if (_session != null && _session["setRun"] instanceof Dictionary) {
             return SessionLogic.setElapsedSec(_session["setRun"] as Dictionary, now);
@@ -1402,14 +1384,19 @@ class SessionController {
 
     // One FIT lap per logged set while recording; never affects the logged set.
     private function recordSetLap(entryId as String, slot as Number) as Void {
+        var payload = lapFor(entryId, slot);
+        if (payload != null) {
+            _recorder.recordSet(payload);
+        }
+    }
+
+    private function lapFor(entryId as String, slot as Number) as Dictionary? {
         if (_session == null || !_recorder.isRecording()) {
-            return;
+            return null;
         }
         var index = SessionLogic.exerciseIndex(_session as Dictionary, entryId);
-        if (index >= 0) {
-            _recorder.recordSet(SessionLogic.lapPayload(
-                (_session["exercises"] as Array)[index] as Dictionary, slot));
-        }
+        return index < 0 ? null : SessionLogic.lapPayload(
+            (_session["exercises"] as Array)[index] as Dictionary, slot);
     }
 
     private function commit(candidate as Dictionary) as Boolean {
@@ -1784,7 +1771,11 @@ class SessionController {
             return false;
         }
         var candidate = SessionLogic.correctSet(_session as Dictionary, entryId, slot, actual, now);
-        return candidate != null && commit(candidate as Dictionary);
+        if (candidate == null || !commit(candidate as Dictionary)) {
+            return false;
+        }
+        recordSetLap(entryId, slot);  // corrected values; the NAS keeps the last lap per set
+        return true;
     }
 
     public function undoSet(entryId as String, slot as Number) as Boolean {
@@ -1792,7 +1783,18 @@ class SessionController {
             return false;
         }
         var candidate = SessionLogic.undoSet(_session as Dictionary, entryId, slot);
-        return candidate != null && commit(candidate as Dictionary);
+        if (candidate == null) {
+            return false;
+        }
+        var retract = lapFor(entryId, slot);  // read before the set is cleared
+        if (!commit(candidate as Dictionary)) {
+            return false;
+        }
+        if (retract != null) {
+            (retract as Dictionary)["void"] = 1;
+            _recorder.recordSet(retract);
+        }
+        return true;
     }
 
     public function closeExercise(entryId as String, closed as Boolean) as Boolean {

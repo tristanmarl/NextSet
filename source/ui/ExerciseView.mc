@@ -429,16 +429,12 @@ class ExerciseDelegate extends WatchUi.BehaviorDelegate {
         return true;
     }
 
-    // BACK returns to Overview; a running timed set on this exercise is paused first and a
-    // started (non-timed) set is canceled.
+    // BACK returns to Overview; a running timed set on this exercise is paused first; a
+    // started (non-timed) set keeps running.
     public function onBack() as Boolean {
         var controller = getApp().controller();
         var session = controller.session();
         if (session != null) {
-            if (!controller.cancelSetForEntry(_view.entryId())) {
-                Navigator.feedback("Set start could not be canceled");
-                return true;
-            }
             var run = (session as Dictionary)["timedRun"];
             if (run instanceof Dictionary && Model.sameString(run["entryId"], _view.entryId()) &&
                 !controller.pauseTimedForEntry(_view.entryId(), Time.now().value())) {

@@ -20,7 +20,7 @@ Priority: the workout flow first, then routine editing and creation. Principle: 
 | Summary | `NextSet log saved` · `24/24 sets` · ELAPSED · ACTIVE · `GARMIN ACTIVITY SAVED` · `START: EXIT` | START exits |
 
 These parts are already good:
-- Logging is one press, with an 800 ms guard against double presses.
+- Logging is two presses (START starts the set, START logs it), with an 800 ms guard against double presses.
 - The next set is prefilled from last time, and that value stays visible.
 - The app moves to the next exercise on its own.
 - The timed-set cues change with state (`START begin`, `finish`, `resume`, `log`).
@@ -42,7 +42,7 @@ The Workout menu reached from the Exercise screen currently lists, in order:
 
 | Action (how often) | Path today | Presses |
 | --- | --- | --- |
-| Log a set (every set) | START | **1** |
+| Log a set (every set) | START (starts the set) → START (logs it) | **2** (BACK keeps a started set running) |
 | Change reps (most sets) | UP/DOWN | 1–3 |
 | Go back to Overview / switch exercise (every exercise) | BACK → Workout menu → 3 DOWN → START | **5** |
 | Change load (often) | MENU → 2 DOWN → Exercise options → START on Change load → editor | **5** + editing (or a small touch target) |
@@ -79,7 +79,7 @@ Home ─START→ Overview ─START→ Exercise
 Overview MENU → Workout menu (Finish first) → Summary → START exit
 ```
 
-Per-set cost: 1 press. Switching exercise: 1 (BACK) + UP/DOWN + 1. Changing load: 2 presses to the editor.
+Per-set cost: 2 presses (START to start, START to log). Switching exercise: 1 (BACK) + UP/DOWN + 1. Changing load: 2 presses to the editor.
 
 ## 2. Creating and editing routines
 

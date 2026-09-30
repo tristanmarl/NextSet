@@ -117,6 +117,12 @@ module SessionLogic {
             return null;
         }
         var candidate = state["session"] as Dictionary;
+        candidate["setRun"] = null;  // a timed set replaces a started plain set
+        var rest = candidate["rest"];
+        if (rest instanceof Dictionary && (Model.sameString(rest["state"], "running") ||
+            Model.sameString(rest["state"], "expired"))) {
+            candidate["rest"] = RestClock.skip(rest as Dictionary);
+        }
         candidate["timedRun"] = {
             "entryId" => entryId,
             "slot" => slotIndex,
@@ -222,11 +228,12 @@ module SessionLogic {
     }
 
     // Explicit "start set" for non-timed sets: records when the set began so the logged set can
-    // carry its real duration. Starting a set also ends a running or expired rest.
+    // carry its real duration. Starting a set also ends a running or expired rest and replaces a
+    // started set on another slot; it is refused while a timed set runs.
     function startSet(session as Dictionary, entryId as String, slotIndex as Number,
                       now as Number) as Dictionary? {
         var index = exerciseIndex(session, entryId);
-        if (index < 0 || session["setRun"] != null || session["timedRun"] != null ||
+        if (index < 0 || session["timedRun"] != null ||
             !Model.inRange(now, 0, 2147483647, false)) {
             return null;
         }
@@ -243,15 +250,6 @@ module SessionLogic {
             Model.sameString(rest["state"], "expired"))) {
             candidate["rest"] = RestClock.skip(rest as Dictionary);
         }
-        return candidate;
-    }
-
-    function cancelSet(session as Dictionary, entryId as String, slotIndex as Number) as Dictionary? {
-        if (!setRunMatches(session, entryId, slotIndex)) {
-            return null;
-        }
-        var candidate = copyDictionary(session);
-        candidate["setRun"] = null;
         return candidate;
     }
 
@@ -493,6 +491,7 @@ module SessionLogic {
         var slot = state["slot"] as Dictionary;
         slot["completed"] = null;
         changedExercise["closedEarly"] = false;
+        candidate["setRun"] = null;
         var rest = candidate["rest"];
         if (rest instanceof Dictionary && Model.sameString(rest["entryId"], entryId) &&
             rest["slot"] == slotIndex) {
@@ -640,6 +639,7 @@ module SessionLogic {
     // assistance (the offset from bodyweight), 0 for bodyweight and timed. Reps and duration are
     // 0 when they do not apply. activeSec is the set time: the measured duration for timed sets,
     // else the start-to-log time (0 when the set was not started explicitly, i.e. unknown).
+    // "void" is 1 only for the lap that retracts an undone set (set by the controller).
     // garminCategory/garminCode identify the exercise for Garmin Connect ("" when unmapped or group-only).
     function lapPayload(exercise as Dictionary, slotIndex as Number) as Dictionary? {
         var completed = ((exercise["slots"] as Array)[slotIndex] as Dictionary)["completed"];
@@ -661,6 +661,7 @@ module SessionLogic {
             "garminCategory" => category instanceof String ? truncateBytes(category as String, 23) : "",
             "garminCode" => code instanceof String ? truncateBytes(code as String, 64) : "",
             "set" => slotIndex + 1,
+            "void" => 0,
             "reps" => completed["reps"] instanceof Number ? completed["reps"] as Number : 0,
             "weightKg" => kg,
             "durationSec" => completed["durationSec"] instanceof Number ?

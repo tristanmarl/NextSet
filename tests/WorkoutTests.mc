@@ -831,7 +831,8 @@ function testFitLapPayloadFromCompletedSet(logger as Test.Logger) as Boolean {
     var timed = SessionLogic.lapPayload(completedExercise("Plank", "timed", null, null, 45), 0) as Dictionary;
     var open = SessionLogic.lapPayload(completedExercise("Row", "weight", 6250, 10, null), 1);
     var long = SessionLogic.truncateBytes(repeatText("é", 40), 64);
-    return check(logger, weight["weightKg"] == 62.5 && weight["reps"] == 10 && weight["set"] == 1 &&
+    return check(logger, weight["void"] == 0, "lap payload is not void by default") &&
+        check(logger, weight["weightKg"] == 62.5 && weight["reps"] == 10 && weight["set"] == 1 &&
             weight["durationSec"] == 0 && weight["name"].equals("Row"),
             "weight set: kg, reps, 1-based set number") &&
         check(logger, assist["weightKg"] == -25.0, "assistance is a negative kg offset") &&
@@ -879,7 +880,7 @@ function testFitSummaryVolume(logger as Test.Logger) as Boolean {
 }
 
 (:test)
-function testSetStartLogAndCancel(logger as Test.Logger) as Boolean {
+function testSetStartAndLog(logger as Test.Logger) as Boolean {
     var session = Catalog.createSession("upper", "setrun-1", 1, 100, null, null) as Dictionary;
     var row = {"load100" => 5500, "reps" => 9};
     var started = SessionLogic.startSet(session, "upper-row", 0, 1000) as Dictionary;
@@ -892,11 +893,15 @@ function testSetStartLogAndCancel(logger as Test.Logger) as Boolean {
     var plain = SessionLogic.completeSet(session, "upper-row", 0, row, 1042) as Dictionary;
     var plainExercise = (plain["exercises"] as Array)[SessionLogic.exerciseIndex(plain, "upper-row")] as Dictionary;
     var otherSlot = SessionLogic.completeSet(started, "upper-row", 1, row, 1042) as Dictionary;
-    var canceled = SessionLogic.cancelSet(started, "upper-row", 0) as Dictionary;
+    var replaced = SessionLogic.startSet(started, "upper-chest", 0, 1010) as Dictionary;
     return check(logger, run["entryId"].equals("upper-row") && run["slot"] == 0 &&
             run["startedAt"] == 1000 && session["setRun"] == null && Model.validStoredSession(started, false),
             "start records the set run and leaves the input untouched") &&
-        check(logger, doubleStart == null, "a second set cannot start while one runs") &&
+        check(logger, doubleStart != null && doubleStart["setRun"]["startedAt"] == 1001,
+            "starting again replaces the running set") &&
+        check(logger, replaced["setRun"]["entryId"].equals("upper-chest") &&
+            Model.validStoredSession(replaced, false),
+            "a set on another exercise replaces the running set") &&
         check(logger, completed["activeSec"] == 42 && payload["activeSec"] == 42 &&
             logged["setRun"] == null && Model.validStoredSession(logged, false),
             "logging a started set stores activeSec and clears the run") &&
@@ -906,9 +911,7 @@ function testSetStartLogAndCancel(logger as Test.Logger) as Boolean {
             Model.validStoredSession(otherSlot, false) &&
             ((((otherSlot["exercises"] as Array)[SessionLogic.exerciseIndex(otherSlot, "upper-row")]
                 as Dictionary)["slots"] as Array)[1]["completed"]["activeSec"]) == null,
-            "logging another slot keeps the running set and does not use its start time") &&
-        check(logger, canceled["setRun"] == null && SessionLogic.cancelSet(canceled, "upper-row", 0) == null,
-            "cancel clears the run; canceling nothing is null");
+            "logging another slot keeps the running set and does not use its start time");
 }
 
 (:test)
@@ -951,4 +954,65 @@ function testStoredSetRunValidation(logger as Test.Logger) as Boolean {
     return check(logger, Model.validStoredSession(session, false) && Model.validStoredSession(good, false),
             "sessions without or with a valid setRun are valid") &&
         check(logger, ok, "malformed or mismatched setRun is rejected");
+}
+
+(:test)
+function testUndoClearsSetRun(logger as Test.Logger) as Boolean {
+    var session = Catalog.createSession("upper", "setrun-4", 1, 100, null, null) as Dictionary;
+    var row = {"load100" => 5500, "reps" => 9};
+    var done = SessionLogic.completeSet(session, "upper-row", 0, row, 1000) as Dictionary;
+    var started = SessionLogic.startSet(done, "upper-row", 1, 1005) as Dictionary;
+    var undone = SessionLogic.undoSet(started, "upper-row", 0) as Dictionary;
+    var redone = SessionLogic.completeSet(undone, "upper-row", 0, row, 1100) as Dictionary;
+    var next = SessionLogic.nextSlot(
+        (started["exercises"] as Array)[SessionLogic.exerciseIndex(started, "upper-row")] as Dictionary);
+    var nextAfterUndo = SessionLogic.nextSlot(
+        (undone["exercises"] as Array)[SessionLogic.exerciseIndex(undone, "upper-row")] as Dictionary);
+    return check(logger, started["setRun"] != null && undone["setRun"] == null &&
+            Model.validStoredSession(undone, false), "undo clears the running set") &&
+        check(logger, SessionLogic.setRunMatches(started, "upper-row", next) &&
+            !SessionLogic.setRunMatches(started, "upper-row", nextAfterUndo) &&
+            redone["setRun"] == null, "a stale set run never matches the next slot");
+}
+
+(:test)
+function testStartTimedReplacesSetRunAndEndsRest(logger as Test.Logger) as Boolean {
+    var session = Catalog.createSession("lower", "timed-2", 1, 100, null, null) as Dictionary;
+    var row = {"load100" => 5500, "reps" => 9};
+    var resting = SessionLogic.completeSet(session, "lower-leg-press", 0, row, 1000) as Dictionary;
+    var started = SessionLogic.startSet(resting, "lower-leg-press", 1, 1002) as Dictionary;
+    var timed = SessionLogic.startTimed(started, "lower-dead-bug", 0, 1005) as Dictionary;
+    var timedWhileResting = SessionLogic.startTimed(resting, "lower-dead-bug", 0, 1005) as Dictionary;
+    var rejected = SessionLogic.startSet(timed, "lower-leg-press", 1, 1010);
+    return check(logger, started["setRun"] != null && timed["setRun"] == null &&
+            timed["timedRun"] != null && Model.validStoredSession(timed, false),
+            "starting a timed set clears a started plain set") &&
+        check(logger, Model.sameString(resting["rest"]["state"], "running") &&
+            Model.sameString(timedWhileResting["rest"]["state"], "dismissed"),
+            "starting a timed set ends a running rest") &&
+        check(logger, rejected == null, "a plain set cannot start while a timed set runs");
+}
+
+(:test)
+function testExerciseForEntryCurrentDefinitionWins(logger as Test.Logger) as Boolean {
+    var seedEntry = {"exerciseId" => "machine-chest-press", "name" => "Machine Chest Press",
+        "loadType" => "weight", "unit" => "kg", "garminCategory" => "BENCH_PRESS",
+        "garminCode" => "BENCH_PRESS"};
+    var seedDefinition = Catalog.exerciseForEntry(seedEntry) as Dictionary;
+    var catalogEntry = {"exerciseId" => "g-22f9fcbbd5af", "name" => "3 Way Calf Raise",
+        "loadType" => "weight", "unit" => "kg", "garminCategory" => "CALF_RAISE",
+        "garminCode" => "_3_WAY_CALF_RAISE"};
+    var catalogDefinition = Catalog.exerciseForEntry(catalogEntry) as Dictionary;
+    var unknown = {"exerciseId" => "g-000000000000", "name" => "Gone", "loadType" => "weight",
+        "unit" => "kg", "garminCategory" => "CALF_RAISE", "garminCode" => "KEPT"};
+    var custom = {"exerciseId" => "custom-1", "name" => "Mine", "loadType" => "weight",
+        "unit" => "kg", "garminCategory" => "CALF_RAISE", "garminCode" => "KEPT"};
+    return check(logger, seedDefinition["garminCategory"].equals("BENCH_PRESS") &&
+            seedDefinition["garminCode"] == null, "seed mapping wins over a stored code") &&
+        check(logger, catalogDefinition["garminCode"].equals("3_WAY_CALF_RAISE") &&
+            catalogDefinition["garminCategory"].equals("CALF_RAISE"),
+            "catalog entry uses the current catalog code") &&
+        check(logger, Catalog.exerciseForEntry(unknown)["garminCode"].equals("KEPT") &&
+            Catalog.exerciseForEntry(custom)["garminCode"].equals("KEPT"),
+            "entries missing from the catalog keep their stored code");
 }

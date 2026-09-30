@@ -71,7 +71,13 @@ def client():
 
 
 def load_state():
-    return json.loads(STATE.read_text()) if STATE.exists() else {"done": [], "ignored": []}
+    try:
+        return json.loads(STATE.read_text()) if STATE.exists() else {"done": [], "ignored": []}
+    except json.JSONDecodeError:
+        bad = STATE.with_name(f"{STATE.name}.bad-{int(time.time())}")
+        STATE.rename(bad)
+        log.error("state.json is corrupt; moved to %s, starting empty", bad.name)
+        return {"done": [], "ignored": []}
 
 
 def save_state(state):
@@ -101,7 +107,7 @@ def nextset_laps(data):
                              ("start_time", "total_timer_time", "exercise", "set", "reps",
                               "weight_kg", "duration_s")}
                             | {f: frame.get_value(f, fallback=None) for f in
-                                  ("active_s", "garmin_category", "garmin_code")})  # 0.2.4+, 0.2.5+
+                                  ("active_s", "garmin_category", "garmin_code", "void")})  # 0.2.4+, 0.2.5+
     return laps if is_nextset else None
 
 
@@ -111,14 +117,24 @@ def iso(t):
 
 def exercise_sets(laps):
     """Connect exerciseSets from laps. Raises KeyError for an old-FIT exercise missing in exercises.json."""
-    sets, previous = [], None
+    # A correction or undo writes another lap for the same (exercise, set). Values come from the last
+    # lap (dropped when void); timing (the lap window) from the first lap, because a correction lap is
+    # short and late. After a void lap the re-logged lap is the real set and supplies timing too.
+    # The blank closing lap (0.2.3+) is not a set. Old FITs have no void.
+    last, timing = {}, {}
     for lap in laps:
         name = (lap["exercise"] or "").strip()
-        key = (name, lap["set"])
-        # Blank closing lap (0.2.3+) and the repeated closing lap of 0.2.1/0.2.2 are not sets.
-        if not name or key == previous:
-            continue
-        previous = key
+        if name:
+            key = (name, lap["set"])
+            if key not in last or last[key].get("void"):
+                timing[key] = lap
+            last[key] = lap
+    kept = sorted(((k[0], l | {"start_time": timing[k]["start_time"],
+                              "total_timer_time": timing[k]["total_timer_time"]})
+                   for k, l in last.items() if not l.get("void")),
+                  key=lambda nl: nl[1]["start_time"])
+    sets = []
+    for name, lap in kept:
         category, sub = garmin_exercise(name, lap.get("garmin_category"), lap.get("garmin_code") or None)
         end = lap["start_time"] + dt.timedelta(seconds=lap["total_timer_time"] or 0)
         timed = bool(lap["duration_s"])
@@ -224,6 +240,8 @@ def run(dry_run=False, only=None, force=False):
         if finished and not dry_run:
             state["done"].append(activity_id)
             save_state(state)
+        elif not finished and not dry_run:
+            failed += 1  # e.g. exercise missing in exercises.json: retried next run, must alert
     return failed
 
 
