@@ -155,7 +155,7 @@ module UploadLogic {
             "endTime" => endTime,
             "exercises" => mappedExercises,
             "substitutions" => substitutions,
-            "state" => "start"
+            "state" => Liftosaur.STATE_START
         };
         return Model.validUpload(job) ? job : null;
     }
@@ -168,7 +168,7 @@ module UploadLogic {
 
     function setsDone(job as Dictionary) as Dictionary {
         var next = SessionLogic.copyDictionary(job);
-        next["state"] = "finish";
+        next["state"] = Liftosaur.STATE_FINISH;
         return next;
     }
 
@@ -305,9 +305,9 @@ module UploadLogic {
 
     function mapWorkout(job as Dictionary, reply as Object?, exactStart as Boolean) as Dictionary? {
         if (!Model.validUpload(job) ||
-            !(Model.sameString(job["state"], "start") ||
-                Model.sameString(job["state"], "sets") ||
-                Model.sameString(job["state"], "finish"))) {
+            !(Model.sameString(job["state"], Liftosaur.STATE_START) ||
+                Model.sameString(job["state"], Liftosaur.STATE_SETS) ||
+                Model.sameString(job["state"], Liftosaur.STATE_FINISH))) {
             return null;
         }
         var workout = responseWorkout(reply);
@@ -415,7 +415,7 @@ module UploadLogic {
             return null;
         }
         next["setsBody"] = {"sets" => bodySets};
-        next["state"] = "sets";
+        next["state"] = Liftosaur.STATE_SETS;
         return Model.validUpload(next) ? next : null;
     }
 }

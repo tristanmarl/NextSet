@@ -16,7 +16,7 @@ Facts (research 2026-09-30, https://www.liftosaur.com/doc/api):
 
 ## Phase 1 — archive and write-back (NAS only)
 
-Extends `tools/connect-sets` (now "NextSet archive + Liftosaur sync"; the Garmin Connect exerciseSets write path was dropped 2026-09-30, the job is read-only on Garmin). Implemented 2026-09-30 behind `LIFTOSAUR_SYNC=0|1` (default 0); only GET was exercised so far, the write path only via `--dry-run`.
+Superseded: the NAS job (`tools/connect-sets`) and its Python reference implementation were removed; the watch app is the only Liftosaur writer and the matching rules now live in `source/UploadLogic.mc` (see also `CLAUDE.md`). The text below describes the retired NAS path and is kept as reference for the observed API schema and behavior.
 1. Archive: every NextSet activity the job sees is stored as JSON (one file per activity) plus a SQLite table of sets under `data/archive/`. Backfill once with a larger lookback.
 2. Discovery (read-only): script prints `/workout/next` and `/settings` for the active program; the schema gets recorded in this doc.
 3. Exercise names: no mapping file. Liftosaur owns the exercise list; NextSet exercise names equal the Liftosaur entry `name` (exact, case-sensitive). An exercise Liftosaur does not know is left out of the write and listed in the finish notes + ntfy.
@@ -25,7 +25,7 @@ Extends `tools/connect-sets` (now "NextSet archive + Liftosaur sync"; the Garmin
 
 ## Phase 2 — plan to watch
 
-**Superseded 2026-09-30:** the watch calls Liftosaur directly (no NAS server, no Tailscale). See `docs/PHASE2_HANDOVER.md`. The items below are the earlier NAS-based design.
+**Superseded 2026-09-30:** the watch calls Liftosaur directly (no NAS server, no Tailscale). See `docs/archive/PHASE2_HANDOVER.md`. The items below are the earlier NAS-based design.
 
 1. Transport test first: a throwaway Connect IQ app GETs `https://<nas>.<tailnet>.ts.net/ping` over the phone connection and over Wi-Fi. Tailnet-only `tailscale serve` preferred; fall back to `tailscale funnel` + secret token if the watch cannot reach the tailnet.
 2. NAS endpoint `GET /routine/next` (token) returns a compact NextSet routine built from `/workout/next` + mapping, including Liftosaur `entryId`/`setId`s.

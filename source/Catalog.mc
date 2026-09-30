@@ -247,20 +247,6 @@ module Catalog {
             (source as Dictionary)[key] : null;
     }
 
-    function overridesFor(config as Dictionary?, routineId as String,
-                          entryId as String) as Dictionary? {
-        var allOverrides = dictionaryValue(config, "templateOverrides");
-        var routineOverrides = dictionaryValue(
-            allOverrides instanceof Dictionary ? allOverrides as Dictionary : null,
-            routineId
-        );
-        var entryOverrides = dictionaryValue(
-            routineOverrides instanceof Dictionary ? routineOverrides as Dictionary : null,
-            entryId
-        );
-        return entryOverrides instanceof Dictionary ? entryOverrides as Dictionary : null;
-    }
-
     function cloneTargets(targets as Array) as Array {
         var result = [];
         for (var i = 0; i < targets.size(); i++) {

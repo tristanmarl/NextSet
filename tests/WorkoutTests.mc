@@ -354,7 +354,7 @@ function testV4ConfigAndCommittedSyncReplay(logger as Test.Logger) as Boolean {
     var storedRoutine = store.commitPair("routine." + routineId, routine);
     var config = {"schemaVersion" => 4, "nextSessionSeq" => 1,
         "settings" => {"defaultRestSec" => 90, "vibrationEnabled" => true},
-        "templateOverrides" => {}, "incrementOverrides" => {},
+        "incrementOverrides" => {},
         "routineIds" => [routineId], "routineSyncSeq" => 5,
         "programId" => routine["programId"], "programName" => "Test Program",
         "nextRoutineId" => routineId};
@@ -489,7 +489,7 @@ function testStoreEnvelopeRevisionAndHistoryPeek(logger as Test.Logger) as Boole
     Application.Storage.deleteValue("config.b");
     var config = {"schemaVersion" => 4, "nextSessionSeq" => 1,
         "settings" => {"defaultRestSec" => 90, "vibrationEnabled" => true},
-        "templateOverrides" => {}, "incrementOverrides" => {}, "routineIds" => [],
+        "incrementOverrides" => {}, "routineIds" => [],
         "routineSyncSeq" => 0, "programId" => null, "programName" => null,
         "nextRoutineId" => null};
     Application.Storage.setValue("config.a", {"v" => 1, "rev" => 5, "payload" => {}});
@@ -556,7 +556,7 @@ function testWorstCaseV4StorageCommits(logger as Test.Logger) as Boolean {
     var routineValid = Catalog.validRoutine(routine);
     var configForSession = {"routines" => [routine],
         "settings" => {"defaultRestSec" => Model.MAX_REST_SEC},
-        "templateOverrides" => {}, "incrementOverrides" => {}};
+        "incrementOverrides" => {}};
     var start = 1790752141;
     var initial = Catalog.createSession(routine["id"] as String,
         "worst-session", 2147483647, start, null, configForSession);
@@ -580,7 +580,7 @@ function testWorstCaseV4StorageCommits(logger as Test.Logger) as Boolean {
     }
     var config = {"schemaVersion" => 4, "nextSessionSeq" => 2147483647,
         "settings" => {"defaultRestSec" => Model.MAX_REST_SEC, "vibrationEnabled" => true},
-        "templateOverrides" => {}, "incrementOverrides" => {}, "routineIds" => ids,
+        "incrementOverrides" => {}, "routineIds" => ids,
         "routineSyncSeq" => 2147483647, "programId" => fixtureRepeat("P", 64),
         "programName" => fixtureRepeat("G", 64), "nextRoutineId" => ids[0]};
     var routineStored = fixtureCommitSize(logger, store, "routine." + routine["id"], routine);

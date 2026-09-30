@@ -53,10 +53,11 @@ module Navigator {
 
     // Destructive queue actions need a second step; local workout history is never touched.
     function confirmQueue(action as String) as Void {
-        var clearing = Model.sameString(action, "clear_queue");
-        var menu = new WatchUi.Menu2({:title=>clearing ? "Clear queue?" : "Skip upload?"});
+        var title = Model.sameString(action, "clear_queue") ? "Clear queue" :
+            (Model.sameString(action, "clear_key") ? "Clear key" : "Skip upload");
+        var menu = new WatchUi.Menu2({:title=>title + "?"});
         menu.addItem(new WatchUi.MenuItem("Keep", null, "cancel", null));
-        menu.addItem(new WatchUi.MenuItem(clearing ? "Clear queue" : "Skip upload", null, action, null));
+        menu.addItem(new WatchUi.MenuItem(title, null, action, null));
         WatchUi.pushView(menu, new ConfirmQueueDelegate(), WatchUi.SLIDE_UP);
     }
 
@@ -132,6 +133,11 @@ module Navigator {
         var menu = new WatchUi.Menu2({:title=>"Settings"});
         var controller = getApp().controller();
         menu.addItem(new WatchUi.MenuItem("Sync routines", null, "sync", null));
+        menu.addItem(new WatchUi.MenuItem("Liftosaur key", controller.keyLabel(), "key", null));
+        if (controller.hasKey()) {
+            menu.addItem(new WatchUi.MenuItem("Test key", null, "test_key", null));
+            menu.addItem(new WatchUi.MenuItem("Clear key", null, "clear_key", null));
+        }
         addUploadItems(menu, controller);
         menu.addItem(new WatchUi.MenuItem("Default rest (new exercises)", controller.defaultRestSec().toString() + " sec",
             "default_rest", null));
@@ -315,6 +321,20 @@ module Navigator {
         WatchUi.pushView(new FeedbackView(message), new FeedbackDelegate(), WatchUi.SLIDE_UP);
     }
 
+    // Result of an async action: replaces a "Testing…" feedback still on screen, else pushes.
+    function replaceFeedback(message as String) as Void {
+        if (WatchUi.getCurrentView()[0] instanceof FeedbackView) {
+            WatchUi.switchToView(new FeedbackView(message), new FeedbackDelegate(), WatchUi.SLIDE_IMMEDIATE);
+        } else {
+            feedback(message);
+        }
+    }
+
+    // Key entry (empty field; the key is never shown). autoSync: start a routine sync once saved.
+    function enterKey(autoSync as Boolean) as Void {
+        WatchUi.pushView(new WatchUi.TextPicker(""), new KeyTextDelegate(autoSync), WatchUi.SLIDE_UP);
+    }
+
     function workoutComplete() as Void {
         var menu = new WatchUi.Menu2({:title=>"Workout complete"});
         menu.addItem(new WatchUi.MenuItem("Save workout", null, "finish", null));
@@ -489,9 +509,11 @@ class HomeDelegate extends WatchUi.BehaviorDelegate {
             var templateId = _view.selectedTemplateId();
             if (templateId != null) {
                 getApp().requestWorkoutStart(templateId as String);
+            } else if (!controller.hasKey()) {
+                Navigator.enterKey(true);
             } else if (!controller.syncRoutines()) {
                 var error = controller.errorMessage();
-                Navigator.feedback(error == null ? "Set the Liftosaur key in app settings" :
+                Navigator.feedback(error == null ? "Routine sync could not start" :
                     error as String);
             }
         }
@@ -587,8 +609,14 @@ class SettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
         } else if (Model.sameString(id, "retry_upload")) {
             WatchUi.popView(WatchUi.SLIDE_DOWN);
             getApp().controller().retryUploads();
-        } else if (Model.sameString(id, "skip_upload") || Model.sameString(id, "clear_queue")) {
+        } else if (Model.sameString(id, "skip_upload") || Model.sameString(id, "clear_queue") ||
+            Model.sameString(id, "clear_key")) {
             Navigator.confirmQueue(id);
+        } else if (Model.sameString(id, "key")) {
+            Navigator.enterKey(false);
+        } else if (Model.sameString(id, "test_key")) {
+            var problem = getApp().controller().testKey();
+            Navigator.feedback(problem == null ? "Testing…" : problem);
         } else if (Model.sameString(id, "vibration")) {
             if (getApp().controller().toggleVibration()) {
                 Navigator.settings();
@@ -685,6 +713,43 @@ class FeedbackDelegate extends WatchUi.BehaviorDelegate {
     }
 }
 
+class RoutineListDelegate extends WatchUi.Menu2InputDelegate {
+    public function initialize() {
+        Menu2InputDelegate.initialize();
+    }
+
+    public function onSelect(item as MenuItem) as Void {
+        var itemId = item.getId() as String;
+        if (Model.sameString(itemId, "empty")) {
+            Navigator.syncRoutines();
+        } else {
+            Navigator.editTemplate(itemId);
+        }
+    }
+
+    public function onBack() as Void {
+        WatchUi.popView(WatchUi.SLIDE_DOWN);
+    }
+}
+
+class KeyTextDelegate extends WatchUi.TextPickerDelegate {
+    private var _autoSync as Boolean;
+
+    public function initialize(autoSync as Boolean) {
+        _autoSync = autoSync;
+        TextPickerDelegate.initialize();
+    }
+
+    public function onTextEntered(text as String, changed as Boolean) as Boolean {
+        getApp().afterKeyEntry(text, _autoSync);
+        return true;
+    }
+
+    public function onCancel() as Boolean {
+        return true;
+    }
+}
+
 class ConfirmQueueDelegate extends WatchUi.Menu2InputDelegate {
     public function initialize() {
         Menu2InputDelegate.initialize();
@@ -697,8 +762,14 @@ class ConfirmQueueDelegate extends WatchUi.Menu2InputDelegate {
             return;
         }
         var controller = getApp().controller();
+        if (Model.sameString(id, "clear_key")) {
+            // Back to a refreshed Settings (the key label and key items change).
+            controller.clearKey();
+            Navigator.settings();
+            return;
+        }
         var done = Model.sameString(id, "clear_queue") ? controller.clearUploadQueue() :
-            controller.skipUpload();
+            (Model.sameString(id, "clear_key") ? controller.clearKey() : controller.skipUpload());
         // Also leave the parent menu so Home shows the result.
         WatchUi.popView(WatchUi.SLIDE_DOWN);
         if (!done) {

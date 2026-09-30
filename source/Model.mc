@@ -89,25 +89,6 @@ module Model {
             sameString(value, "bodyweight") || sameString(value, "timed");
     }
 
-    function validExercise(exercise as Object?) as Boolean {
-        if (!(exercise instanceof Dictionary)) {
-            return false;
-        }
-        var type = exercise["loadType"];
-        if (!validId(exercise["id"]) || !validText(exercise["name"], 64, false) ||
-            !validLoadType(type) ||
-            !inRange(exercise["defaultRestSec"], 0, MAX_REST_SEC, true) ||
-            !validText(exercise["notes"], 160, true)) {
-            return false;
-        }
-        if (sameString(type, "weight") || sameString(type, "assistance")) {
-            return sameString(exercise["unit"], "kg") &&
-                inRange(exercise["increment100"], 25, 10000, false) &&
-                (exercise["increment100"] % 25) == 0;
-        }
-        return exercise["unit"] == null && exercise["increment100"] == null;
-    }
-
     function validPlanTarget(target as Object?, type as Object?) as Boolean {
         if (!(target instanceof Dictionary)) {
             return false;
@@ -413,9 +394,9 @@ module Model {
             !inRange(job["end"], job["start"] as Number, 2147483647, false) ||
             !validEpochMillis(job["startTime"]) || !validEpochMillis(job["endTime"]) ||
             (job["endTime"] as Long).compareTo(job["startTime"] as Long) < 0 ||
-            !(sameString(state, "start") || sameString(state, "sets") ||
-                sameString(state, "finish") || sameString(state, "blocked") ||
-                sameString(state, "done")) ||
+            !(sameString(state, Liftosaur.STATE_START) || sameString(state, Liftosaur.STATE_SETS) ||
+                sameString(state, Liftosaur.STATE_FINISH) || sameString(state, Liftosaur.STATE_BLOCKED) ||
+                sameString(state, Liftosaur.STATE_DONE)) ||
             !validText(job["lastError"], 48, true) ||
             !(exercises instanceof Array) || (exercises as Array).size() < 1 ||
             (exercises as Array).size() > MAX_ENTRIES ||
@@ -508,11 +489,11 @@ module Model {
             }
         }
         var setsBody = job["setsBody"];
-        if ((sameString(state, "sets") || sameString(state, "finish")) &&
+        if ((sameString(state, Liftosaur.STATE_SETS) || sameString(state, Liftosaur.STATE_FINISH)) &&
             !(setsBody instanceof Dictionary)) {
             return false;
         }
-        if (sameString(state, "done") && setsBody != null) {
+        if (sameString(state, Liftosaur.STATE_DONE) && setsBody != null) {
             return false;
         }
         if (setsBody instanceof Dictionary) {

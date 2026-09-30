@@ -572,3 +572,44 @@ function testRestPreAlertStepAndRepRange(logger as Test.Logger) as Boolean {
             Model.sameString(statuses["s9"], "skipped"),
             "upload status map keeps the newest eight outcomes");
 }
+
+(:test)
+function testKeyCleaningAndMasking(logger as Test.Logger) as Boolean {
+    var long = "";
+    for (var i = 0; i < 129; i++) {
+        long += "k";
+    }
+    var store = new UploadMemoryStore();
+    var saved = store.saveApiKey("lftsk_abcdefghijklmnop1234");
+    var loaded = store.loadApiKey();
+    store.deleteApiKey();
+    return check(logger, Model.sameString(LiftosaurLogic.cleanKey("  lftsk_abc123 \n"), "lftsk_abc123") &&
+            LiftosaurLogic.cleanKey("   \n") == null && LiftosaurLogic.cleanKey(long) == null &&
+            LiftosaurLogic.cleanKey("lftsk abc") == null && LiftosaurLogic.cleanKey(null) == null,
+            "entered keys are trimmed and empty, oversized or spaced keys are rejected") &&
+        check(logger, Model.sameString(LiftosaurLogic.maskKey("lftsk_abcdefghijklmnop1234"),
+            "lftsk_…1234") && !(LiftosaurLogic.maskKey("lftsk_abcdefghijklmnop1234").find("abcdef") != null),
+            "the masked key shows only the prefix and last four characters") &&
+        check(logger, saved && Model.sameString(loaded, "lftsk_abcdefghijklmnop1234") &&
+            store.loadApiKey() == null,
+            "the key round-trips through the two-generation store and can be deleted");
+}
+
+(:test)
+function testOfflineMappingAndRetryBackoff(logger as Test.Logger) as Boolean {
+    return check(logger, LiftosaurLogic.isOnline(true, null) && LiftosaurLogic.isOnline(false, true) &&
+            !LiftosaurLogic.isOnline(false, false) && !LiftosaurLogic.isOnline(false, null),
+            "online means a phone link or an available connection") &&
+        check(logger, LiftosaurLogic.transportError(-104) == Err.PHONE_NOT_CONNECTED &&
+            LiftosaurLogic.transportError(-300) == Err.NO_RESPONSE_WILL_RETRY &&
+            LiftosaurLogic.transportError(-2) == Err.NO_RESPONSE_WILL_RETRY &&
+            LiftosaurLogic.transportError(-3) == Err.NO_RESPONSE_WILL_RETRY &&
+            LiftosaurLogic.transportError(401) == Err.NONE &&
+            LiftosaurLogic.transportError(-403) == Err.NONE,
+            "transport response codes map to offline or no-response errors only") &&
+        check(logger, LiftosaurLogic.retryDelayMinutes(0) == 2 && LiftosaurLogic.retryDelayMinutes(1) == 5 &&
+            LiftosaurLogic.retryDelayMinutes(2) == 10 && LiftosaurLogic.retryDelayMinutes(9) == 10,
+            "auto-retry backs off 2, 5, then 10 minutes") &&
+        check(logger, Model.sameString(Err.shortMessage(Err.PHONE_NOT_CONNECTED), "Phone not connected"),
+            "the offline error has its Home text");
+}

@@ -131,3 +131,23 @@ function testUploadStoreRecoveryAndRetirement(logger as Test.Logger) as Boolean 
         check(logger, reclaimedAfterRotation,
             "a later queue rotation reclaims a job after neither generation references it");
 }
+
+(:test)
+function testStoreValidatesEachGenerationOncePerLaunch(logger as Test.Logger) as Boolean {
+    var store = new UploadMemoryStore();
+    var saved = store.commitPair("device", {"id" => "abc"});
+    var first = store.loadPair("device");
+    // Overwrite the same revision with an invalid payload: a cached read skips re-validation.
+    store.writeKey("device.a", {"v" => 1, "rev" => 1, "payload" => {"id" => "NOT VALID"}});
+    var cached = store.loadPair("device");
+    var fresh = new UploadMemoryStore();
+    fresh.writeKey("device.a", {"v" => 1, "rev" => 1, "payload" => {"id" => "NOT VALID"}});
+    var uncached = fresh.loadPair("device");
+    var committed = store.commitPair("device", {"id" => "next"});
+    var after = store.loadPair("device");
+    return check(logger, saved && first != null && Model.sameString(first["id"], "abc") &&
+            cached != null && uncached == null && fresh.hasCorruptRecord(),
+            "an unchanged generation is validated once; a new store validates it again") &&
+        check(logger, committed && after != null && Model.sameString(after["id"], "next"),
+            "a commit invalidates the cached generation and the newest revision wins");
+}

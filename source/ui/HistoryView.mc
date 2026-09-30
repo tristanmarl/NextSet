@@ -109,18 +109,18 @@ class HistoryView extends WatchUi.View {
     // Liftosaur upload outcome of a finished session; null for sessions that were never queued.
     private function uploadLabel(record as Dictionary) as String? {
         var state = record["id"] instanceof String ? _uploads[record["id"]] : null;
-        if (Model.sameString(state, "done")) {
+        if (Model.sameString(state, Liftosaur.STATE_DONE)) {
             return "Liftosaur ✓";
         }
-        if (Model.sameString(state, "pending")) {
+        if (Model.sameString(state, Liftosaur.STATUS_PENDING)) {
             return "Liftosaur pending";
         }
-        return Model.sameString(state, "skipped") ? "Liftosaur skipped" : null;
+        return Model.sameString(state, Liftosaur.STATUS_SKIPPED) ? "Liftosaur skipped" : null;
     }
 
     private function uploadMark(record as Dictionary) as String? {
         var state = record["id"] instanceof String ? _uploads[record["id"]] : null;
-        return Model.sameString(state, "done") ? "✓" : null;
+        return Model.sameString(state, Liftosaur.STATE_DONE) ? "✓" : null;
     }
 
     private function listSummary(record as Dictionary) as String {

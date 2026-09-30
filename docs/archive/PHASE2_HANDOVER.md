@@ -19,7 +19,7 @@ History and progression live in Liftosaur; Claude reads them through the Liftosa
 - Branch `liftosaur-sync` (version 0.2.7, pushed; not merged to `main`). `main` has 0.2.6: compact Garmin catalog, sport Training / sub-sport GENERIC recording, START-twice set flow, lap developer fields (`exercise, set, reps, weight_kg, duration_s, active_s, garmin_category, garmin_code, void`), correction/undo laps.
 - Private seeds already use the Liftosaur exercise names (Seated Row, Chest Press, …; ids unchanged).
 - No real Liftosaur write has happened yet (only GETs and dry runs).
-- Secrets: the user's Liftosaur key is in `tools/connect-sets/.env` (gitignored). Never print, copy into the repo, or commit it. The user should rotate it after setup.
+- Secrets: the user's Liftosaur key is in a local file outside the repo. Never print, copy into the repo, or commit it. The user should rotate it after setup.
 
 ## Binding user decisions
 
@@ -40,12 +40,12 @@ History and progression live in Liftosaur; Claude reads them through the Liftosa
 ## Scope
 
 ### 1. Settings and identity
-- Connect IQ app properties (edited in the phone app): `liftosaurKey` (string). Not in the package, not logged, never shown in full on the watch.
+- Superseded: the key is entered on the watch (Settings → Liftosaur key) and stored only in watch app storage (no Connect IQ app setting). Not in the package, not logged, shown only masked.
 - Device id generated once and stored; client header with the app version.
 
 ### 2. Routine sync
 - "Sync routines" action (Home and Settings): `GET /programs/current` (parse day names/week/dayInWeek from the Liftoscript headers — only headers, not the full DSL), then `GET /workout/next?programId&week&dayInWeek` per day, sequentially (one request in flight). Also call plain `GET /workout/next` once to learn the next day.
-- Convert each response immediately into the compact NextSet routine and drop the raw dictionary (memory). Ignore `description`, `notes`, `imageUrl`, `plates`, `promptedVars`. If a response exceeds memory (`NETWORK_RESPONSE_OUT_OF_MEMORY` / -403), show a clear error; do not crash. Consider `:responseType` JSON and measure peak memory in the simulator with the user's program (fixture in `tools/connect-sets/data/liftosaur-discovery/`, gitignored — copy a sanitized version into `tests/`).
+- Convert each response immediately into the compact NextSet routine and drop the raw dictionary (memory). Ignore `description`, `notes`, `imageUrl`, `plates`, `promptedVars`. If a response exceeds memory (`NETWORK_RESPONSE_OUT_OF_MEMORY` / -403), show a clear error; do not crash. Consider `:responseType` JSON and measure peak memory in the simulator with the user's program (fixture in `~/nextset-discovery/`, outside the repo — copy a sanitized version into `tests/`).
 - Routine model v4 (config `schemaVersion` bump; older stored configs reset to defaults): per exercise: name, equipment, loadType (timed if `setTimer`, bodyweight if all weights 0, else weight), unilateral, superset label, restSec (`timer`), per-set targets (reps, load100, durationSec), warmups (display only), Liftosaur `entryId`; per routine: programId, week, dayInWeek, name. Home marks the next day. Store via the existing two-generation `Store`, validated by `Model`, written in staged, resumable steps (watchdog).
 - Prefill of a set = the plan target for that set; "last time" stays visible.
 - Add/replace exercise during a workout: pick from exercises of the synced program (replaces the Garmin picker). Substituted exercises are not in the Liftosaur day; they are listed in the finish notes, not logged as sets.
@@ -69,7 +69,7 @@ History and progression live in Liftosaur; Claude reads them through the Liftosa
 
 ## Acceptance (user, physical FR965)
 
-1. Enter the key in the phone app, sync routines: Upper/Lower appear with plan weights; Home shows the next day.
+1. Enter the key on the watch (Settings → Liftosaur key), sync routines: Upper/Lower appear with plan weights; Home shows the next day.
 2. Real workout ≥ 5 min: finishes, uploads; Liftosaur history shows it; next weights reflect progression; Connect shows the activity with HR/duration.
 3. Airplane mode at finish: uploads later exactly once.
 4. App exit mid-upload: resumes without duplicates.
@@ -77,6 +77,6 @@ History and progression live in Liftosaur; Claude reads them through the Liftosa
 ## Known risks
 
 - Response size / memory on bigger programs (mitigation: per-day requests, immediate conversion).
-- Key stored in Connect IQ settings (also on Garmin's servers) with full Liftosaur access — accepted by the user for the beta.
+- Key stored in watch app storage with full Liftosaur access; rotate it if exposed.
 - Unilateral `repsLeft`, assistance sign, skipped sets' effect on progression — verify on the first real write and adjust.
 - `makeWebRequest` needs the phone connection (or Wi-Fi); requests can take seconds — never block the UI, never call from a watchdog-sensitive path.

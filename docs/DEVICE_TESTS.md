@@ -4,7 +4,7 @@ Status reflects evidence actually recorded in this thread. Simulator checks do n
 
 ## Implementation status
 
-The working tree now syncs routines from Liftosaur, caches per-set targets, and queues finalized workouts for direct upload. The API key is entered as a Connect IQ app setting. Upload work is persisted and capped at four pending jobs. Config schema v4 resets older routine/config data; sync the active Liftosaur program after upgrading. See [README.md](../README.md) for the user flow and [PHASE2_HANDOVER.md](PHASE2_HANDOVER.md) for the architecture.
+The working tree now syncs routines from Liftosaur, caches per-set targets, and queues finalized workouts for direct upload. The API key is entered on the watch (Settings → Liftosaur key) and stored only in watch app storage. Upload work is persisted and capped at four pending jobs. Config schema v4 resets older routine/config data; sync the active Liftosaur program after upgrading. See [README.md](../README.md) for the user flow and [PHASE2_HANDOVER.md](archive/PHASE2_HANDOVER.md) for the architecture.
 
 NextSet still records a Garmin FIT activity using sport `TRAINING` and sub-sport `GENERIC`. Local completed set details remain in watch history. Earlier physical checks of FIT activity recording and the Generic sub-sport are retained below, but the current-version FIT output, direct sync, upload queue, and Liftosaur progression have not yet been accepted on a watch.
 
@@ -12,7 +12,7 @@ NextSet still records a Garmin FIT activity using sport `TRAINING` and sub-sport
 
 No physical FR965 acceptance result is recorded yet (simulator unit tests: see the 2026-09-30 entry at the end). No real Liftosaur workout POST has been made, this work has not been merged to `main`, and no acceptance check should make a live write before explicit user approval.
 
-- [ ] **PENDING** Enter the key in Connect IQ app settings; confirm it is masked, omitted from watch UI/logs, and accepted by a routine sync on a paired phone.
+- [ ] **PENDING** Enter the key via Settings → Liftosaur key (TextPicker); confirm it is shown only masked, Test key reports "Key OK · <program>", Clear key removes it, and a routine sync works on a paired phone.
 - [ ] **PENDING** Sync a multi-day active program; check the day names, per-set reps/load, warmups, cached routines after relaunch, and whether Home's selected day matches Liftosaur's next-day pointer. Repeat a sync to confirm it replaces the routine snapshot cleanly.
 - [ ] **PENDING** After syncing, log with the phone disconnected; confirm the watch uses cached targets and local history/FIT finalization still succeeds.
 - [ ] **PENDING** With explicit approval for a real write, finish one controlled workout and verify Liftosaur history, progression, and substitution notes, including skipped sets, assistance, timed sets, and unilateral exercises. Confirm one upload only.
@@ -169,8 +169,8 @@ A short start/log/save path and saved Strength FIT were recorded on the FR965. T
 
 ## Phase 2 direct Liftosaur sync (simulator unit tests, 2026-09-30)
 
-- **Simulator only, not a device result:** signed production and unit-test builds succeeded for FR965 (SDK 9.2.0); `monkeydo bin/NextSet-tests.prg fr965 -t` reported `PASSED (passed=32, failed=0, errors=0)` (after the UX/stability fixes: upload pre-check, skip/clear queue, week-only sync, implicit week, program-changed notice). Covers Liftoscript day-header parsing, sanitized `/workout/next` fixture to v4 routine conversion, v4 Model validation and v3 reset, upload-queue state machine (409 start-time-taken done, already-active blocked, retry, four-workout bound) and set-to-setId mapping (extra/append, missing, timed, unilateral, assistance). No live Liftosaur request was made; a real sync, memory peak with the user's program and upload are not verified.
-- [ ] **PENDING** Enter the key in the phone app, sync routines on a physical FR965 (acceptance 1).
+- **Simulator only, not a device result:** signed production and unit-test builds succeeded for FR965 (SDK 9.2.0); `monkeydo bin/NextSet-tests.prg fr965 -t` reported `PASSED (passed=39, failed=0, errors=0)` (after the UX/stability fixes: upload pre-check, skip/clear queue, week-only sync, implicit week, program-changed notice). Covers Liftoscript day-header parsing, sanitized `/workout/next` fixture to v4 routine conversion, v4 Model validation and v3 reset, upload-queue state machine (409 start-time-taken done, already-active blocked, retry, four-workout bound) and set-to-setId mapping (extra/append, missing, timed, unilateral, assistance). No live Liftosaur request was made; a real sync, memory peak with the user's program and upload are not verified.
+- [ ] **PENDING** Enter the key on the watch, sync routines on a physical FR965 (acceptance 1).
 - [ ] **PENDING** Real workout of 5+ min uploads; Liftosaur history and progression reflect it (acceptance 2).
 - [ ] **PENDING** Airplane mode at finish uploads later exactly once (acceptance 3).
 - [ ] **PENDING** App exit mid-upload resumes without duplicates (acceptance 4).
@@ -179,3 +179,6 @@ A short start/log/save path and saved Strength FIT were recorded on the FR965. T
 - [ ] **PENDING** 10 s pre-rest vibration fires once per rest of 20 s or more (not after resume, not with vibration off) and the end-of-rest alert is unchanged.
 - [ ] **PENDING** Menu → Weight step changes the +/- step of the next load edit and is still applied after a routine re-sync; "Liftosaur ✓" glyph renders in History (fallback: plain text).
 - [ ] **PENDING** Rep ranges: the fixture's sets have `minReps: null`, so a range is unverified against real Liftosaur data.
+- [ ] **PENDING** (0.3.0) Offline: with the phone disconnected, Sync/Retry/Test key show "Phone not connected" and change no queue or journal; a timeout shows "No response · will retry"; reconnecting lets the automatic retry (2, 5, 10 min backoff, app open, not during a workout) complete the upload once.
+- [ ] **PENDING** (0.3.0) Onboarding: fresh install shows "No Liftosaur key / START: Enter key"; START opens the key field, and after saving a sync starts by itself. "Test key" shows "Testing…" then the result; "Clear key" returns to Settings.
+- [ ] **INFO** Simulator memory with the user's real day responses (local measurement, not committed): raw dictionary about 21-23 KB, peak during conversion about 39-43 KB, converted routine about 18-20 KB; device heap limit and firmware JSON conversion may differ.

@@ -99,10 +99,11 @@ class HomeView extends WatchUi.View {
             fonts.add(Graphics.FONT_XTINY);
             gaps.add(8);
         } else {
-            lines.add("No routines synced");
+            var keyed = controller.hasKey();
+            lines.add(keyed ? "No routines synced" : "No Liftosaur key");
             fonts.add(Graphics.FONT_SMALL);
             gaps.add(8);
-            lines.add("START: Sync routines");
+            lines.add(keyed ? "START: Sync routines" : "START: Enter key");
             fonts.add(Graphics.FONT_XTINY);
             gaps.add(8);
         }
@@ -131,91 +132,14 @@ class HomeView extends WatchUi.View {
 
     private function getHomeNotice() as String? {
         var controller = getApp().controller();
-        var error = controller.errorMessage();
         var code = controller.errorCode();
         var activity = controller.activityLabel();
         if (activity != null) {
             return activity;
         }
-        if (code == Err.RECOVERED_EARLIER_CHECKPOINT) {
-            return "Recovered checkpoint";
-        }
-        if (code == Err.RECOVERY_SAVE_FAILED ||
-            code == Err.TIMED_SET_RECOVERY_FAILED) {
-            return "Recovery save failed";
-        }
-        if (code == Err.SAVE_FAILED_RETRY_BEFORE_CONTINUING) {
-            return "Save failed. Retry";
-        }
-        if (code == Err.SAVED_WORKOUT_IS_DAMAGED) {
-            return "Workout data damaged";
-        }
-        if (code == Err.SAVED_SETTINGS_ARE_DAMAGED) {
-            return "Settings data damaged";
-        }
-        if (code == Err.UPDATE_APP_TO_RESUME) {
-            return "Update app to resume";
-        }
-        if (code == Err.ROUTINE_NOT_FOUND) {
-            return "Routine not found";
-        }
-        if (code == Err.WORKOUT_CANNOT_START) {
-            return "Workout cannot start";
-        }
-        if (code == Err.COULD_NOT_RESERVE_WORKOUT_ID) {
-            return "Could not start workout";
-        }
-        if (code == Err.WORKOUT_COULD_NOT_BE_CREATED) {
-            return "Workout creation failed";
-        }
-        if (code == Err.ACTIVITY_RECORDING_FAILED_TO_START) {
-            return "Recording failed to start";
-        }
-        if (code == Err.ACTIVITY_DISCARD_FAILED) {
-            return "Recording cleanup failed";
-        }
-        if (code == Err.HISTORY_SAVE_FAILED) {
-            return "History save failed";
-        }
-        if (code == Err.PREVIOUS_PERFORMANCE_SAVE_FAILED) {
-            return "Last time save failed";
-        }
-        if (code == Err.WORKOUT_ARCHIVE_SAVED_RETRY_FINISH) {
-            return "Retry to finish";
-        }
-        if (code == Err.LOG_A_SET_BEFORE_SAVING) {
-            return "Log one set first";
-        }
-        if (code == Err.HISTORY_NEEDS_NEWER_APP) {
-            return "Update app to save history";
-        }
-        if (code == Err.LIFTOSAUR_KEY_REQUIRED) {
-            return "Set Liftosaur key in app settings";
-        }
-        if (code == Err.LIFTOSAUR_UNAUTHORIZED) {
-            return "Liftosaur key was rejected";
-        }
-        if (code == Err.ROUTINE_SYNC_REQUEST_FAILED || code == Err.ROUTINE_SYNC_INVALID_RESPONSE ||
-            code == Err.ROUTINE_SYNC_SAVE_FAILED || code == Err.ROUTINE_SYNC_RESPONSE_TOO_LARGE) {
-            return error as String;
-        }
-        if (code == Err.UPLOAD_QUEUE_FULL) {
-            return "Upload queue full · retry later";
-        }
-        if (code == Err.UPLOAD_QUEUE_DAMAGED) {
-            return "Upload queue damaged · MENU to clear";
-        }
-        if (code == Err.WORKOUT_UPLOAD_PROGRAM_ERROR) {
-            return "Fix program in Liftosaur";
-        }
-        if (code == Err.WORKOUT_UPLOAD_MAPPING) {
-            return "Program changed · MENU skip/re-sync";
-        }
-        if (code == Err.WORKOUT_UPLOAD_BLOCKED) {
-            return "Finish open Liftosaur workout";
-        }
-        if (code == Err.WORKOUT_UPLOAD_FAILED) {
-            return "Workout upload pending · MENU to retry";
+        var short = Err.shortMessage(code);
+        if (short != null) {
+            return short;
         }
         if (code == Err.NONE && controller.infoNotice() != null) {
             return controller.infoNotice();
@@ -224,7 +148,7 @@ class HomeView extends WatchUi.View {
         if (pending > 0) {
             return "Upload " + pending.toString() + " pending";
         }
-        return error == null ? null : "Check workout status";
+        return controller.errorMessage() == null ? null : "Check workout status";
     }
 
     public function moveRoutine(direction as Number) as Void {

@@ -54,8 +54,6 @@ class Store {
             return true;
         }
         if ((payload["settings"] != null && !(payload["settings"] instanceof Dictionary)) ||
-            (payload["templateOverrides"] != null &&
-             !(payload["templateOverrides"] instanceof Dictionary)) ||
             (payload["incrementOverrides"] != null &&
              !(payload["incrementOverrides"] instanceof Dictionary)) ||
             !validRoutineIds(payload["routineIds"], true) ||
@@ -118,17 +116,17 @@ class Store {
         var routineIds = payload["routineIds"];
         if (!Model.inRange(payload["sequence"], 1, 2147483647, false) ||
             !(phase instanceof String) ||
-            !(Model.sameString(phase, "program") || Model.sameString(phase, "next") ||
-              Model.sameString(phase, "days")) ||
+            !(Model.sameString(phase, Liftosaur.PHASE_PROGRAM) || Model.sameString(phase, Liftosaur.PHASE_NEXT) ||
+              Model.sameString(phase, Liftosaur.PHASE_DAYS)) ||
             !Model.inRange(payload["index"], 0, Model.MAX_TEMPLATES, false) ||
             (days != null && (!(days instanceof Array) ||
                 (days as Array).size() > Model.MAX_PROGRAM_DAYS ||
-                (Model.sameString(phase, "days") &&
+                (Model.sameString(phase, Liftosaur.PHASE_DAYS) &&
                     (days as Array).size() > Model.MAX_TEMPLATES))) ||
             !validRoutineIds(routineIds, true) ||
-            (Model.sameString(phase, "program") &&
+            (Model.sameString(phase, Liftosaur.PHASE_PROGRAM) &&
                 (payload["programId"] != null || payload["programName"] != null)) ||
-            (!Model.sameString(phase, "program") &&
+            (!Model.sameString(phase, Liftosaur.PHASE_PROGRAM) &&
                 (!Model.validNonblankText(payload["programId"], 64) ||
                  !Model.validNonblankText(payload["programName"], 64)))) {
             return false;
@@ -177,6 +175,9 @@ class Store {
         if (Model.sameString(domain, "rsync")) {
             return validRoutineSync(payload);
         }
+        if (Model.sameString(domain, "apikey")) {
+            return Model.validNonblankText(payload["key"], 128);
+        }
         if (Model.sameString(domain, "device")) {
             return Model.validId(payload["id"]);
         }
@@ -199,33 +200,13 @@ class Store {
         return true;
     }
 
+    // Records validated since launch: "domain.generation" -> rev. A commit or delete drops the
+    // entry, so an unchanged generation is validated once per launch.
+    private var _validated as Dictionary = {};
+
     private function readGeneration(domain as String, generation as String) as Dictionary? {
-        var raw = null;
-        try {
-            raw = readKey(domain + "." + generation);
-        } catch (error) {
-            _badRecord = true;
-            return null;
-        }
-        if (raw == null) {
-            return null;
-        }
-        if (!(raw instanceof Dictionary)) {
-            _badRecord = true;
-            return null;
-        }
-        var record = raw as Dictionary;
-        if (record["v"] != 1) {
-            if (record["v"] instanceof Number && record["v"] > 1) {
-                _futureRecord = true;
-            } else {
-                _badRecord = true;
-            }
-            return null;
-        }
-        if (!(record["rev"] instanceof Number) || record["rev"] < 1 ||
-            !(record["payload"] instanceof Dictionary)) {
-            _badRecord = true;
+        var record = readEnvelope(domain, generation);
+        if (record == null) {
             return null;
         }
         var payload = record["payload"] as Dictionary;
@@ -236,10 +217,17 @@ class Store {
                 _badRecord = true;
             }
             record["payload"] = cleanCache;
-        } else if (!validPayload(domain, payload)) {
+            return record;
+        }
+        var key = domain + "." + generation;
+        if (_validated[key] == record["rev"]) {
+            return record;
+        }
+        if (!validPayload(domain, payload)) {
             _badRecord = true;
             return null;
         }
+        _validated[key] = record["rev"];
         return record;
     }
 
@@ -452,6 +440,21 @@ class Store {
         return payload["id"] as String;
     }
 
+    // Liftosaur key entered on the watch (app storage stays on the device, unlike Properties).
+    public function loadApiKey() as String? {
+        var payload = loadPair("apikey");
+        return payload == null || hasUnsupportedRecord() || hasCorruptRecord() ||
+            !Model.validNonblankText(payload["key"], 128) ? null : payload["key"] as String;
+    }
+
+    public function saveApiKey(key as String) as Boolean {
+        return Model.validNonblankText(key, 128) && commitPair("apikey", {"key" => key});
+    }
+
+    public function deleteApiKey() as Void {
+        deletePair("apikey");
+    }
+
     public function saveDeviceId(id as String) as Boolean {
         return Model.validId(id) && commitPair("device", {"id" => id});
     }
@@ -540,6 +543,7 @@ class Store {
     public function deletePair(domain as String) as Void {
         var generations = ["a", "b"];
         for (var i = 0; i < generations.size(); i++) {
+            _validated.remove(domain + "." + generations[i]);
             try {
                 Application.Storage.deleteValue(domain + "." + generations[i]);
             } catch (error) {
@@ -574,10 +578,14 @@ class Store {
         envelope["v"] = 1;
         envelope["rev"] = currentRevision + 1;
         envelope["payload"] = payload;
+        _validated.remove(domain + "." + target);
         try {
             writeKey(domain + "." + target, envelope);
         } catch (error) {
             return false;
+        }
+        if (!Model.sameString(domain, "last")) {
+            _validated[domain + "." + target] = currentRevision + 1;
         }
         return true;
     }

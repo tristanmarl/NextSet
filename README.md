@@ -1,10 +1,10 @@
 # NextSet
 
-NextSet is a button-operated strength workout logger for Garmin watches. The FR965 is the primary device; the manifest also targets several fēnix 8 and 9 models. The working tree reports version 0.2.8. Direct Liftosaur sync is still under validation; see [device and simulator evidence](docs/DEVICE_TESTS.md).
+NextSet is a button-operated strength workout logger for Garmin watches. The FR965 is the primary device; the manifest also targets several fēnix 8 and 9 models. The working tree reports version 0.3.0. Direct Liftosaur sync is still under validation; see [device and simulator evidence](docs/DEVICE_TESTS.md).
 
 ## Set up and sync
 
-1. In the Garmin Connect IQ phone app, open NextSet's settings and enter your Liftosaur API key. Treat it like a password: it grants account access, and Connect IQ settings may be stored by Garmin.
+1. On the watch open **Menu → Settings → Liftosaur key** and type your Liftosaur API key (the field starts empty; the key is never shown in full, only as `lftsk_…ab12`). Use **Test key** to check it and **Clear key** to remove it. The key is stored only in the watch's app storage, not in Connect IQ phone settings. Treat it like a password: it grants account access, so rotate it in Liftosaur if it is exposed.
 2. Pair the phone with the watch and make sure the phone has internet access. On the watch, open **Menu → Settings → Sync routines**. NextSet downloads the days of the program's current week (up to eight) and caches their per-set targets on the watch. Sync always restarts from scratch and Home shows "Syncing…" and then "Synced N days".
 3. On Home, use UP/DOWN to choose a synced day and press START. The planned reps and load are prefilled for each set; the previous performance remains visible. You can add or replace an exercise from the synced program while working out.
 
@@ -16,7 +16,7 @@ Exercises that share a Liftosaur superset label alternate automatically: after a
 
 START twice logs a weight set: the first press starts its timer and the next records it. Timed sets use their own start/finish timer. You can adjust actual reps and load, correct or undo a set, and skip or replace an exercise. Completed sets and recent workouts are also kept in local watch history.
 
-After a completed workout, NextSet queues its Liftosaur upload. Up to four workouts can wait in the queue. If a request fails, the saved job can retry on app launch, after routine sync, or from **Settings → Retry workout upload**. Settings shows the pending count; a full queue blocks starting another workout until uploads clear. Routines refresh after a successful upload (never during a workout). Before opening a workout in Liftosaur, the watch checks that the saved sets still match the program; if not, the upload is marked "Program changed" instead of starting. A stuck upload can be removed with **Skip this upload** (Home menu or Settings, with confirmation); a damaged queue with **Clear upload queue**. Local history is kept either way, and a damaged queue no longer prevents starting workouts.
+After a completed workout, NextSet queues its Liftosaur upload. Up to four workouts can wait in the queue. If a request fails, the saved job can retry on app launch, after routine sync, or from **Settings → Retry workout upload**. Settings shows the pending count; a full queue blocks starting another workout until uploads clear. Routines refresh after a successful upload (never during a workout). Before opening a workout in Liftosaur, the watch checks that the saved sets still match the program; if not, the upload is marked "Program changed" instead of starting. A stuck upload can be removed with **Skip this upload** (Home menu or Settings, with confirmation); a damaged queue with **Clear upload queue**. Local history is kept either way, and a damaged queue no longer prevents starting workouts. Nothing is sent while the phone is not connected (Home shows "Phone not connected"); while the app is open a failed upload or sync due to no connection or no response is retried automatically after 2, 5, then 10 minutes (never during a workout, and not after a rejected key, program error or mapping problem). With no routines and no key, START on Home opens the key entry and starts a sync once the key is saved.
 
 The watch also records a Garmin FIT activity (sport Training, sub-sport Generic). FIT laps carry NextSet exercise and set details; this is an activity fallback and does not create native Garmin planned workouts or strength sets. Garmin Connect may not display custom developer fields from a sideloaded build.
 
@@ -43,14 +43,10 @@ The SDK test runner has returned exit code 1 in earlier runs after printing a fu
 
 Keep the signing key outside the repository. Never commit, upload, or package it. Continue using the same key when updating an installed app; a different key requires reinstalling the app.
 
-## NAS archive
-
-The optional [tools/connect-sets](tools/connect-sets/README.md) job can archive Garmin FIT activities on a NAS. The watch is the Liftosaur writer, so keep `LIFTOSAUR_SYNC=0` on the NAS to avoid duplicate uploads. The watch does not use a NAS HTTP endpoint or Tailscale.
-
 ## Development status and limits
 
-The direct Liftosaur path is awaiting simulator and physical FR965 acceptance. No live workout write has been made, and this work has not been merged to `main`. The Home indicator for Liftosaur's next-day pointer and the post-upload refresh still need current UI validation. Older catalog, seeded routine, and NAS-write results in [DEVICE_TESTS.md](docs/DEVICE_TESTS.md) describe earlier versions and are not evidence for direct sync.
+The direct Liftosaur path is awaiting simulator and physical FR965 acceptance. No live workout write has been made, and this work has not been merged to `main`. The Home indicator for Liftosaur's next-day pointer and the post-upload refresh still need current UI validation. Older catalog and seeded routine results in [DEVICE_TESTS.md](docs/DEVICE_TESTS.md) describe earlier versions and are not evidence for direct sync.
 
-The synced program is cached locally, but changing its plan requires another routine sync. Config schema v4 resets older manually edited or seeded routines; sync again to load the active program. Network calls need a connected phone or watch Wi-Fi. The Liftosaur key is stored as a Connect IQ app property, so protect and rotate it if exposed.
+The synced program is cached locally, but changing its plan requires another routine sync. Config schema v4 resets older manually edited or seeded routines; sync again to load the active program. Network calls need a connected phone or watch Wi-Fi. The Liftosaur key lives only in the watch's app storage; rotate it in Liftosaur if exposed.
 
 See [AGENTS.md](AGENTS.md) and [CLAUDE.md](CLAUDE.md) for repository conventions and implementation notes.

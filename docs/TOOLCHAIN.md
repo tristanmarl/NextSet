@@ -16,12 +16,14 @@ monkeyc -f monkey.jungle -d fr965 -o bin/NextSet.prg -y "$HOME/.garmin-keys/Next
 
 Add the Connect IQ SDK's `bin` directory to `PATH` before running the build command.
 
-Tests (32 tests, all passing in the simulator on 2026-09-30; `monkeydo` may still exit 1 after a passing summary):
+Tests (39 tests, all passing in the simulator on 2026-09-30; `monkeydo` may still exit 1 after a passing summary):
 
 ```sh
 monkeyc --unit-test -f tests.jungle -d fr965 -o bin/NextSet-tests.prg -y "$HOME/.garmin-keys/NextSetDeveloperKey.der"
 monkeydo bin/NextSet-tests.prg fr965 -t
 ```
+
+Or run `scripts/test.sh` (build, run with a timeout, exit 0 only on `PASSED (passed=N, failed=0, errors=0)`).
 
 Release build (manifest version 0.2.1). NextSet is not published to the Connect IQ store; the `-r` build is sideloaded and attached to a GitHub release as `NextSet-<version>.prg`:
 
@@ -35,6 +37,6 @@ monkeyc -r -f monkey.jungle -d fr965 -o bin/NextSet-release.prg -y "$HOME/.garmi
 
 The integrated production build compiled successfully for `fr965` with Connect IQ SDK 9.2.0 using the command above. The signed build on 2026-09-29 includes `ActivityRecording`, Fit permission, bundled Garmin exercise data, and editable routines. On 2026-09-27, the test target was built with `monkeyc --unit-test` and run in the FR965 simulator: all 17 tests reported PASS at that time (31 pass now). `monkeydo` nevertheless returned exit code 1 after printing the passing summary, including for a single passing test; treat this as a runner-status issue until its cause is resolved.
 
-The production build was relaunched in the FR965 simulator. Home, Overview, and Exercise screens were inspected; the visible overview and exercise text fit without clipping, including long exercise names. This is simulator-only layout evidence. No physical FR965 validation is recorded. See [DEVICE_TESTS.md](DEVICE_TESTS.md) and [SPIKES.md](SPIKES.md) for remaining acceptance work.
+The production build was relaunched in the FR965 simulator. Home, Overview, and Exercise screens were inspected; the visible overview and exercise text fit without clipping, including long exercise names. This is simulator-only layout evidence. No physical FR965 validation is recorded. See [DEVICE_TESTS.md](DEVICE_TESTS.md) and [SPIKES.md](archive/SPIKES.md) for remaining acceptance work.
 
-The production code creates and saves a Strength `ActivityRecording.Session`. The simulator connection attempt on 2026-09-29 returned `Unable to connect to simulator.`, so no FIT file or activity rendering was inspected. Physical FR965 recording and Garmin Connect visibility remain pending. Local detailed sets are preserved; native Garmin strength set rendering is not claimed. See [DEVICE_TESTS.md](DEVICE_TESTS.md) and [SPIKES.md](SPIKES.md).
+The production code creates and saves a Strength `ActivityRecording.Session`. The simulator connection attempt on 2026-09-29 returned `Unable to connect to simulator.`, so no FIT file or activity rendering was inspected. Physical FR965 recording and Garmin Connect visibility remain pending. Local detailed sets are preserved; native Garmin strength set rendering is not claimed. See [DEVICE_TESTS.md](DEVICE_TESTS.md) and [SPIKES.md](archive/SPIKES.md).

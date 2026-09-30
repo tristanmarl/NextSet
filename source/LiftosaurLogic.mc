@@ -40,6 +40,60 @@ module LiftosaurLogic {
         return Model.inRange(value, 1, 1000, false) ? value : null;
     }
 
+    // Entered key: trimmed, non-empty, at most 128 bytes, printable ASCII without inner spaces.
+    function cleanKey(text as String?) as String? {
+        if (text == null) {
+            return null;
+        }
+        var key = trim(text as String);
+        // trim() ignores newlines; strip them from the ends too.
+        var bytes = key.toUtf8Array();
+        var from = 0;
+        var to = bytes.size();
+        while (from < to && (bytes[from] <= 32 || bytes[from] == 127)) {
+            from++;
+        }
+        while (to > from && (bytes[to - 1] <= 32 || bytes[to - 1] == 127)) {
+            to--;
+        }
+        if (from >= to || to - from > 128) {
+            return null;
+        }
+        for (var i = from; i < to; i++) {
+            if (bytes[i] <= 32 || bytes[i] >= 127) {
+                return null;
+            }
+        }
+        return key.substring(from, to) as String;
+    }
+
+    // Phone link or Wi-Fi available; connectionAvailable is null when the device does not report it.
+    function isOnline(phoneConnected as Boolean, connectionAvailable as Boolean?) as Boolean {
+        return phoneConnected || connectionAvailable == true;
+    }
+
+    // Transport failure of a web request as an Err code, Err.NONE for anything else.
+    function transportError(responseCode as Number) as Number {
+        if (responseCode == -104) {
+            return Err.PHONE_NOT_CONNECTED;
+        }
+        return responseCode == -300 || responseCode == -2 || responseCode == -3 ?
+            Err.NO_RESPONSE_WILL_RETRY : Err.NONE;
+    }
+
+    // Auto-retry backoff: 2, 5, then 10 minutes.
+    function retryDelayMinutes(attempt as Number) as Number {
+        return attempt <= 0 ? 2 : (attempt == 1 ? 5 : 10);
+    }
+
+    // "lftsk_…ab12": prefix and last four characters only.
+    function maskKey(key as String) as String {
+        if (key.length() <= 10) {
+            return "…" + key.substring(key.length() - 2, key.length());
+        }
+        return key.substring(0, 6) + "…" + key.substring(key.length() - 4, key.length());
+    }
+
     function isSpaceChar(character as Char) as Boolean {
         return character == ' ' || character == '\t' || character == '\r';
     }
