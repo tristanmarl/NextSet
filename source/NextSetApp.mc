@@ -19,6 +19,10 @@ class NextSetApp extends Application.AppBase {
     private var _pendingKeyText as String? = null;
     private var _pendingKeySync as Boolean = false;
     public var lastSetSavedAt as Number? = null;
+    // Transient "Set 2 · 65 kg × 8" confirmation (in memory, ~2 s).
+    public var confirmText as String? = null;
+    private var _confirmUntil as Number = 0;
+    private var _tickCount as Number = 0;
 
     public function initialize() {
         AppBase.initialize();
@@ -39,6 +43,7 @@ class NextSetApp extends Application.AppBase {
     }
 
     public function onStop(state as Dictionary?) as Void {
+        _controller.flushDraft();
         if (_startPending) {
             _startTimer.stop();
             _controller.cancelWorkoutStart();
@@ -196,10 +201,37 @@ class NextSetApp extends Application.AppBase {
         Navigator.home();
     }
 
+    public function showConfirmation(text as String) as Void {
+        confirmText = text;
+        _confirmUntil = System.getTimer() + 2000;
+    }
+
+    public function clearConfirmation() as Void {
+        confirmText = null;
+    }
+
+    // Short vibration (respects the vibration setting); double = distinct superset switch cue.
+    public function buzz(double as Boolean) as Void {
+        if (!_controller.vibrationEnabled() || !(Attention has :vibrate)) {
+            return;
+        }
+        try {
+            Attention.vibrate(double ?
+                [new Attention.VibeProfile(60, 100), new Attention.VibeProfile(0, 90),
+                 new Attention.VibeProfile(60, 100)] : [new Attention.VibeProfile(50, 120)]);
+        } catch (error) {
+        }
+    }
+
     public function onTick() as Void {
         if (!_controller.isWorkoutRunning()) {
             stopTimer();
             return;
+        }
+        _tickCount++;
+        var confirming = confirmText != null;
+        if (confirming && System.getTimer() >= _confirmUntil) {
+            confirmText = null;
         }
         var vibrate = _controller.onTick(Time.now().value(), !_suppressFirstAlert);
         var preAlert = _controller.takePreRestAlert(Time.now().value(), !_suppressFirstAlert);
@@ -216,7 +248,9 @@ class NextSetApp extends Application.AppBase {
             } catch (error) {
             }
         }
-        if (_controller.hasRunningRest() || _controller.hasRunningTimed() || vibrate) {
+        // The Overview shows elapsed workout time; redraw it every few seconds.
+        if (_controller.hasRestShown() || _controller.hasRunningTimed() || vibrate || confirming ||
+            (_tickCount % 5 == 0 && WatchUi.getCurrentView()[0] instanceof OverviewView)) {
             WatchUi.requestUpdate();
         }
     }

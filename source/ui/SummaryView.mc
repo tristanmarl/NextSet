@@ -47,9 +47,22 @@ class SummaryView extends WatchUi.View {
             fonts.add(caption);
             gaps.add(5);
         }
+        var upload = getApp().controller().uploadSummary();
+        var uploadIndex = -1;
+        if (upload != null) {
+            uploadIndex = lines.size();
+            lines.add((upload as Dictionary)["text"] as String);
+            fonts.add(caption);
+            gaps.add(5);
+        }
         lines.add(hasUnresolvedActivity() ? "START: SAVE CHOICE" : "START: EXIT");
         fonts.add(Graphics.FONT_XTINY);
         gaps.add(0);
+        if (getApp().controller().uploading()) {
+            lines.add("Upload resumes next launch");
+            fonts.add(caption);
+            gaps.add(0);
+        }
         var totalHeight = 0;
         for (var i = 0; i < lines.size(); i++) {
             totalHeight += dc.getFontHeight(fonts[i] as Graphics.FontType) +
@@ -57,9 +70,31 @@ class SummaryView extends WatchUi.View {
         }
         var y = (dc.getHeight() - totalHeight) / 2;
         for (var i = 0; i < lines.size(); i++) {
+            var lineY = y;
             y = UiFormat.drawLine(dc, lines[i] as String, y,
                 fonts[i] as Graphics.FontType) + (gaps[i] as Number);
+            if (i == uploadIndex) {
+                drawUploadIcon(dc, (upload as Dictionary)["icon"] as String, lines[i] as String,
+                    lineY, fonts[i] as Graphics.FontType);
+            }
         }
+    }
+
+    private function drawUploadIcon(dc as Dc, icon as String, text as String, y as Number,
+                                    font as Graphics.FontType) as Void {
+        var s = Icons.unit(dc);
+        var x = dc.getWidth() / 2 - dc.getTextWidthInPixels(text, font) / 2 - s * 2;
+        var cy = y + dc.getFontHeight(font) / 2;
+        if (Model.sameString(icon, "check")) {
+            Icons.check(dc, x, cy, s, Graphics.COLOR_GREEN);
+        } else if (Model.sameString(icon, "arrow")) {
+            Icons.arrow(dc, x, cy, s, true, Graphics.COLOR_WHITE);
+        } else if (Model.sameString(icon, "clock")) {
+            Icons.clock(dc, x, cy, s, Graphics.COLOR_YELLOW);
+        } else {
+            Icons.cross(dc, x, cy, s, Graphics.COLOR_YELLOW);
+        }
+        dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
     }
 
     private function activityLabel(fitState as Object?) as String {

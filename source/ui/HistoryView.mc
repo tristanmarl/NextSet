@@ -239,12 +239,12 @@ class HistoryView extends WatchUi.View {
             return completed["durationSec"].toString() + "s";
         }
         if (Model.sameString(exercise["loadType"], "bodyweight")) {
-            return "BWx" + completed["reps"].toString();
+            return "BW×" + completed["reps"].toString();
         }
         var load = UiFormat.load100(completed["load100"] as Number);
         var unit = exercise["loadUnit"] instanceof String ? exercise["loadUnit"] as String : "kg";
         var assistance = Model.sameString(exercise["loadType"], "assistance") ? " assist" : "";
-        return load + unit + assistance + "x" + completed["reps"].toString();
+        return load + unit + assistance + "×" + completed["reps"].toString();
     }
 
     private function dateAndElapsed(record as Dictionary) as String {

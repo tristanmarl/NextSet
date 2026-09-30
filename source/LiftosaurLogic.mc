@@ -86,6 +86,25 @@ module LiftosaurLogic {
         return attempt <= 0 ? 2 : (attempt == 1 ? 5 : 10);
     }
 
+    // Summary status line for the Liftosaur upload of the workout just saved; null when the
+    // workout has no upload. icon: "check" | "arrow" | "clock" | "cross".
+    function summaryUpload(state as String?, uploading as Boolean, errorText as String?) as Dictionary? {
+        if (Model.sameString(state, Liftosaur.STATE_DONE)) {
+            return {"icon" => "check", "text" => "Uploaded"};
+        }
+        if (Model.sameString(state, Liftosaur.STATUS_SKIPPED)) {
+            return {"icon" => "cross", "text" => "Upload skipped"};
+        }
+        if (!Model.sameString(state, Liftosaur.STATUS_PENDING)) {
+            return null;
+        }
+        if (uploading) {
+            return {"icon" => "arrow", "text" => "Uploading…"};
+        }
+        return errorText != null ? {"icon" => "cross", "text" => errorText} :
+            {"icon" => "clock", "text" => "Pending · next launch"};
+    }
+
     // "lftsk_…ab12": prefix and last four characters only.
     function maskKey(key as String) as String {
         if (key.length() <= 10) {

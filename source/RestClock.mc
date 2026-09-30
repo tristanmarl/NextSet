@@ -49,6 +49,15 @@ module RestClock {
         return left > 0 && left <= 10;
     }
 
+    // Seconds since an expired rest ended; 0 for any other state.
+    function overtime(rest as Dictionary, now as Number) as Number {
+        if (!Model.sameString(rest["state"], "expired")) {
+            return 0;
+        }
+        var over = now - (rest["endsAt"] as Number);
+        return over < 0 ? 0 : over;
+    }
+
     function pause(rest as Dictionary, now as Number) as Dictionary? {
         if (!Model.sameString(rest["state"], "running")) {
             return null;

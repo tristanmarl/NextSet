@@ -134,6 +134,7 @@ module Navigator {
         var controller = getApp().controller();
         menu.addItem(new WatchUi.MenuItem("Sync routines", null, "sync", null));
         menu.addItem(new WatchUi.MenuItem("Liftosaur key", controller.keyLabel(), "key", null));
+        menu.addItem(new WatchUi.MenuItem("Diagnostics", null, "diagnostics", null));
         if (controller.hasKey()) {
             menu.addItem(new WatchUi.MenuItem("Test key", null, "test_key", null));
             menu.addItem(new WatchUi.MenuItem("Clear key", null, "clear_key", null));
@@ -367,9 +368,10 @@ module Navigator {
 
     function exerciseMenuForEntry(entryId as String, view as ExerciseView,
                                   fromOverview as Boolean) as Void {
-        var menu = new WatchUi.Menu2({:title=>"Exercise"});
         var session = getApp().controller().session() as Dictionary;
         var exercise = UiFormat.exercise(session, entryId) as Dictionary;
+        var title = exercise["name"] as String;
+        var menu = new WatchUi.Menu2({:title=>title.length() > 18 ? title.substring(0, 16) + ".." : title});
         var next = SessionLogic.activeSlot(exercise);
         var lastEntry = SessionLogic.lastEditEntryId(session, entryId);
         var last = lastEntry == null ? -1 : 0;
@@ -464,7 +466,10 @@ module Navigator {
 
     function finalized(outcome as String) as Void {
         if (Model.sameString(outcome, "aborted")) {
-            exitApp();
+            // A cancelled workout is discarded: back to Home with a notice instead of exiting.
+            getApp().stopTimer();
+            getApp().controller().setNotice("Workout cancelled");
+            home();
         } else {
             summary(outcome);
         }
@@ -617,6 +622,8 @@ class SettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
             Navigator.confirmQueue(id);
         } else if (Model.sameString(id, "key")) {
             Navigator.enterKey(false);
+        } else if (Model.sameString(id, "diagnostics")) {
+            Navigator.feedback(getApp().controller().diagnostics());
         } else if (Model.sameString(id, "test_key")) {
             var problem = getApp().controller().testKey();
             Navigator.feedback(problem == null ? "Testing…" : problem);

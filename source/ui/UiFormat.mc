@@ -104,6 +104,57 @@ module UiFormat {
         return done.toString() + "/" + planned.toString() + suffix;
     }
 
+    // "m:ss" (minutes capped at 99).
+    function clockText(seconds as Number) as String {
+        var total = seconds < 0 ? 0 : (seconds > 5999 ? 5999 : seconds);
+        return (total / 60).toString() + ":" + (total % 60 < 10 ? "0" : "") + (total % 60).toString();
+    }
+
+    // "+m:ss" counting up once the rest has run out and is still waiting for the next set.
+    function restOvertime(session as Dictionary) as String? {
+        var rest = session["rest"];
+        if (!(rest instanceof Dictionary) || !Model.sameString(rest["state"], "expired")) {
+            return null;
+        }
+        return "+" + clockText(RestClock.overtime(rest as Dictionary, Time.now().value()));
+    }
+
+    // Rest line with the clock icon for overtime (green); returns the next y.
+    function drawRestLine(dc as Dc, session as Dictionary, y as Number,
+                          font as Graphics.FontType) as Number {
+        var running = restStatus(session);
+        var over = running == null ? restOvertime(session) : null;
+        if (running == null && over == null) {
+            return y;
+        }
+        if (over == null) {
+            dc.setColor(Graphics.COLOR_YELLOW, Graphics.COLOR_BLACK);
+            return drawLine(dc, running as String, y, font) + 3;
+        }
+        var s = Icons.unit(dc);
+        var width = dc.getTextWidthInPixels(over as String, font);
+        var height = dc.getFontHeight(font);
+        Icons.clock(dc, dc.getWidth() / 2 - width / 2 - s * 2, y + height / 2, s, Graphics.COLOR_GREEN);
+        dc.setColor(Graphics.COLOR_GREEN, Graphics.COLOR_BLACK);
+        return drawLine(dc, over as String, y, font) + 3;
+    }
+
+    // Confirmation after logging: "Set 2 · 65 kg × 8", "Warmup 1 · …".
+    function confirmText(exercise as Dictionary, slot as Number) as String? {
+        var found = Model.slotAt(exercise, slot);
+        var done = found == null ? null : (found as Dictionary)["completed"];
+        if (!(done instanceof Dictionary)) {
+            return null;
+        }
+        var label = slot >= Model.WARMUP_BASE ? "Warmup " + (slot - Model.WARMUP_BASE + 1).toString() :
+            "Set " + (slot + 1).toString();
+        var type = exercise["loadType"];
+        var value = Model.sameString(type, "timed") ? done["durationSec"].toString() + " s" :
+            (Model.sameString(type, "bodyweight") ? "BW × " + done["reps"].toString() :
+                load100(done["load100"] as Number) + " kg × " + done["reps"].toString());
+        return label + " · " + value;
+    }
+
     function restStatus(session as Dictionary) as String? {
         var rest = session["rest"];
         if (!(rest instanceof Dictionary)) {
@@ -200,36 +251,6 @@ module UiFormat {
         return "target " + minimum.toString() + "–" + maximum.toString();
     }
 
-    function warmupsLine(exercise as Dictionary) as String? {
-        var warmups = exercise["warmups"];
-        // Warmups that are tracked as slots are shown as their own sets instead.
-        if (!(warmups instanceof Array) || (warmups as Array).size() == 0 ||
-            SessionLogic.warmupCount(exercise) > 0) {
-            return null;
-        }
-        var line = "WU ";
-        var rows = warmups as Array;
-        var count = rows.size() < 2 ? rows.size() : 2;
-        for (var i = 0; i < count; i++) {
-            var target = rows[i] as Dictionary;
-            if (i > 0) {
-                line += " · ";
-            }
-            if (target["durationSec"] instanceof Number) {
-                line += target["durationSec"].toString() + "s";
-            } else if (target["load100"] instanceof Number) {
-                line += load100(target["load100"] as Number) + "kg×" +
-                    target["reps"].toString();
-            } else {
-                line += target["reps"].toString() + " reps";
-            }
-        }
-        if (rows.size() > count) {
-            line += " +" + (rows.size() - count).toString();
-        }
-        return line;
-    }
-
     function lastLine(exercise as Dictionary, slotIndex as Number) as String? {
         if (slotIndex >= Model.WARMUP_BASE) {
             return null;
@@ -253,13 +274,13 @@ module UiFormat {
         var values = selected as Array;
         var type = exercise["loadType"];
         if (Model.sameString(type, "weight")) {
-            return "LAST " + load100(values[1] as Number) + " kg x " + values[2].toString();
+            return "LAST " + load100(values[1] as Number) + " kg × " + values[2].toString();
         }
         if (Model.sameString(type, "assistance")) {
-            return "LAST " + load100(values[1] as Number) + " kg assist x " + values[2].toString();
+            return "LAST " + load100(values[1] as Number) + " kg assist × " + values[2].toString();
         }
         if (Model.sameString(type, "bodyweight")) {
-            return "LAST bodyweight x " + values[2].toString();
+            return "LAST bodyweight × " + values[2].toString();
         }
         return "LAST " + values[3].toString() + " sec";
     }

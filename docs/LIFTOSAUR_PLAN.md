@@ -25,7 +25,7 @@ Superseded: the NAS job (`tools/connect-sets`) and its Python reference implemen
 
 ## Phase 2 — plan to watch
 
-**Superseded 2026-09-30:** the watch calls Liftosaur directly (no NAS server, no Tailscale). See `docs/archive/PHASE2_HANDOVER.md`. The items below are the earlier NAS-based design.
+**Superseded 2026-09-30:** the watch calls Liftosaur directly (no NAS server, no Tailscale). The items below are the earlier NAS-based design.
 
 1. Transport test first: a throwaway Connect IQ app GETs `https://<nas>.<tailnet>.ts.net/ping` over the phone connection and over Wi-Fi. Tailnet-only `tailscale serve` preferred; fall back to `tailscale funnel` + secret token if the watch cannot reach the tailnet.
 2. NAS endpoint `GET /routine/next` (token) returns a compact NextSet routine built from `/workout/next` + mapping, including Liftosaur `entryId`/`setId`s.

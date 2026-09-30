@@ -76,9 +76,6 @@ class HomeView extends WatchUi.View {
             lines.add(session["templateName"] as String);
             fonts.add(caption);
             gaps.add(8);
-            lines.add("START: Resume");
-            fonts.add(Graphics.FONT_XTINY);
-            gaps.add(8);
         } else if (routine != null) {
             var entries = routine["entries"] as Array;
             var empty = entries.size() == 0;
@@ -95,9 +92,11 @@ class HomeView extends WatchUi.View {
             lines.add(summary);
             fonts.add(caption);
             gaps.add(8);
-            lines.add(empty ? "START: Add an exercise" : "UP/DOWN select · START begin");
-            fonts.add(Graphics.FONT_XTINY);
-            gaps.add(8);
+            if (empty) {
+                lines.add("START: Add an exercise");
+                fonts.add(Graphics.FONT_XTINY);
+                gaps.add(8);
+            }
         } else {
             var keyed = controller.hasKey();
             lines.add(keyed ? "No routines synced" : "No Liftosaur key");
@@ -107,9 +106,6 @@ class HomeView extends WatchUi.View {
             fonts.add(Graphics.FONT_XTINY);
             gaps.add(8);
         }
-        lines.add(active ? "MENU: Menu" : "MENU: Sync/History/Settings");
-        fonts.add(caption);
-        gaps.add(notice == null ? 0 : 4);
         if (notice != null) {
             lines.add(notice as String);
             fonts.add(caption);
@@ -128,6 +124,12 @@ class HomeView extends WatchUi.View {
             y = UiFormat.drawLine(dc, lines[i] as String, y,
                 fonts[i] as Graphics.FontType) + (gaps[i] as Number);
         }
+        // Keys are marked with drawn icons: START = open/resume, UP/DOWN = pick a day, hold UP = menu.
+        Icons.startMarker(dc, "play");
+        if (routine != null && _routines.size() > 1) {
+            Icons.browseMarkers(dc);
+        }
+        Icons.menuMarker(dc);
     }
 
     private function getHomeNotice() as String? {

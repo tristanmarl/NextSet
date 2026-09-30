@@ -27,10 +27,15 @@ class SessionController {
     private var _pendingHistory as Dictionary? = null;
     private var _preAlertRestId as Number = -1;
     private var _sync as LiftosaurSync;
+    private var _draftDirty as Boolean = false;
+    private var _draftTimer as Timer.Timer;
+    private var _maxCommitMs as Number = 0;
+    private var _syncMs as Number = -1;
 
     public function initialize(store as Store) {
         _store = store;
         _sync = new LiftosaurSync(store, self);
+        _draftTimer = new Timer.Timer();
         _recorder = new StrengthRecorder();
         _session = _store.loadPair("active");
         if (_session != null && _session["setRun"] != null) {
@@ -360,6 +365,22 @@ class SessionController {
     // Thin forwarding for the UI; the work lives in LiftosaurSync.
     public function keyLabel() as String {
         return _sync.keyLabel();
+    }
+
+    // Liftosaur upload line for the summary of the session just saved (null: nothing queued).
+    public function uploadSummary() as Dictionary? {
+        if (_session == null) {
+            return null;
+        }
+        var id = (_session as Dictionary)["id"];
+        var state = id instanceof String ? uploadStatuses()[id] : null;
+        var uploading = _sync.activityLabel() != null;
+        return LiftosaurLogic.summaryUpload(state instanceof String ? state as String : null, uploading,
+            _errorCode >= Err.LIFTOSAUR_KEY_REQUIRED ? Err.shortMessage(_errorCode) : null);
+    }
+
+    public function uploading() as Boolean {
+        return _sync.activityLabel() != null;
     }
 
     public function hasKey() as Boolean {
@@ -790,6 +811,13 @@ class SessionController {
             Model.sameString(_session["rest"]["state"], "running");
     }
 
+    // A running or overtime (expired, waiting for the next set) rest is on screen.
+    public function hasRestShown() as Boolean {
+        return isWorkoutRunning() && _session["rest"] instanceof Dictionary &&
+            (Model.sameString(_session["rest"]["state"], "running") ||
+             Model.sameString(_session["rest"]["state"], "expired"));
+    }
+
     public function hasRunningTimed() as Boolean {
         return isWorkoutRunning() && _session["timedRun"] instanceof Dictionary;
     }
@@ -943,10 +971,17 @@ class SessionController {
         if (candidate["lastCheckpointAt"] instanceof Number) {
             candidate["lastCheckpointAt"] = Time.now().value();
         }
-        if (!_store.commitPair("active", candidate)) {
+        var started = System.getTimer();
+        var stored = _store.commitPair("active", candidate);
+        var took = System.getTimer() - started;
+        if (took > _maxCommitMs) {
+            _maxCommitMs = took;
+        }
+        if (!stored) {
             _errorCode = Err.SAVE_FAILED_RETRY_BEFORE_CONTINUING;
             return false;
         }
+        _draftDirty = false;
         _session = candidate;
         _errorCode = Err.NONE;
         return true;
@@ -1270,7 +1305,42 @@ class SessionController {
             return false;
         }
         var candidate = SessionLogic.updateDraft(_session as Dictionary, entryId, slot, field, value);
-        return candidate != null && commit(candidate as Dictionary);
+        if (candidate == null) {
+            return false;
+        }
+        // UP/DOWN edits stay in memory; any later commit includes them, else the timer saves them.
+        _session = candidate;
+        _draftDirty = true;
+        _draftTimer.stop();
+        _draftTimer.start(method(:flushDraft), 2000, false);
+        return true;
+    }
+
+    // Timer target and app-stop hook: persists pending draft edits once.
+    public function flushDraft() as Void {
+        _draftTimer.stop();
+        if (_draftDirty && isWorkoutRunning()) {
+            commit(_session as Dictionary);
+        }
+    }
+
+    public function hasPendingDraft() as Boolean {
+        return _draftDirty;
+    }
+
+    public function noteSyncMs(ms as Number) as Void {
+        _syncMs = ms;
+    }
+
+    public function setNotice(text as String) as Void {
+        _sync.setNotice(text);
+    }
+
+    // Settings → Diagnostics text.
+    public function diagnostics() as String {
+        return "Max commit " + _maxCommitMs.toString() + " ms · Last sync parse " +
+            (_syncMs < 0 ? "n/a" : _syncMs.toString() + " ms") + " · Free " +
+            (System.getSystemStats().freeMemory / 1024).toString() + " KB";
     }
 
     public function completeDraft(entryId as String, slot as Number, now as Number) as Boolean {

@@ -2,9 +2,9 @@
 
 ## Project Structure
 
-NextSet is a Monkey C Connect IQ watch app targeting the Garmin Forerunner 965. Workout, Liftosaur API projection, upload, storage, and clock logic lives in `source/`; watch screens and navigation are in `source/ui/`. Automated tests are in `tests/` and are included through `tests.jungle`; sanitized API fixtures are under `tests/resources/`. App metadata and the Liftosaur key setting are in `manifest.xml` and `resources/`. Build and device evidence belongs in `docs/`.
+NextSet is a Monkey C Connect IQ watch app targeting the Garmin Forerunner 965. Workout, Liftosaur API projection, upload, storage, and clock logic lives in `source/`; watch screens and navigation are in `source/ui/`. Automated tests are in `tests/` and are included through `tests.jungle`; sanitized API fixtures are under `tests/resources/`. App metadata is in `manifest.xml` and `resources/`; the Liftosaur key is entered on the watch, not in app settings. Build and device evidence belongs in `docs/`.
 
-Liftosaur owns the synced routine and progression. The watch calls Liftosaur directly over HTTPS. The former NAS tool (`tools/connect-sets`) was removed. The old Garmin exercise catalog, seed routines, and manual routine editor are retired. Config schema v4 resets older config data, so test a fresh routine sync after upgrade.
+Liftosaur owns the synced routine and progression. The watch calls Liftosaur directly over HTTPS. The former NAS tool, Garmin exercise catalog, seed routines and manual routine editor are removed.
 
 ## Build, Test, and Run
 
@@ -34,8 +34,8 @@ Timer callbacks passed through `method(:callback)` must be public. A private `ad
 
 ## Commits and Pull Requests
 
-The available history has one release commit, so no repeated commit convention is established. Use short imperative subjects, such as `Fix rest timer vibration`. Pull requests should explain the user-visible change, list build/test results, link relevant issues when present, and include simulator screenshots for visual changes. Clearly identify device checks that remain unverified.
+Use short imperative subjects, such as `Fix rest timer vibration`. Pull requests should explain the user-visible change, list build/test results, link relevant issues when present, and include simulator screenshots for visual changes. Clearly identify device checks that remain unverified.
 
 ## Security and Configuration
 
-The current signing key is `~/.garmin-keys/NextSetDeveloperKey.der` (PEM source: `~/.garmin-keys/NextSetDeveloperKey.pem`); pass the DER path to `monkeyc -y`. The key was regenerated on 2026-09-29 after the old `/private/tmp` key was lost; installing a build signed with it requires reinstalling NextSet on the watch once. Keep a secure offline backup of both files. Reuse the same key for updates; never commit, upload, or package either key. Do not check in local SDK files or generated build artifacts. The `liftosaurKey` app property is a separate account credential with full Liftosaur access: do not hard-code it, print it, commit it, or put it in test data. Use sanitized API fixtures and fakes in tests. Do not issue real Liftosaur POST requests until the user approves a controlled first workout write. The app keeps its `ActivityRecording` FIT activity path (sport Training, sub-sport Generic); a short physical-watch FIT activity was inspected, but direct Liftosaur sync and current-version FIT behavior remain pending. Local completed set details remain in NextSet history.
+The current signing key is `~/.garmin-keys/NextSetDeveloperKey.der` (PEM source: `~/.garmin-keys/NextSetDeveloperKey.pem`); pass the DER path to `monkeyc -y`. The key was regenerated on 2026-09-29 after the old `/private/tmp` key was lost; installing a build signed with it requires reinstalling NextSet on the watch once. Keep a secure offline backup of both files. Reuse the same key for updates; never commit, upload, or package either key. Do not check in local SDK files or generated build artifacts. The Liftosaur key (entered on the watch, stored only in watch app storage) is an account credential with full Liftosaur access: do not hard-code it, print it, commit it, or put it in test data. Use sanitized API fixtures and fakes in tests. Do not issue real Liftosaur POST requests until the user approves a controlled first workout write. The app records an `ActivityRecording` FIT activity (sport Training, sub-sport Generic); device status is in `docs/DEVICE_TESTS.md`. Local completed set details remain in NextSet history.

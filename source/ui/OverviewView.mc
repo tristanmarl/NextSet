@@ -1,5 +1,6 @@
 import Toybox.Graphics;
 import Toybox.Lang;
+import Toybox.Time;
 import Toybox.WatchUi;
 
 class OverviewView extends WatchUi.View {
@@ -66,9 +67,10 @@ class OverviewView extends WatchUi.View {
         var footerFont = UiFormat.captionFont();
         var footerHeight = dc.getFontHeight(footerFont) + 2;
         var nextSlot = SessionLogic.nextSlot(focused);
-        var restStatus = UiFormat.restStatus(current);
-        // Rows below the count: next target (optional), progress, rest (optional), browse hint.
-        var rows = 2 + (nextSlot >= 0 ? 1 : 0);
+        var restStatus = UiFormat.restStatus(current) != null ? UiFormat.restStatus(current) :
+            UiFormat.restOvertime(current);
+        // Rows below the count: next target (optional), progress, rest (optional), position and time.
+        var rows = 3 + (nextSlot >= 0 ? 1 : 0);
         var blockHeight = dc.getFontHeight(titleFont) + gap + dc.getFontHeight(countFont) + 3 +
             rows * footerHeight + (restStatus != null ? dc.getFontHeight(footerFont) + 4 : 0);
         var titleY = (dc.getHeight() - blockHeight) / 2;
@@ -92,13 +94,21 @@ class OverviewView extends WatchUi.View {
         y = UiFormat.drawLine(dc, totals["done"].toString() + "/" + totals["planned"].toString() +
             " SETS", y, footerFont) + 2;
         if (restStatus != null) {
-            dc.setColor(Graphics.COLOR_YELLOW, Graphics.COLOR_BLACK);
-            y = UiFormat.drawLine(dc, restStatus as String, y, footerFont) + 4;
+            y = UiFormat.drawRestLine(dc, current, y, footerFont) + 1;
             dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
         }
-        // ponytail: plain "UP/DOWN" text instead of arrow glyphs, whose font coverage is unverified.
-        UiFormat.drawLine(dc, "UP/DOWN · EX " + (_selectedIndex + 1).toString() + "/" +
-            exercises.size(), y, footerFont);
+        // Position and elapsed workout time; the keys are marked with drawn icons (no font glyphs).
+        var position = (_selectedIndex + 1).toString() + "/" + exercises.size().toString();
+        var elapsed = UiFormat.clockText(WorkoutClock.elapsed(current, Time.now().value()));
+        var s = Icons.unit(dc);
+        var both = position + "  " + elapsed;
+        var width = dc.getTextWidthInPixels(both, footerFont);
+        Icons.clock(dc, dc.getWidth() / 2 + width / 2 + s * 2, y + dc.getFontHeight(footerFont) / 2,
+            s, Graphics.COLOR_WHITE);
+        UiFormat.drawLine(dc, both, y, footerFont);
+        Icons.startMarker(dc, "play");
+        Icons.backMarker(dc);
+        Icons.browseMarkers(dc);
     }
 
     public function moveSelection(direction as Number) as Void {

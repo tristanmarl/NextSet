@@ -37,6 +37,10 @@ class LiftosaurSync {
         _notice = null;
     }
 
+    public function setNotice(text as String) as Void {
+        _notice = text;
+    }
+
     // The key entered on the watch is the only source. Never logged or drawn unmasked.
     private function liftosaurKey() as String? {
         if (!_storedKeyLoaded) {
@@ -824,9 +828,11 @@ class LiftosaurSync {
                 syncRequestFailed(responseCode, data);
                 return;
             }
+            var parseStart = System.getTimer();
             var accepted = Model.sameString(purpose, Liftosaur.REQ_SYNC_PROGRAM) ?
                 routineProgramReceived(data) : (Model.sameString(purpose, Liftosaur.REQ_SYNC_NEXT) ?
                     routineNextReceived(data) : routineDayReceived(data));
+            _host.noteSyncMs(System.getTimer() - parseStart);
             if (!accepted) {
                 _routineSyncRunning = false;
                 if (_host.errorCode() != Err.ROUTINE_SYNC_SAVE_FAILED) {
