@@ -1,10 +1,10 @@
 # NextSet
 
-NextSet is a Connect IQ watch app for logging strength training with buttons only, no phone needed. The primary device is the Garmin Forerunner 965 (`fr965`). The public package also targets the fēnix 8 47 mm, fēnix 8 Pro 47 mm, fēnix 9 47 mm, fēnix 9 Pro 47 mm and fēnix 9 Pro 51 mm (see `manifest.xml`); their UI has been checked only where [docs/DEVICE_TESTS.md](docs/DEVICE_TESTS.md) says so. Current version: 0.2.5. Minimum API 5.2.0.
+NextSet is a Connect IQ watch app for logging strength training with buttons only, no phone needed. The primary device is the Garmin Forerunner 965 (`fr965`). The public package also targets the fēnix 8 47 mm, fēnix 8 Pro 47 mm, fēnix 9 47 mm, fēnix 9 Pro 47 mm and fēnix 9 Pro 51 mm (see `manifest.xml`); their UI has been checked only where [docs/DEVICE_TESTS.md](docs/DEVICE_TESTS.md) says so. Current version: 0.2.6. Minimum API 5.2.0.
 
 ## Features
 
-- **Routines.** Create, rename and delete routines and edit them on the watch: exercises, sets, rep range, starting load, load increment and rest per exercise. Exercises come from a bundled offline Garmin exercise catalog (47 categories, 1,531 exercises) via a category picker. Entries whose exact Garmin exercise code is not valid are marked "Category only" (Connect shows them under the category group only). Production installs start with one empty routine.
+- **Routines.** Create, rename and delete routines and edit them on the watch: exercises, sets, rep range, starting load, load increment and rest per exercise. Exercises come from a bundled offline Garmin exercise catalog (47 categories, 1,531 exercises, about 38 KB of resources) via a category picker. Entries whose exact Garmin exercise code is not valid are marked "Category only" (Connect shows them under the category group only). Production installs start with one empty routine.
 - **Workout flow.** On a weight exercise, START starts the set (a `SET m:ss` timer counts up) and the next START logs it and starts the rest timer, which vibrates when rest ends. Timed sets have their own timer. UP/DOWN adjusts reps and the load can be edited. You can correct or undo the last set, add a set, and skip or replace an exercise for the day. Sets are prefilled from your last performance for that exercise.
 - **Local history.** Recent finished workouts with per-set details are kept in watch storage. Workout state is checkpointed, so a workout survives leaving the app or a crash and resumes on the next launch.
 - **Settings.** Default rest for new exercises, vibration on or off.
@@ -71,11 +71,11 @@ The key is `~/.garmin-keys/NextSetDeveloperKey.der` (PEM beside it). Keep it out
 
 ### Garmin catalog generator
 
-`scripts/generate_garmin_catalog.py` builds `resources/data/garmin.xml` from a pinned Garmin Connect exercise snapshot (the input must match the SHA-256 in the script). Codes are validated against the FIT profile of `garmin-fit-sdk==21.217.0` (`pip install`); invalid codes become null (category only).
+`scripts/generate_garmin_catalog.py` builds `resources/data/garmin.xml` from a pinned Garmin Connect exercise snapshot (the input must match the SHA-256 in the script). Codes are validated against the FIT profile of `garmin-fit-sdk==21.217.0` (`pip install`); invalid codes are marked `!` (category only). Format: one string per category, entries `CODE`, `CODE*` (bodyweight) or `CODE!` (category only); names and ids are derived at runtime (see CLAUDE.md).
 
 ```sh
 python3 scripts/generate_garmin_catalog.py /private/tmp/NextSet-Garmin-Exercises.json resources/data/garmin.xml
-python3 scripts/generate_garmin_catalog.py --revalidate resources/data/garmin.xml     # revalidate in place
+python3 scripts/generate_garmin_catalog.py --convert old.xml original.xml resources/data/garmin.xml  # one-off: old per-row format -> compact
 python3 scripts/generate_garmin_catalog.py --seeds tools/connect-sets/exercises.json \
     resources/data/seeds.xml private/resources/data/seeds.xml                         # validate seeds, write exercises.json
 ```
@@ -99,6 +99,6 @@ Verified on a physical FR965 ([docs/DEVICE_TESTS.md](docs/DEVICE_TESTS.md)): a s
 
 Simulator only: layout of Home, overview and exercise screens; persistence across relaunch; unit tests pass in the simulator. The fēnix targets compile; only the fēnix 9 Pro 51 mm empty starter routine was checked in the simulator, with no physical check.
 
-Not yet verified (marked PENDING in DEVICE_TESTS.md): the 0.2.3 to 0.2.5 changes on a watch (lap queue, `active_s`, category/code fields, correction and undo laps, "Category only" label, upgrade over 0.2.4), the full acceptance list (long sessions, touch-off, pause, recovery), watch history label and training load for a Generic recording, and Garmin Connect rendering of the lap developer fields.
+Not yet verified (marked PENDING in DEVICE_TESTS.md): the 0.2.3 to 0.2.6 changes on a watch (lap queue, `active_s`, category/code fields, correction and undo laps, "Category only" label, upgrade over 0.2.4), the full acceptance list (long sessions, touch-off, pause, recovery), watch history label and training load for a Generic recording, and Garmin Connect rendering of the lap developer fields.
 
 Known limits: lap values are recorded when a set is logged, so corrections and undo add extra laps instead of rewriting; the firmware keeps at most one lap per second, so simultaneous laps are queued and may collapse if written in the final second before save. NextSet's own history is the complete record. The simulator does not enforce the 32 KB per-value storage limit, so each routine is stored separately and sized by estimate.

@@ -50,9 +50,9 @@ function testGarminCodeMayBeNull(logger as Test.Logger) as Boolean {
     var sawGroupOnly = false;
     var categories = Catalog.garminCategories();
     for (var c = 0; c < categories.size(); c++) {
-        var rows = Catalog.garminExercises(c);
-        for (var i = 0; i < rows.size(); i++) {
-            var code = rows[i]["code"];
+        var count = Catalog.garminEntries(c).size();
+        for (var i = 0; i < count; i++) {
+            var code = Catalog.garminRow(c, i)["code"];
             if (code == null) {
                 sawGroupOnly = true;
             } else if (!check(logger, (code as String).substring(0, 1).equals("_") == false,
@@ -484,32 +484,6 @@ function testDeleteAnyRoutineAndDefaultRestForNewExercise(logger as Test.Logger)
         check(logger, !deletedLower && remaining == 1, "the last routine must be kept");
 }
 
-(:test)
-function testLegacyPausedSessionResumesActive(logger as Test.Logger) as Boolean {
-    var store = new Store();
-    Application.Storage.deleteValue("active.a");
-    Application.Storage.deleteValue("active.b");
-    var now = Time.now().value();
-    var session = Catalog.createSession("upper", "legacy-1", 1, now - 100, null, null) as Dictionary;
-    var clock = WorkoutClock.start(now - 100);
-    var keys = clock.keys();
-    for (var i = 0; i < keys.size(); i++) {
-        session[keys[i]] = clock[keys[i]];
-    }
-    session["status"] = "paused";
-    session["pauseStartedAt"] = now - 50;
-    session["lastCheckpointAt"] = now - 50;
-    var stored = store.commitPair("active", session);
-    var controller = new SessionController(store);
-    var resumed = controller.session();
-    var ok = stored && resumed != null && controller.isWorkoutRunning() &&
-        resumed["pauseStartedAt"] == null && resumed["pausedSec"] >= 49;
-    Application.Storage.deleteValue("active.a");
-    Application.Storage.deleteValue("active.b");
-    return check(logger, stored, "the paused fixture must be a valid stored session") &&
-        check(logger, ok, "a saved paused session must load as an active, running session");
-}
-
 function repeatText(unit as String, count as Number) as String {
     // Doubling then one substring keeps allocation low; linear concatenation exhausts the heap.
     var text = unit;
@@ -708,60 +682,27 @@ function testStorageValueLimitProbe(logger as Test.Logger) as Boolean {
     return true;
 }
 
-function v2ConfigPayload() as Dictionary {
-    return {"schemaVersion" => 2, "nextSessionSeq" => 5,
-        "settings" => {"defaultRestSec" => 75, "vibrationEnabled" => true},
+(:test)
+function testOldConfigSchemaStartsFromDefaults(logger as Test.Logger) as Boolean {
+    var store = new Store();
+    clearConfigKeys();
+    var routines = Catalog.routineTemplates(null);
+    var stored = store.commitPair("config", {"schemaVersion" => 2, "nextSessionSeq" => 5,
+        "settings" => {"defaultRestSec" => 75, "vibrationEnabled" => false},
         "templateOverrides" => {}, "incrementOverrides" => {},
-        "routines" => Catalog.routineTemplates(null), "routineNextEntrySeq" => 1};
-}
-
-(:test)
-function testMigrateV2ConfigToRoutineKeys(logger as Test.Logger) as Boolean {
-    var store = new Store();
-    clearConfigKeys();
-    var stored = store.commitPair("config", v2ConfigPayload());
-    var expected = Catalog.routineTemplates(null);
+        "routines" => routines, "routineNextEntrySeq" => 1});
     var controller = new SessionController(new Store());
-    var routines = controller.routineTemplates();
-    var sameRoutines = routines.size() == expected.size();
-    for (var i = 0; sameRoutines && i < expected.size(); i++) {
-        var left = routines[i] as Dictionary;
-        var right = expected[i] as Dictionary;
-        sameRoutines = left["id"].equals(right["id"]) && left["name"].equals(right["name"]) &&
-            (left["entries"] as Array).size() == (right["entries"] as Array).size() &&
-            (left["entries"] as Array)[0]["exerciseId"].equals((right["entries"] as Array)[0]["exerciseId"]);
-    }
-    var keysExist = Application.Storage.getValue("routine.upper.a") != null &&
-        Application.Storage.getValue("routine.lower.a") != null;
-    var reloaded = new Store();
-    var config = reloaded.loadPair("config");
-    var v3 = config != null && config["schemaVersion"] == 3 && config["routines"] == null &&
-        config["routineIds"] instanceof Array && config["routineIds"].size() == 2 &&
-        config["nextSessionSeq"] == 5 && controller.defaultRestSec() == 75;
-    clearConfigKeys();
-    return check(logger, stored, "v2 fixture must be a valid stored config") &&
-        check(logger, sameRoutines, "migrated routines must equal the v2 routines") &&
-        check(logger, keysExist, "migration must write one key pair per routine") &&
-        check(logger, v3, "migration must leave a v3 config with routineIds and no routines");
-}
-
-(:test)
-function testInterruptedMigrationIsRedone(logger as Test.Logger) as Boolean {
-    var store = new Store();
-    clearConfigKeys();
-    var stored = store.commitPair("config", v2ConfigPayload());
-    // Interrupted after the first routine key: config is still v2.
-    var seeds = Catalog.routineTemplates(null);
-    var partial = store.commitPair("routine.upper", seeds[0] as Dictionary);
-    var controller = new SessionController(new Store());
-    var loaded = controller.routineTemplates().size() == 2;
+    var count = controller.routineTemplates().size();
+    var rest = controller.defaultRestSec();
+    var error = controller.errorCode();
+    var saved = controller.setVibrationEnabled(true);
     var config = new Store().loadPair("config");
-    var migrated = config != null && config["schemaVersion"] == 3 &&
-        Application.Storage.getValue("routine.lower.a") != null;
+    var v3 = config != null && config["schemaVersion"] == 3 && config["nextSessionSeq"] == 5;
     clearConfigKeys();
-    return check(logger, stored && partial, "fixtures must store") &&
-        check(logger, loaded, "a load after an interrupted migration must still succeed") &&
-        check(logger, migrated, "the next load must finish the migration");
+    return check(logger, stored, "the v2 fixture must be a valid stored record") &&
+        check(logger, count == Catalog.routineTemplates(null).size() && rest == 90 &&
+            error == Err.NONE, "an old schema must give default routines and settings, no error") &&
+        check(logger, saved && v3, "the next save must write a v3 config keeping nextSessionSeq");
 }
 
 (:test)
@@ -999,7 +940,10 @@ function testExerciseForEntryCurrentDefinitionWins(logger as Test.Logger) as Boo
         "loadType" => "weight", "unit" => "kg", "garminCategory" => "BENCH_PRESS",
         "garminCode" => "BENCH_PRESS"};
     var seedDefinition = Catalog.exerciseForEntry(seedEntry) as Dictionary;
-    var catalogEntry = {"exerciseId" => "g-22f9fcbbd5af", "name" => "3 Way Calf Raise",
+    var catalogEntry = {"exerciseId" => "g04-3-way-calf-raise", "name" => "3 Way Calf Raise",
+        "loadType" => "weight", "unit" => "kg", "garminCategory" => "CALF_RAISE",
+        "garminCode" => "_3_WAY_CALF_RAISE"};
+    var oldStyle = {"exerciseId" => "g-22f9fcbbd5af", "name" => "3 Way Calf Raise",
         "loadType" => "weight", "unit" => "kg", "garminCategory" => "CALF_RAISE",
         "garminCode" => "_3_WAY_CALF_RAISE"};
     var catalogDefinition = Catalog.exerciseForEntry(catalogEntry) as Dictionary;
@@ -1012,7 +956,59 @@ function testExerciseForEntryCurrentDefinitionWins(logger as Test.Logger) as Boo
         check(logger, catalogDefinition["garminCode"].equals("3_WAY_CALF_RAISE") &&
             catalogDefinition["garminCategory"].equals("CALF_RAISE"),
             "catalog entry uses the current catalog code") &&
+        check(logger, Catalog.exerciseForEntry(oldStyle)["garminCode"].equals("_3_WAY_CALF_RAISE") &&
+            Catalog.exerciseForEntry(oldStyle)["name"].equals("3 Way Calf Raise"),
+            "an old g-<hex> id keeps its stored name and code") &&
         check(logger, Catalog.exerciseForEntry(unknown)["garminCode"].equals("KEPT") &&
             Catalog.exerciseForEntry(custom)["garminCode"].equals("KEPT"),
             "entries missing from the catalog keep their stored code");
+}
+
+(:test)
+function testGarminEntryParsing(logger as Test.Logger) as Boolean {
+    var parts = Catalog.splitList("A_B,CD*,EF!,GH*!");
+    var digits = Catalog.garminExercise(Catalog.garminCategoryIndex("CALF_RAISE"), "g04-3-way-calf-raise");
+    var index = Catalog.garminCategoryIndex("BENCH_PRESS");
+    var groupOnly = Catalog.garminExercise(index, Catalog.garminId(index, "BENCH_PRESS"));
+    return check(logger, parts.size() == 4 && parts[3].equals("GH*!") &&
+            Catalog.entryCode("GH*!").equals("GH") && Catalog.entryFlag("CD*", "*") &&
+            !Catalog.entryFlag("CD*", "!"), "list split and suffix flags") &&
+        check(logger, Catalog.titleCase("3_WAY_CALF_RAISE").equals("3 Way Calf Raise") &&
+            Catalog.titleCase("_45_DEGREE_PLANK").equals("45 Degree Plank") &&
+            Catalog.garminCategoryName(Catalog.garminCategoryIndex("BENCH_PRESS")).equals("Bench Press"),
+            "names are title case with leading underscores dropped") &&
+        check(logger, Catalog.garminId(4, "3_WAY_CALF_RAISE").equals("g04-3-way-calf-raise") &&
+            Catalog.garminId(15, "WEIGHTED_SINGLE_LEG_HIP_RAISE_WITH_FEET_ON_A_SWISS_BALL").length() == 40,
+            "id scheme") &&
+        check(logger, digits != null && digits["name"].equals("3 Way Calf Raise") && digits["code"].equals("3_WAY_CALF_RAISE"),
+            "leading-digit FIT code without its Connect underscore") &&
+        check(logger, groupOnly != null && groupOnly["code"] == null &&
+            groupOnly["category"].equals("BENCH_PRESS") && groupOnly["name"].equals("Bench Press"),
+            "a ! entry is group-only (code null) but keeps its name and id") &&
+        check(logger, Catalog.garminName("BENCH_PRESS", "BARBELL_BENCH_PRESS").equals("Barbell Bench Press"),
+            "garminName derives the name from the code");
+}
+
+(:test)
+function testGarminIdsUniqueAndValid(logger as Test.Logger) as Boolean {
+    var seen = {};
+    var total = 0;
+    var bodyWeight = 0;
+    var categories = Catalog.garminCategories();
+    for (var c = 0; c < categories.size(); c++) {
+        var count = Catalog.garminEntries(c).size();
+        for (var i = 0; i < count; i++) {
+            var row = Catalog.garminRow(c, i);
+            var id = row["id"] as String;
+            if (!check(logger, Model.validId(id) && seen[id] == null && row["name"].length() > 0,
+                "catalog id must be valid and unique: " + id)) {
+                return false;
+            }
+            seen[id] = true;
+            total++;
+            bodyWeight += row["isBodyWeight"] == true ? 1 : 0;
+        }
+    }
+    return check(logger, categories.size() == 47 && total == 1531 && bodyWeight == 378,
+        "catalog size " + total.toString() + " bodyweight " + bodyWeight.toString());
 }

@@ -40,46 +40,23 @@ class Store {
             _futureRecord = true;
             return false;
         }
-        if ((version != null && !(version == 1 || version == 2 || version == 3)) ||
-            !Model.inRange(payload["nextSessionSeq"], 1, 2147483647, false) ||
-            (payload["settings"] != null && !(payload["settings"] instanceof Dictionary)) ||
+        if ((version != null && !(version instanceof Number)) ||
+            !Model.inRange(payload["nextSessionSeq"], 1, 2147483647, false)) {
+            return false;
+        }
+        if (version != 3) {
+            // An older schema is a readable record; SessionController starts fresh from defaults.
+            return true;
+        }
+        if ((payload["settings"] != null && !(payload["settings"] instanceof Dictionary)) ||
             (payload["templateOverrides"] != null &&
              !(payload["templateOverrides"] instanceof Dictionary)) ||
             (payload["incrementOverrides"] != null &&
              !(payload["incrementOverrides"] instanceof Dictionary)) ||
             (payload["routineNextEntrySeq"] != null &&
-             !Model.inRange(payload["routineNextEntrySeq"], 1, 2147483647, false))) {
+             !Model.inRange(payload["routineNextEntrySeq"], 1, 2147483647, false)) ||
+            !validRoutineIds(payload["routineIds"])) {
             return false;
-        }
-        if (version == 2 && !(payload["routines"] instanceof Array)) {
-            return false;
-        }
-        if (version == 3 && !validRoutineIds(payload["routineIds"])) {
-            return false;
-        }
-        if (payload["routines"] != null) {
-            if (!(payload["routines"] instanceof Array)) {
-                return false;
-            }
-            var routines = payload["routines"] as Array;
-            if (routines.size() < 1 || routines.size() > Model.MAX_TEMPLATES) {
-                return false;
-            }
-            for (var i = 0; i < routines.size(); i++) {
-                if (!(routines[i] instanceof Dictionary)) {
-                    return false;
-                }
-                var routine = routines[i] as Dictionary;
-                if (!Catalog.validRoutine(routine) ||
-                    !Model.validNonblankText(routine["name"], 64)) {
-                    return false;
-                }
-                for (var j = 0; j < i; j++) {
-                    if (Model.sameString((routines[j] as Dictionary)["id"], routine["id"])) {
-                        return false;
-                    }
-                }
-            }
         }
         if (payload["settings"] instanceof Dictionary) {
             var settings = payload["settings"] as Dictionary;

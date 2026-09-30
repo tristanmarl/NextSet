@@ -146,7 +146,7 @@ module Model {
             return validId(record["id"]) && inRange(record["sessionSeq"], 1, 2147483647, false) &&
                 inRange(record["endedAt"], 0, 2147483647, false);
         }
-        if (!(sameString(status, "active") || sameString(status, "paused") ||
+        if (!(sameString(status, "active") ||
               sameString(status, "finalizing") ||
               (history && (sameString(status, "completed") || sameString(status, "aborted")))) ||
             !validId(record["id"]) || !inRange(record["sessionSeq"], 1, 2147483647, false) ||

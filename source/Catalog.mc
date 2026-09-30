@@ -7,7 +7,7 @@ module Catalog {
     var _garminOrder as Array? = null;
     var _garminCategories as Array? = null;
     var _garminIndex as Number = -1;
-    var _garminRows as Array? = null;
+    var _garminEntries as Array? = null;
     var _garminResources = [
         $.Rez.JsonData.Garmin00, $.Rez.JsonData.Garmin01, $.Rez.JsonData.Garmin02,
         $.Rez.JsonData.Garmin03, $.Rez.JsonData.Garmin04, $.Rez.JsonData.Garmin05,
@@ -42,11 +42,68 @@ module Catalog {
         return data()["templates"] as Array;
     }
 
+    // Comma separated list -> Array of Strings.
+    function splitList(text as String) as Array {
+        var result = [];
+        var rest = text;
+        while (rest.length() > 0) {
+            var cut = rest.find(",");
+            if (cut == null) {
+                result.add(rest);
+                break;
+            }
+            result.add(rest.substring(0, cut as Number));
+            rest = rest.substring((cut as Number) + 1, rest.length()) as String;
+        }
+        return result;
+    }
+
+    // Category codes; the index is also the Garmin<NN> resource number.
     function garminCategories() as Array {
         if (_garminCategories == null) {
-            _garminCategories = WatchUi.loadResource($.Rez.JsonData.GarminCategories) as Array;
+            _garminCategories = splitList(WatchUi.loadResource($.Rez.JsonData.GarminCategories) as String);
         }
         return _garminCategories as Array;
+    }
+
+    function garminCategoryName(index as Number) as String {
+        return titleCase(garminCategories()[index] as String);
+    }
+
+    // "BENCH_PRESS" -> "Bench Press"; leading underscores are ignored.
+    function titleCase(code as String) as String {
+        var result = "";
+        var rest = code.toLower();
+        while (rest.length() > 0) {
+            var cut = rest.find("_");
+            var word = cut == null ? rest : rest.substring(0, cut as Number);
+            rest = cut == null ? "" : rest.substring((cut as Number) + 1, rest.length()) as String;
+            if (word.length() > 0) {
+                result += (result.length() > 0 ? " " : "") +
+                    word.substring(0, 1).toUpper() + word.substring(1, word.length());
+            }
+        }
+        return result;
+    }
+
+    // "g<category index>-<code>" as lowercase letters, digits and "-" (Model.validId, max 40).
+    // A slug over 36 characters keeps its first 16 and last 20; scripts/generate_garmin_catalog.py
+    // asserts the ids are unique across the catalog.
+    function garminId(categoryIndex as Number, code as String) as String {
+        var slug = "";
+        var rest = code.toLower();
+        while (rest.length() > 0) {
+            var cut = rest.find("_");
+            var word = cut == null ? rest : rest.substring(0, cut as Number);
+            rest = cut == null ? "" : rest.substring((cut as Number) + 1, rest.length()) as String;
+            if (word.length() > 0) {
+                slug += (slug.length() > 0 ? "-" : "") + word;
+            }
+        }
+        if (slug.length() > 36) {
+            slug = slug.substring(0, 16) + slug.substring(slug.length() - 20, slug.length());
+        }
+        return "g" + categoryIndex.format("%02d") + "-" + slug;
     }
 
     // Display order of category indices: common strength categories first, then the rest as stored.
@@ -72,22 +129,50 @@ module Catalog {
         return _garminOrder as Array;
     }
 
-    function garminExercises(categoryIndex as Number) as Array {
+    // Raw entries of one category ("CODE", "CODE*" bodyweight, "CODE!" group-only in Connect);
+    // only one category is kept in memory.
+    function garminEntries(categoryIndex as Number) as Array {
         if (_garminIndex != categoryIndex) {
             if (categoryIndex < 0 || categoryIndex >= _garminResources.size()) {
                 return [];
             }
-            _garminRows = WatchUi.loadResource(_garminResources[categoryIndex]) as Array;
+            _garminEntries = splitList(WatchUi.loadResource(_garminResources[categoryIndex]) as String);
             _garminIndex = categoryIndex;
         }
-        return _garminRows as Array;
+        return _garminEntries as Array;
+    }
+
+    function entryFlag(entry as String, flag as String) as Boolean {
+        return entry.find(flag) != null;
+    }
+
+    function entryCode(entry as String) as String {
+        var end = entry.length();
+        while (end > 0 && (entry.substring(end - 1, end).equals("*") ||
+               entry.substring(end - 1, end).equals("!"))) {
+            end--;
+        }
+        return entry.substring(0, end) as String;
+    }
+
+    // Picker row {id, name, category, code (null when group-only), isBodyWeight (true or null)}.
+    function garminRow(categoryIndex as Number, position as Number) as Dictionary {
+        var entry = garminEntries(categoryIndex)[position] as String;
+        var code = entryCode(entry);
+        return {
+            "id" => garminId(categoryIndex, code),
+            "name" => titleCase(code),
+            "category" => garminCategories()[categoryIndex],
+            "code" => entryFlag(entry, "!") ? null : code,
+            "isBodyWeight" => entryFlag(entry, "*") ? true : null
+        };
     }
 
     function garminExercise(categoryIndex as Number, id as String) as Dictionary? {
-        var rows = garminExercises(categoryIndex);
-        for (var i = 0; i < rows.size(); i++) {
-            if (Model.sameString(rows[i]["id"], id)) {
-                return rows[i] as Dictionary;
+        var entries = garminEntries(categoryIndex);
+        for (var i = 0; i < entries.size(); i++) {
+            if (Model.sameString(garminId(categoryIndex, entryCode(entries[i] as String)), id)) {
+                return garminRow(categoryIndex, i);
             }
         }
         return null;
@@ -96,7 +181,7 @@ module Catalog {
     function garminCategoryIndex(code as String) as Number {
         var categories = garminCategories();
         for (var i = 0; i < categories.size(); i++) {
-            if (Model.sameString(categories[i]["code"], code)) {
+            if (Model.sameString(categories[i], code)) {
                 return i;
             }
         }
@@ -106,10 +191,11 @@ module Catalog {
     function garminName(category as String, code as String) as String {
         var index = garminCategoryIndex(category);
         if (index >= 0) {
-            var rows = garminExercises(index);
-            for (var i = 0; i < rows.size(); i++) {
-                if (Model.sameString(rows[i]["code"], code)) {
-                    return rows[i]["name"] as String;
+            var entries = garminEntries(index);
+            for (var i = 0; i < entries.size(); i++) {
+                var entry = entries[i] as String;
+                if (!entryFlag(entry, "!") && Model.sameString(entryCode(entry), code)) {
+                    return titleCase(code);
                 }
             }
         }
@@ -192,10 +278,11 @@ module Catalog {
         definition["isBodyWeight"] = entry["isBodyWeight"];
         definition["garminCategory"] = entry["garminCategory"];
         definition["garminCode"] = entry["garminCode"];
-        // Catalog ids ("g-...") resolve to the current catalog row, so a corrected code reaches old
+        // Catalog ids ("g<NN>-...") resolve to the current catalog row, so a corrected code reaches old
         // routines. Only the entry's stored category resource is loaded (one of 47), not all.
+        // Older "g-<hex>" ids never match and keep their stored name and code.
         var storedCategory = entry["garminCategory"];
-        if ((id as String).find("g-") == 0 && storedCategory instanceof String) {
+        if ((id as String).find("g") == 0 && storedCategory instanceof String) {
             var index = garminCategoryIndex(storedCategory as String);
             var row = index < 0 ? null : garminExercise(index, id as String);
             if (row != null) {

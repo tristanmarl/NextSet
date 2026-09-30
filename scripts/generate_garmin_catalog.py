@@ -1,22 +1,34 @@
 #!/usr/bin/env python3
-"""Generate category-sized resources from the pinned Garmin Connect snapshot.
+"""Generate the compact Garmin exercise catalog resources.
 
 Source: https://connect.garmin.com/web-data/exercises/Exercises.json
 Snapshot date: 2026-09-29
 SHA-256: 3b634d28d83c44183c323a16a6c62d1b0d6e93b1b128b7338c5e50ceed61af1c
 
+Output format (resources/data/garmin.xml):
+  GarminCategories  one JSON string: category codes, comma separated, sorted (index = resource number)
+  Garmin00..46      one JSON string per category: comma separated entries CODE[*][!]
+                    CODE  FIT exercise-name code (leading "_" stripped) or, with "!", the Connect code
+                    *     bodyweight exercise
+                    !     Connect knows only the category for this exercise (FIT code null)
+Names are derived at runtime (title case of CODE, "_" -> space); ids are
+"g" + 2-digit category index + "-" + lowercase CODE with "_" -> "-"; a slug over 36
+characters keeps its first 16 and last 20 (see catalog_id). ids must be unique and valid for Model.validId; this script asserts it.
+
 Offline regeneration:
   python3 scripts/generate_garmin_catalog.py \
     /private/tmp/NextSet-Garmin-Exercises.json resources/data/garmin.xml
+Copy the result to private/resources/data/garmin.xml.
 
 Codes are validated against the FIT profile of the pinned garmin-fit-sdk (pip install
 garmin-fit-sdk==21.217.0). A code that is not a `<category>_exercise_name` value (generic code ==
-category, newer names missing from the profile) becomes null: group-only in Connect.
+category, newer names missing from the profile) is marked "!".
 
-The 2026-09-29 input snapshot is no longer available locally. The checked-in catalog was
-revalidated in place (only the code fields changed) with:
-  python3 scripts/generate_garmin_catalog.py --revalidate resources/data/garmin.xml
-Copy the result to private/resources/data/garmin.xml.
+The 2026-09-29 input snapshot is no longer available locally. The checked-in catalog was converted
+from the previous per-row JSON format with:
+  python3 scripts/generate_garmin_catalog.py --convert old-garmin.xml original-garmin.xml resources/data/garmin.xml
+where old-garmin.xml is the previous format (git show 0640a4c:resources/data/garmin.xml) and
+original-garmin.xml carries the unvalidated Connect codes (git show 513e7cb^:resources/data/garmin.xml).
 
 Seeds (fail on an invalid garminCode) and tools/connect-sets/exercises.json (name -> category/name):
   python3 scripts/generate_garmin_catalog.py --seeds tools/connect-sets/exercises.json \
@@ -58,35 +70,59 @@ def valid_code(category, code):
     return None
 
 
-def write_xml(output, names, resources):
+def catalog_id(index, code):
+    slug = code.lstrip("_").lower().replace("_", "-")
+    if len(slug) > 36:
+        slug = slug[:16] + slug[-20:]  # keep in sync with Catalog.garminId; the split is collision-free
+    return "g%02d-%s" % (index, slug)
+
+
+def write_xml(output, categories):
+    """categories: sorted list of (category, [(code, bodyweight, group_only)])."""
+    seen = set()
     with open(output, "w", encoding="utf-8") as out:
         out.write('<jsonDataResources xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '
                   'xsi:noNamespaceSchemaLocation="https://developer.garmin.com/downloads/connect-iq/resources.xsd">\n')
-        out.write('  <jsonData id="GarminCategories">' + xml.escape(json.dumps(names, separators=(",", ":"))) + '</jsonData>\n')
-        for index, rows in enumerate(resources):
-            payload = json.dumps(rows, separators=(",", ":"))
-            out.write('  <jsonData id="Garmin%02d">%s</jsonData>\n' %
-                      (index, xml.escape(payload)))
+        out.write('  <jsonData id="GarminCategories">"%s"</jsonData>\n' % ",".join(c for c, _ in categories))
+        for index, (category, rows) in enumerate(categories):
+            entries = []
+            for code, bodyweight, group_only in rows:
+                if not re.fullmatch(r"[A-Z0-9_]+", code) or code.startswith("_") and not group_only:
+                    raise ValueError("unexpected code: " + code)
+                exercise_id = catalog_id(index, code)
+                if exercise_id in seen or not re.fullmatch(r"[a-z0-9-]{1,40}", exercise_id):
+                    raise ValueError("exercise ID collision or invalid: " + exercise_id)
+                seen.add(exercise_id)
+                entries.append(code + ("*" if bodyweight else "") + ("!" if group_only else ""))
+            out.write('  <jsonData id="Garmin%02d">"%s"</jsonData>\n' % (index, ",".join(entries)))
         out.write('</jsonDataResources>\n')
-
-
-def report(rows):
-    group_only = [r["category"] + "/" + r["name"] for r in rows if r["code"] is None]
-    print("valid=%d group-only=%d" % (len(rows) - len(group_only), len(group_only)))
+    group_only = ["%s/%s" % (c, r[0]) for c, rows in categories for r in rows if r[2]]
+    print("categories=%d exercises=%d group-only=%d" %
+          (len(categories), len(seen), len(group_only)))
     for entry in group_only:
         print("  group-only: " + entry)
 
 
-def revalidate(path):
+def load_rows(path):
     text = open(path, encoding="utf-8").read()
-    names = json.loads(html.unescape(re.search(r'id="GarminCategories">(.*)</jsonData>', text).group(1)))
-    resources = [json.loads(html.unescape(m)) for m in
-                 re.findall(r'id="Garmin\d\d">(.*)</jsonData>', text)]
-    rows = [row for group in resources for row in group]
-    for row in rows:
-        row["code"] = valid_code(row["category"], row["code"])
-    write_xml(path, names, resources)
-    report(rows)
+    return [row for m in re.findall(r'id="Garmin\d\d">(.*)</jsonData>', text)
+            for row in json.loads(html.unescape(m))]
+
+
+def convert(old, original, output):
+    originals = {row["id"]: row["code"] for row in load_rows(original)}
+    by_category = {}
+    for row in load_rows(old):
+        code = row["code"]
+        group_only = code is None
+        if group_only:
+            code = originals[row["id"]]
+        else:
+            assert valid_code(row["category"], code) == code, code
+        if readable(code.lstrip("_")) != row["name"].strip():
+            raise ValueError("derived name differs: %s vs %s" % (code, row["name"]))
+        by_category.setdefault(row["category"], []).append((code, bool(row["isBodyWeight"]), group_only))
+    write_xml(output, sorted(by_category.items()))
 
 
 def seed_exercises(paths):
@@ -106,39 +142,20 @@ def main(source, output):
     digest = hashlib.sha256(raw).hexdigest()
     if digest != PINNED_SHA256:
         raise ValueError("input does not match the pinned 2026-09-29 catalog snapshot")
-    data = json.loads(raw)
-    categories = data["categories"]
-    seen = set()
-    resources = []
-    names = []
-    total = 0
-    for category, details in sorted(categories.items()):
-        names.append({"code": category, "name": readable(category)})
+    categories = []
+    for category, details in sorted(json.loads(raw)["categories"].items()):
         rows = []
         for code, metadata in sorted(details["exercises"].items()):
-            exercise_id = "g-" + hashlib.sha256((category + "." + code).encode()).hexdigest()[:12]
-            if exercise_id in seen:
-                raise ValueError("exercise ID collision: " + exercise_id)
-            seen.add(exercise_id)
-            rows.append({
-                "id": exercise_id,
-                "name": readable(code),
-                "category": category,
-                "code": valid_code(category, code),
-                "isBodyWeight": metadata.get("isBodyWeight"),
-            })
-        resources.append(rows)
-        total += len(rows)
-
-    write_xml(output, names, resources)
-    report([r for rows in resources for r in rows])
-    print("categories=%d exercises=%d sha256=%s" %
-          (len(categories), total, digest))
+            fit = valid_code(category, code)
+            rows.append((fit or code, metadata.get("isBodyWeight") is True, fit is None))
+        categories.append((category, rows))
+    write_xml(output, categories)
+    print("sha256=" + digest)
 
 
 if __name__ == "__main__":
-    if len(sys.argv) == 3 and sys.argv[1] == "--revalidate":
-        revalidate(sys.argv[2])
+    if len(sys.argv) == 5 and sys.argv[1] == "--convert":
+        convert(*sys.argv[2:])
     elif len(sys.argv) >= 4 and sys.argv[1] == "--seeds":
         with open(sys.argv[2], "w") as out:
             json.dump(seed_exercises(sys.argv[3:]), out, indent=2)
@@ -147,4 +164,4 @@ if __name__ == "__main__":
         main(sys.argv[1], sys.argv[2])
     else:
         raise SystemExit("usage: generate_garmin_catalog.py Exercises.json output.xml | "
-                         "--revalidate garmin.xml | --seeds exercises.json seeds.xml...")
+                         "--convert old.xml original.xml output.xml | --seeds exercises.json seeds.xml...")

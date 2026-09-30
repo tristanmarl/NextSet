@@ -96,7 +96,6 @@ A short start/log/save path and saved Strength FIT were recorded on the FR965. T
 - [ ] **PENDING** Reorder: START on Move down/up repeatedly keeps moving the same entry with the move item focused; the routine view shows the new order after BACK.
 - [ ] **PENDING** Cancel a workout: the recording is discarded, History gets no new entry, and last-time prefills are unchanged. Kill the app mid-cancel and reopen to check it finishes discarding.
 - [ ] **PENDING** Skip the last unfinished exercise with at least one set logged: the Workout complete prompt appears.
-- [ ] **PENDING** Load a session that was saved as paused (from the previous build) and confirm it resumes as an active workout with rest and timed set intact.
 - [ ] **PENDING** Delete Upper and Lower; the last routine cannot be deleted. New exercise uses the Settings default rest.
 - [ ] **PENDING** Exercise menu: Edit last set > Delete set confirms and removes the set; Replace exercise swaps at 0 sets and adds an alternative otherwise.
 
@@ -150,3 +149,11 @@ A short start/log/save path and saved Strength FIT were recorded on the FR965. T
 - **A/B sideload test:** with `STRENGTH_TRAINING` the native Strength UI still showed a "Set 1" screen for a few seconds at start, even with `createField` moved before `session.start`. With `GENERIC` (sport `TRAINING`) it did not appear, and Garmin Connect shows the activity as Strength Training. Production now uses `GENERIC`.
 - [ ] **PENDING** Watch activity history label for a Generic recording.
 - [ ] **PENDING** Training load / recovery effect for a Generic recording.
+
+## 0.2.6 compact catalog — PENDING
+
+- **Simulator (2026-09-30):** unit tests cover the entry parser, catalog id uniqueness over all 47 categories, old-style id fallback and old-schema-to-defaults; nothing below is verified on a watch.
+- [ ] **PENDING** Garmin picker: browse all 47 categories and page through the largest (131 entries) with no watchdog trip or slow page; names look right (title case, "3 Way Calf Raise").
+- [ ] **PENDING** Pick a catalog exercise (including a "Category only" one), add it to a routine, run a workout with it and check the FIT lap `garmin_category`/`garmin_code`.
+- [ ] **PENDING** Recent and "Used in routines" lists still work; routines made in 0.2.5 (old `g-<hex>` ids) still open and start.
+- [ ] **PENDING** Upgrade 0.2.5 -> 0.2.6 keeps v3 routines and settings (config v3 is unchanged); only a pre-0.2.0 (v1/v2) config would reset to defaults, without a "settings damaged" message.

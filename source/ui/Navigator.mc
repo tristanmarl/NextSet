@@ -335,9 +335,9 @@ module Navigator {
             end = categories.size();
         }
         for (var i = start; i < end; i++) {
-            var category = categories[order[i] as Number] as Dictionary;
-            menu.addItem(new WatchUi.MenuItem(category["name"] as String, null,
-                category["code"], null));
+            var index = order[i] as Number;
+            menu.addItem(new WatchUi.MenuItem(Catalog.garminCategoryName(index), null,
+                categories[index], null));
         }
         if (page > 0) {
             menu.addItem(new WatchUi.MenuItem("Previous categories", null, "prev", null));
@@ -367,8 +367,7 @@ module Navigator {
                 definition["pickerName"] as String : definition["name"] as String;
             var category = definition["category"] as String;
             var categoryIndex = Catalog.garminCategoryIndex(category);
-            var categoryName = categoryIndex < 0 ? "" :
-                Catalog.garminCategories()[categoryIndex]["name"] as String;
+            var categoryName = categoryIndex < 0 ? "" : Catalog.garminCategoryName(categoryIndex);
             menu.addItem(new WatchUi.MenuItem(name, categoryName, definition["id"], null));
         }
         WatchUi.switchToView(menu,
@@ -378,21 +377,21 @@ module Navigator {
     function garminExercisePage(templateId as String, entryId as String?,
                                 categoryIndex as Number, page as Number,
                                 mode as String) as Void {
-        var categories = Catalog.garminCategories();
-        var rows = Catalog.garminExercises(categoryIndex);
+        var count = Catalog.garminEntries(categoryIndex).size();
         var pageSize = 20;
-        var pages = pageCount(rows.size(), pageSize);
-        var menu = new WatchUi.Menu2({:title=>(categories[categoryIndex]["name"] as String) +
+        var pages = pageCount(count, pageSize);
+        var menu = new WatchUi.Menu2({:title=>Catalog.garminCategoryName(categoryIndex) +
             " " + (page + 1).toString() + "/" + pages.toString()});
         var start = page * pageSize;
         var end = start + pageSize;
-        if (end > rows.size()) {
-            end = rows.size();
+        if (end > count) {
+            end = count;
         }
         for (var i = start; i < end; i++) {
             // code is null when Garmin Connect only knows the category, not this exercise
-            menu.addItem(new WatchUi.MenuItem(rows[i]["name"] as String,
-                rows[i]["code"] == null ? "Category only" : null, rows[i]["id"], null));
+            var row = Catalog.garminRow(categoryIndex, i);
+            menu.addItem(new WatchUi.MenuItem(row["name"] as String,
+                row["code"] == null ? "Category only" : null, row["id"], null));
         }
         if (page > 0) {
             menu.addItem(new WatchUi.MenuItem("Previous exercises", null, "prev", null));

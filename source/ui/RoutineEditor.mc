@@ -236,7 +236,7 @@ class GarminCategoryDelegate extends WatchUi.Menu2InputDelegate {
         }
         var categories = Catalog.garminCategories();
         for (var i = 0; i < categories.size(); i++) {
-            if (Model.sameString(categories[i]["code"], id)) {
+            if (Model.sameString(categories[i], id)) {
                 Navigator.garminExercisePage(_templateId, _entryId, i, 0, _mode);
                 return;
             }

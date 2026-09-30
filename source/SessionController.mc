@@ -117,85 +117,21 @@ class SessionController {
             _errorCode = Err.SAVED_SETTINGS_ARE_DAMAGED;
             return null;
         }
-        var schemaVersion = config["schemaVersion"];
-        if (schemaVersion instanceof Number && schemaVersion > 3) {
-            _errorCode = Err.UPDATE_APP_TO_RESUME;
-            return null;
+        if (config["schemaVersion"] != 3) {
+            // Beta: older schemas are not migrated. Start from the defaults, keeping only the
+            // session counter so new session ids stay unique.
+            var fresh = defaultConfig();
+            fresh["nextSessionSeq"] = config["nextSessionSeq"];
+            _stored = false;
+            return fresh;
         }
-        if (schemaVersion != null && (!(schemaVersion instanceof Number) || schemaVersion < 1)) {
+        var routines = loadRoutines(config["routineIds"] as Array);
+        config.remove("routineIds");
+        if (routines.size() == 0) {
             _errorCode = Err.SAVED_SETTINGS_ARE_DAMAGED;
             return null;
         }
-        var legacy = !(schemaVersion instanceof Number && schemaVersion >= 3);
-        if (!legacy) {
-            var routines = loadRoutines(config["routineIds"] as Array);
-            config.remove("routineIds");
-            if (routines.size() == 0) {
-                _errorCode = Err.SAVED_SETTINGS_ARE_DAMAGED;
-                return null;
-            }
-            config["routines"] = routines;
-        }
-        if (schemaVersion == null || schemaVersion < 2) {
-            var routines = Catalog.routineTemplates(config as Dictionary);
-            if (routines.size() == 0) {
-                routines = defaultRoutines();
-            }
-            var seedFields = ["workingSetCount", "targetRepsMin", "targetRepsMax",
-                "targetDurationSec", "startingLoad100", "restSec"];
-            for (var t = 0; t < routines.size(); t++) {
-                var routine = routines[t] as Dictionary;
-                var entries = routine["entries"] as Array;
-                var baseCounts = [];
-                for (var e = 0; e < entries.size(); e++) {
-                    var entry = entries[e] as Dictionary;
-                    baseCounts.add(entry["workingSetCount"]);
-                    var baseMinimum = entry["targetRepsMin"];
-                    var baseMaximum = entry["targetRepsMax"];
-                    var old = Catalog.overridesFor(config as Dictionary,
-                        routine["id"] as String, entry["entryId"] as String);
-                    var exercise = Catalog.exerciseForEntry(entry) as Dictionary;
-                    var type = exercise["loadType"] as String;
-                    for (var f = 0; f < seedFields.size(); f++) {
-                        var field = seedFields[f] as String;
-                        var value = Catalog.dictionaryValue(old, field);
-                        var valid = (Model.sameString(field, "workingSetCount") &&
-                            Model.inRange(value, 1, Model.MAX_SETS, false)) ||
-                            (Model.sameString(field, "restSec") &&
-                            Model.inRange(value, 0, Model.MAX_REST_SEC, false)) ||
-                            ((Model.sameString(field, "targetRepsMin") ||
-                              Model.sameString(field, "targetRepsMax")) &&
-                            !Model.sameString(type, "timed") &&
-                            Model.inRange(value, 1, Model.MAX_REPS, false)) ||
-                            (Model.sameString(field, "targetDurationSec") &&
-                            Model.sameString(type, "timed") &&
-                            Model.inRange(value, 1, Model.MAX_DURATION_SEC, false)) ||
-                            (Model.sameString(field, "startingLoad100") &&
-                            (Model.sameString(type, "weight") ||
-                             Model.sameString(type, "assistance")) &&
-                            Model.inRange(value, 0, Model.MAX_LOAD100, false));
-                        if (valid) {
-                            entry[field] = value;
-                        }
-                    }
-                    if (entry["targetRepsMin"] instanceof Number &&
-                        entry["targetRepsMax"] instanceof Number &&
-                        entry["targetRepsMin"] > entry["targetRepsMax"]) {
-                        entry["targetRepsMin"] = baseMinimum;
-                        entry["targetRepsMax"] = baseMaximum;
-                    }
-                }
-                if (Catalog.totalSets(routine) > Model.MAX_SETS_PER_WORKOUT) {
-                    for (var e = 0; e < entries.size(); e++) {
-                        entries[e]["workingSetCount"] = baseCounts[e];
-                    }
-                }
-            }
-            config["routines"] = routines;
-            config["templateOverrides"] = {};
-            config["routineNextEntrySeq"] = 1;
-            config["schemaVersion"] = 2;
-        }
+        config["routines"] = routines;
         if (!(config["settings"] instanceof Dictionary)) {
             config["settings"] = {"defaultRestSec" => 90, "vibrationEnabled" => true};
         } else {
@@ -220,21 +156,7 @@ class SessionController {
             _errorCode = Err.SAVED_SETTINGS_ARE_DAMAGED;
             return null;
         }
-        if (legacy) {
-            if (!validRoutineList(config["routines"] as Array)) {
-                _errorCode = Err.SAVED_SETTINGS_ARE_DAMAGED;
-                return null;
-            }
-            // v1/v2 -> v3, safe during an active session. Routine keys are written first and the
-            // v3 config last, so an interrupted run leaves the old config in place and is redone.
-            config["schemaVersion"] = 3;
-            if (!writeAll(config)) {
-                _errorCode = Err.SETTINGS_MIGRATION_SAVE_FAILED;
-                return null;
-            }
-        } else {
-            _stored = true;
-        }
+        _stored = true;
         return config;
     }
 
@@ -279,7 +201,7 @@ class SessionController {
         return result;
     }
 
-    // Every routine, then the config; used for migration and the first save of a default config.
+    // Every routine, then the config; used for the first save of a default config.
     private function writeAll(config as Dictionary) as Boolean {
         var routines = config["routines"] as Array;
         for (var i = 0; i < routines.size(); i++) {
@@ -335,27 +257,6 @@ class SessionController {
 
     private function validRoutineName(name as String) as Boolean {
         return Model.validNonblankText(name, 64);
-    }
-
-    private function validRoutineList(routines as Array) as Boolean {
-        if (routines.size() < 1 || routines.size() > Model.MAX_TEMPLATES) {
-            return false;
-        }
-        for (var i = 0; i < routines.size(); i++) {
-            if (!(routines[i] instanceof Dictionary)) {
-                return false;
-            }
-            var routine = routines[i] as Dictionary;
-            if (!Catalog.validRoutine(routine) || !validRoutineName(routine["name"] as String)) {
-                return false;
-            }
-            for (var j = 0; j < i; j++) {
-                if (Model.sameString((routines[j] as Dictionary)["id"], routine["id"])) {
-                    return false;
-                }
-            }
-        }
-        return true;
     }
 
     // Config-only save: settings, sequence numbers and overrides.
@@ -441,20 +342,6 @@ class SessionController {
     public function templateExercise(templateId as String, entryId as String) as Dictionary? {
         var entry = templateEntry(templateId, entryId);
         return entry == null ? null : Catalog.exerciseForEntry(entry as Dictionary);
-    }
-
-    public function templateTotalSets(templateId as String) as Number {
-        var config = readConfig();
-        var template = config == null ? null : routineDefinition(config as Dictionary, templateId);
-        if (template == null || config == null) {
-            return 0;
-        }
-        var total = 0;
-        var entries = (template as Dictionary)["entries"] as Array;
-        for (var i = 0; i < entries.size(); i++) {
-            total += entries[i]["workingSetCount"] as Number;
-        }
-        return total;
     }
 
     private function entryOverride(config as Dictionary, templateId as String,
@@ -1055,8 +942,7 @@ class SessionController {
 
     public function hasActiveSession() as Boolean {
         return _session != null &&
-            (Model.sameString(_session["status"], "active") ||
-             Model.sameString(_session["status"], "paused"));
+            Model.sameString(_session["status"], "active");
     }
 
     public function isWorkoutRunning() as Boolean {
@@ -1266,13 +1152,6 @@ class SessionController {
         return candidate != null && commit(candidate as Dictionary);
     }
 
-    public function setElapsed(now as Number) as Number {
-        if (_session != null && _session["setRun"] instanceof Dictionary) {
-            return SessionLogic.setElapsedSec(_session["setRun"] as Dictionary, now);
-        }
-        return 0;
-    }
-
     public function timedElapsed(now as Number) as Number {
         if (_session != null && _session["timedRun"] instanceof Dictionary) {
             return SessionLogic.timedElapsedSec(_session["timedRun"] as Dictionary, now);
@@ -1290,12 +1169,6 @@ class SessionController {
         }
         _errorCode = Err.NONE;
         return true;
-    }
-
-    public function hasRest() as Boolean {
-        return _session != null && _session["rest"] instanceof Dictionary &&
-            (Model.sameString(_session["rest"]["state"], "running") ||
-             Model.sameString(_session["rest"]["state"], "expired"));
     }
 
     public function hasRunningRest() as Boolean {
@@ -1415,19 +1288,6 @@ class SessionController {
     private function recoverRunningSession(now as Number) as Void {
         var source = _session as Dictionary;
         var candidate = SessionLogic.copyDictionary(source);
-        if (Model.sameString(candidate["status"], "paused")) {
-            // Workout pause no longer exists; sessions saved as paused resume as active.
-            var resumed = WorkoutClock.resume(candidate, now);
-            if (resumed != null) {
-                candidate = resumed as Dictionary;
-            }
-            var pausedRest = candidate["rest"];
-            if (pausedRest instanceof Dictionary && Model.sameString(pausedRest["state"], "paused")) {
-                candidate["rest"] = RestClock.resume(pausedRest as Dictionary, now);
-            }
-            candidate["status"] = "active";
-            candidate["setRun"] = null;  // a set start does not survive a (legacy) pause
-        }
         var run = candidate["timedRun"];
         if (run instanceof Dictionary) {
             var savedAt = candidate["lastCheckpointAt"] instanceof Number ?
