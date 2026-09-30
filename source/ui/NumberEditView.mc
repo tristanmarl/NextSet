@@ -84,20 +84,12 @@ class NumberEditView extends WatchUi.View {
             WatchUi.popView(WatchUi.SLIDE_DOWN);
             if (Model.sameString(_configKind, "setting")) {
                 Navigator.settings();
-            } else if (Model.sameString(_configKind, "template")) {
-                Navigator.templateEntryFields(_parentId as String, _entryId, true);
-                if (Model.sameString(_field, "targetRepsMin")) {
-                    // Reps are one field to the user: edit the maximum right after the minimum.
-                    Navigator.configNumberEdit("template", _parentId as String, _entryId,
-                        "targetRepsMax", Navigator.configFieldLabel("targetRepsMax"));
-                }
             }
         } else {
             var problem = controller.errorCode();
-            _error = problem == Err.ROUTINE_LIMIT_REACHED ? "ROUTINE LIMIT" :
-                (problem == Err.SETTINGS_SAVE_FAILED ||
+            _error = problem == Err.SETTINGS_SAVE_FAILED ||
                  problem == Err.SAVE_FAILED_RETRY_BEFORE_CONTINUING ?
-                 "SAVE FAILED" : "INVALID VALUE");
+                 "SAVE FAILED" : "INVALID VALUE";
             WatchUi.requestUpdate();
         }
     }
@@ -123,17 +115,6 @@ class NumberEditView extends WatchUi.View {
                 return;
             }
             _value = configValue as Number;
-            if (isLoadField()) {
-                if (Model.sameString(_field, "increment100")) {
-                    _increment100 = _value;
-                } else if (_configKind != null && Model.sameString(_field, "startingLoad100")) {
-                    var configuredIncrement = getApp().controller().numericConfigValue(
-                        "template", _parentId as String, _entryId, "increment100");
-                    if (configuredIncrement instanceof Number) {
-                        _increment100 = configuredIncrement as Number;
-                    }
-                }
-            }
             return;
         }
         var context = editorContext();

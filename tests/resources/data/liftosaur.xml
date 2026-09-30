@@ -1,0 +1,1265 @@
+<jsonDataResources xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://developer.garmin.com/downloads/connect-iq/resources.xsd">
+  <jsonData id="LiftosaurProgram">
+{
+ "data": {
+  "id": "x0001xxx",
+  "name": "Test Programxxxxx",
+  "text": "# Week 1\n## DayAx\n// xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n// xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n// xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n// xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n// xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n// xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n// xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n// xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n// xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n// xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n// xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n// xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n// xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n// xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n// xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n// xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n\n## DayBx\n// xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n// xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n// xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n// xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n// xxxxxxxxxxxxxxxxx\n// xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n// xxxxxxxxxxxx\n// xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n// xxxxxxxxxxxxxxxxxxxx\n// xxxxxxxxxxxxxxxxxxxxxxx\n// xx\n// \n//\n// xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n// xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n// xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n// xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n// xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n// xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n// xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n// xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n// xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n// xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n// xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n// xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n// xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n// xxxxxxxxxxxxx\n// \n//\n\n\n",
+  "isCurrent": true
+ }
+}
+  </jsonData>
+  <jsonData id="LiftosaurUpper">
+{
+ "data": {
+  "workout": {
+   "programId": "x0001xxx",
+   "programName": "Test Programxxxxx",
+   "dayName": "DayAx",
+   "dayData": {
+    "day": 1,
+    "week": 1,
+    "dayInWeek": 1
+   },
+   "startTime": 1111111111111,
+   "entries": [
+    {
+     "entryId": "x0002xxxxxxxxxxxxxxxxxxxx",
+     "exerciseId": "x0002xxxxxxxxxxxxxxxxxxxx",
+     "equipment": "leverageMachine",
+     "name": "M01xxxxxxx",
+     "imageUrl": "https://example.invalid/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "superset": null,
+     "notes": null,
+     "description": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "hasUpdateScript": false,
+     "promptedVars": [],
+     "warmupSets": [
+      {
+       "setId": "x0003x",
+       "index": 0,
+       "isWarmup": true,
+       "reps": 11,
+       "minReps": null,
+       "isAmrap": false,
+       "weight": "11kg",
+       "originalWeight": "11.1kg",
+       "plates": [
+        {
+         "weight": "1kg",
+         "num": 1
+        },
+        {
+         "weight": "1kg",
+         "num": 1
+        }
+       ],
+       "rpe": null,
+       "logRpe": false,
+       "askWeight": false,
+       "isUnilateral": false,
+       "timer": 11,
+       "setTimer": null,
+       "completed": null
+      }
+     ],
+     "sets": [
+      {
+       "setId": "x0004x",
+       "index": 0,
+       "isWarmup": false,
+       "reps": 1,
+       "minReps": null,
+       "isAmrap": false,
+       "weight": "11kg",
+       "originalWeight": "11kg",
+       "plates": [
+        {
+         "weight": "1kg",
+         "num": 1
+        },
+        {
+         "weight": "1kg",
+         "num": 1
+        }
+       ],
+       "rpe": null,
+       "logRpe": false,
+       "askWeight": false,
+       "isUnilateral": false,
+       "timer": 111,
+       "setTimer": null,
+       "completed": null
+      },
+      {
+       "setId": "x0005x",
+       "index": 1,
+       "isWarmup": false,
+       "reps": 1,
+       "minReps": null,
+       "isAmrap": false,
+       "weight": "11kg",
+       "originalWeight": "11kg",
+       "plates": [
+        {
+         "weight": "1kg",
+         "num": 1
+        },
+        {
+         "weight": "1kg",
+         "num": 1
+        }
+       ],
+       "rpe": null,
+       "logRpe": false,
+       "askWeight": false,
+       "isUnilateral": false,
+       "timer": 111,
+       "setTimer": null,
+       "completed": null
+      },
+      {
+       "setId": "x0006x",
+       "index": 2,
+       "isWarmup": false,
+       "reps": 1,
+       "minReps": null,
+       "isAmrap": false,
+       "weight": "11kg",
+       "originalWeight": "11kg",
+       "plates": [
+        {
+         "weight": "1kg",
+         "num": 1
+        },
+        {
+         "weight": "1kg",
+         "num": 1
+        }
+       ],
+       "rpe": null,
+       "logRpe": false,
+       "askWeight": false,
+       "isUnilateral": false,
+       "timer": 111,
+       "setTimer": null,
+       "completed": null
+      }
+     ]
+    },
+    {
+     "entryId": "x0007xxxxxxxxxxxxxxxxxxxxx",
+     "exerciseId": "x0007xxxxxxxxxxxxxxxxxxxxx",
+     "equipment": "leverageMachine",
+     "name": "M02xxxxxxxx",
+     "imageUrl": "https://example.invalid/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "superset": null,
+     "notes": null,
+     "description": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "hasUpdateScript": false,
+     "promptedVars": [],
+     "warmupSets": [
+      {
+       "setId": "x0008x",
+       "index": 0,
+       "isWarmup": true,
+       "reps": 11,
+       "minReps": null,
+       "isAmrap": false,
+       "weight": "11kg",
+       "originalWeight": "11.11kg",
+       "plates": [
+        {
+         "weight": "1kg",
+         "num": 1
+        }
+       ],
+       "rpe": null,
+       "logRpe": false,
+       "askWeight": false,
+       "isUnilateral": false,
+       "timer": 11,
+       "setTimer": null,
+       "completed": null
+      }
+     ],
+     "sets": [
+      {
+       "setId": "x0009x",
+       "index": 0,
+       "isWarmup": false,
+       "reps": 1,
+       "minReps": null,
+       "isAmrap": false,
+       "weight": "11kg",
+       "originalWeight": "11kg",
+       "plates": [
+        {
+         "weight": "1kg",
+         "num": 1
+        },
+        {
+         "weight": "1kg",
+         "num": 1
+        }
+       ],
+       "rpe": null,
+       "logRpe": false,
+       "askWeight": false,
+       "isUnilateral": false,
+       "timer": 111,
+       "setTimer": null,
+       "completed": null
+      },
+      {
+       "setId": "x000ax",
+       "index": 1,
+       "isWarmup": false,
+       "reps": 1,
+       "minReps": null,
+       "isAmrap": false,
+       "weight": "11kg",
+       "originalWeight": "11kg",
+       "plates": [
+        {
+         "weight": "1kg",
+         "num": 1
+        },
+        {
+         "weight": "1kg",
+         "num": 1
+        }
+       ],
+       "rpe": null,
+       "logRpe": false,
+       "askWeight": false,
+       "isUnilateral": false,
+       "timer": 111,
+       "setTimer": null,
+       "completed": null
+      },
+      {
+       "setId": "x000bx",
+       "index": 2,
+       "isWarmup": false,
+       "reps": 1,
+       "minReps": null,
+       "isAmrap": false,
+       "weight": "11kg",
+       "originalWeight": "11kg",
+       "plates": [
+        {
+         "weight": "1kg",
+         "num": 1
+        },
+        {
+         "weight": "1kg",
+         "num": 1
+        }
+       ],
+       "rpe": null,
+       "logRpe": false,
+       "askWeight": false,
+       "isUnilateral": false,
+       "timer": 111,
+       "setTimer": null,
+       "completed": null
+      }
+     ]
+    },
+    {
+     "entryId": "x000cxxxxxxxxxxxxxxxxxxxxx",
+     "exerciseId": "x000cxxxxxxxxxxxxxxxxxxxxx",
+     "equipment": "leverageMachine",
+     "name": "M03xxxxxxxx",
+     "imageUrl": "https://example.invalid/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "superset": null,
+     "notes": null,
+     "description": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "hasUpdateScript": false,
+     "promptedVars": [],
+     "warmupSets": [],
+     "sets": [
+      {
+       "setId": "x000dx",
+       "index": 0,
+       "isWarmup": false,
+       "reps": 11,
+       "minReps": null,
+       "isAmrap": false,
+       "weight": "11kg",
+       "originalWeight": "11kg",
+       "plates": [
+        {
+         "weight": "1kg",
+         "num": 1
+        }
+       ],
+       "rpe": null,
+       "logRpe": false,
+       "askWeight": false,
+       "isUnilateral": false,
+       "timer": 11,
+       "setTimer": null,
+       "completed": null
+      },
+      {
+       "setId": "x000ex",
+       "index": 1,
+       "isWarmup": false,
+       "reps": 11,
+       "minReps": null,
+       "isAmrap": false,
+       "weight": "11kg",
+       "originalWeight": "11kg",
+       "plates": [
+        {
+         "weight": "1kg",
+         "num": 1
+        }
+       ],
+       "rpe": null,
+       "logRpe": false,
+       "askWeight": false,
+       "isUnilateral": false,
+       "timer": 11,
+       "setTimer": null,
+       "completed": null
+      }
+     ]
+    },
+    {
+     "entryId": "x000fxxxxxxxxxxxxxxxxxxxxxxxx",
+     "exerciseId": "x000fxxxxxxxxxxxxxxxxxxxxxxxx",
+     "equipment": "leverageMachine",
+     "name": "M04xxxxxxxxxxx",
+     "imageUrl": "https://example.invalid/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "superset": null,
+     "notes": null,
+     "description": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "hasUpdateScript": false,
+     "promptedVars": [],
+     "warmupSets": [],
+     "sets": [
+      {
+       "setId": "x0010x",
+       "index": 0,
+       "isWarmup": false,
+       "reps": 1,
+       "minReps": null,
+       "isAmrap": false,
+       "weight": "11kg",
+       "originalWeight": "11kg",
+       "plates": [
+        {
+         "weight": "1kg",
+         "num": 1
+        },
+        {
+         "weight": "1kg",
+         "num": 1
+        }
+       ],
+       "rpe": null,
+       "logRpe": false,
+       "askWeight": false,
+       "isUnilateral": false,
+       "timer": 111,
+       "setTimer": null,
+       "completed": null
+      },
+      {
+       "setId": "x0011x",
+       "index": 1,
+       "isWarmup": false,
+       "reps": 1,
+       "minReps": null,
+       "isAmrap": false,
+       "weight": "11kg",
+       "originalWeight": "11kg",
+       "plates": [
+        {
+         "weight": "1kg",
+         "num": 1
+        },
+        {
+         "weight": "1kg",
+         "num": 1
+        }
+       ],
+       "rpe": null,
+       "logRpe": false,
+       "askWeight": false,
+       "isUnilateral": false,
+       "timer": 111,
+       "setTimer": null,
+       "completed": null
+      }
+     ]
+    },
+    {
+     "entryId": "x0012xxxxxxxxxxxxxxxxx",
+     "exerciseId": "x0012xxxxxxxxxxxxxxxxx",
+     "equipment": "leverageMachine",
+     "name": "M05xxxx",
+     "imageUrl": "https://example.invalid/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "superset": "A",
+     "notes": null,
+     "description": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "hasUpdateScript": false,
+     "promptedVars": [],
+     "warmupSets": [],
+     "sets": [
+      {
+       "setId": "x0013x",
+       "index": 0,
+       "isWarmup": false,
+       "reps": 11,
+       "minReps": null,
+       "isAmrap": false,
+       "weight": "11kg",
+       "originalWeight": "11kg",
+       "plates": [
+        {
+         "weight": "1kg",
+         "num": 1
+        }
+       ],
+       "rpe": null,
+       "logRpe": false,
+       "askWeight": false,
+       "isUnilateral": false,
+       "timer": 111,
+       "setTimer": null,
+       "completed": null
+      },
+      {
+       "setId": "x0014x",
+       "index": 1,
+       "isWarmup": false,
+       "reps": 11,
+       "minReps": null,
+       "isAmrap": false,
+       "weight": "11kg",
+       "originalWeight": "11kg",
+       "plates": [
+        {
+         "weight": "1kg",
+         "num": 1
+        }
+       ],
+       "rpe": null,
+       "logRpe": false,
+       "askWeight": false,
+       "isUnilateral": false,
+       "timer": 111,
+       "setTimer": null,
+       "completed": null
+      }
+     ]
+    },
+    {
+     "entryId": "x0015xxxxxxxxxxxxxxxxxxxxx",
+     "exerciseId": "x0015xxxxxxxxxxxxxxxxxxxxx",
+     "equipment": "leverageMachine",
+     "name": "M06xxxxxxxx",
+     "imageUrl": "https://example.invalid/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "superset": "A",
+     "notes": null,
+     "description": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "hasUpdateScript": false,
+     "promptedVars": [],
+     "warmupSets": [],
+     "sets": [
+      {
+       "setId": "x0016x",
+       "index": 0,
+       "isWarmup": false,
+       "reps": 11,
+       "minReps": null,
+       "isAmrap": false,
+       "weight": "11kg",
+       "originalWeight": "11kg",
+       "plates": [
+        {
+         "weight": "1kg",
+         "num": 1
+        }
+       ],
+       "rpe": null,
+       "logRpe": false,
+       "askWeight": false,
+       "isUnilateral": false,
+       "timer": 11,
+       "setTimer": null,
+       "completed": null
+      },
+      {
+       "setId": "x0017x",
+       "index": 1,
+       "isWarmup": false,
+       "reps": 11,
+       "minReps": null,
+       "isAmrap": false,
+       "weight": "11kg",
+       "originalWeight": "11kg",
+       "plates": [
+        {
+         "weight": "1kg",
+         "num": 1
+        }
+       ],
+       "rpe": null,
+       "logRpe": false,
+       "askWeight": false,
+       "isUnilateral": false,
+       "timer": 11,
+       "setTimer": null,
+       "completed": null
+      }
+     ]
+    },
+    {
+     "entryId": "x0018xxxxxxxxxxxxxxxxxxxxxxx",
+     "exerciseId": "x0018xxxxxxxxxxxxxxxxxxxxxxx",
+     "equipment": "leverageMachine",
+     "name": "M07xxxxxxxxxx",
+     "imageUrl": "https://example.invalid/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "superset": null,
+     "notes": null,
+     "description": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "hasUpdateScript": false,
+     "promptedVars": [],
+     "warmupSets": [],
+     "sets": [
+      {
+       "setId": "x0019x",
+       "index": 0,
+       "isWarmup": false,
+       "reps": 11,
+       "minReps": null,
+       "isAmrap": false,
+       "weight": "11kg",
+       "originalWeight": "11kg",
+       "plates": [
+        {
+         "weight": "1kg",
+         "num": 1
+        }
+       ],
+       "rpe": null,
+       "logRpe": false,
+       "askWeight": false,
+       "isUnilateral": false,
+       "timer": 11,
+       "setTimer": null,
+       "completed": null
+      },
+      {
+       "setId": "x001ax",
+       "index": 1,
+       "isWarmup": false,
+       "reps": 11,
+       "minReps": null,
+       "isAmrap": false,
+       "weight": "11kg",
+       "originalWeight": "11kg",
+       "plates": [
+        {
+         "weight": "1kg",
+         "num": 1
+        }
+       ],
+       "rpe": null,
+       "logRpe": false,
+       "askWeight": false,
+       "isUnilateral": false,
+       "timer": 11,
+       "setTimer": null,
+       "completed": null
+      }
+     ]
+    },
+    {
+     "entryId": "x001bxxxxxxxxxxxxxxxxxxxxxxx",
+     "exerciseId": "x001bxxxxxxxxxxxxxxxxxxxxxxx",
+     "equipment": "leverageMachine",
+     "name": "M08xxxxxxxxxx",
+     "imageUrl": "https://example.invalid/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "superset": null,
+     "notes": null,
+     "description": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "hasUpdateScript": false,
+     "promptedVars": [],
+     "warmupSets": [],
+     "sets": [
+      {
+       "setId": "x001cx",
+       "index": 0,
+       "isWarmup": false,
+       "reps": 11,
+       "minReps": null,
+       "isAmrap": false,
+       "weight": "11kg",
+       "originalWeight": "11kg",
+       "plates": [
+        {
+         "weight": "1kg",
+         "num": 1
+        }
+       ],
+       "rpe": null,
+       "logRpe": false,
+       "askWeight": false,
+       "isUnilateral": false,
+       "timer": 11,
+       "setTimer": null,
+       "completed": null
+      },
+      {
+       "setId": "x001dx",
+       "index": 1,
+       "isWarmup": false,
+       "reps": 11,
+       "minReps": null,
+       "isAmrap": false,
+       "weight": "11kg",
+       "originalWeight": "11kg",
+       "plates": [
+        {
+         "weight": "1kg",
+         "num": 1
+        }
+       ],
+       "rpe": null,
+       "logRpe": false,
+       "askWeight": false,
+       "isUnilateral": false,
+       "timer": 11,
+       "setTimer": null,
+       "completed": null
+      },
+      {
+       "setId": "x001ex",
+       "index": 2,
+       "isWarmup": false,
+       "reps": 11,
+       "minReps": null,
+       "isAmrap": false,
+       "weight": "11kg",
+       "originalWeight": "11kg",
+       "plates": [
+        {
+         "weight": "1kg",
+         "num": 1
+        }
+       ],
+       "rpe": null,
+       "logRpe": false,
+       "askWeight": false,
+       "isUnilateral": false,
+       "timer": 11,
+       "setTimer": null,
+       "completed": null
+      }
+     ]
+    }
+   ]
+  }
+ }
+}
+  </jsonData>
+  <jsonData id="LiftosaurLower">
+{
+ "data": {
+  "workout": {
+   "programId": "x0001xxx",
+   "programName": "Test Programxxxxx",
+   "dayName": "DayBx",
+   "dayData": {
+    "day": 2,
+    "week": 1,
+    "dayInWeek": 2
+   },
+   "startTime": 1111111111111,
+   "entries": [
+    {
+     "entryId": "x001fxxxxxxxxxxxxxxxxxxx",
+     "exerciseId": "x001fxxxxxxxxxxxxxxxxxxx",
+     "equipment": "leverageMachine",
+     "name": "M09xxxxxx",
+     "imageUrl": "https://example.invalid/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "superset": null,
+     "notes": null,
+     "description": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "hasUpdateScript": false,
+     "promptedVars": [],
+     "warmupSets": [
+      {
+       "setId": "x0020x",
+       "index": 0,
+       "isWarmup": true,
+       "reps": 11,
+       "minReps": null,
+       "isAmrap": false,
+       "weight": "111kg",
+       "originalWeight": "111.1kg",
+       "plates": [
+        {
+         "weight": "1kg",
+         "num": 11
+        },
+        {
+         "weight": "1kg",
+         "num": 1
+        }
+       ],
+       "rpe": null,
+       "logRpe": false,
+       "askWeight": false,
+       "isUnilateral": false,
+       "timer": 11,
+       "setTimer": null,
+       "completed": null
+      },
+      {
+       "setId": "x0021x",
+       "index": 1,
+       "isWarmup": true,
+       "reps": 1,
+       "minReps": null,
+       "isAmrap": false,
+       "weight": "111kg",
+       "originalWeight": "111.11kg",
+       "plates": [
+        {
+         "weight": "1kg",
+         "num": 11
+        },
+        {
+         "weight": "1kg",
+         "num": 1
+        }
+       ],
+       "rpe": null,
+       "logRpe": false,
+       "askWeight": false,
+       "isUnilateral": false,
+       "timer": 11,
+       "setTimer": null,
+       "completed": null
+      }
+     ],
+     "sets": [
+      {
+       "setId": "x0022x",
+       "index": 0,
+       "isWarmup": false,
+       "reps": 1,
+       "minReps": null,
+       "isAmrap": false,
+       "weight": "111kg",
+       "originalWeight": "111kg",
+       "plates": [
+        {
+         "weight": "1kg",
+         "num": 11
+        },
+        {
+         "weight": "1kg",
+         "num": 1
+        }
+       ],
+       "rpe": null,
+       "logRpe": false,
+       "askWeight": false,
+       "isUnilateral": false,
+       "timer": 111,
+       "setTimer": null,
+       "completed": null
+      },
+      {
+       "setId": "x0023x",
+       "index": 1,
+       "isWarmup": false,
+       "reps": 1,
+       "minReps": null,
+       "isAmrap": false,
+       "weight": "111kg",
+       "originalWeight": "111kg",
+       "plates": [
+        {
+         "weight": "1kg",
+         "num": 11
+        },
+        {
+         "weight": "1kg",
+         "num": 1
+        }
+       ],
+       "rpe": null,
+       "logRpe": false,
+       "askWeight": false,
+       "isUnilateral": false,
+       "timer": 111,
+       "setTimer": null,
+       "completed": null
+      },
+      {
+       "setId": "x0024x",
+       "index": 2,
+       "isWarmup": false,
+       "reps": 1,
+       "minReps": null,
+       "isAmrap": false,
+       "weight": "111kg",
+       "originalWeight": "111kg",
+       "plates": [
+        {
+         "weight": "1kg",
+         "num": 11
+        },
+        {
+         "weight": "1kg",
+         "num": 1
+        }
+       ],
+       "rpe": null,
+       "logRpe": false,
+       "askWeight": false,
+       "isUnilateral": false,
+       "timer": 111,
+       "setTimer": null,
+       "completed": null
+      },
+      {
+       "setId": "x0025x",
+       "index": 3,
+       "isWarmup": false,
+       "reps": 1,
+       "minReps": null,
+       "isAmrap": false,
+       "weight": "111kg",
+       "originalWeight": "111kg",
+       "plates": [
+        {
+         "weight": "1kg",
+         "num": 11
+        },
+        {
+         "weight": "1kg",
+         "num": 1
+        }
+       ],
+       "rpe": null,
+       "logRpe": false,
+       "askWeight": false,
+       "isUnilateral": false,
+       "timer": 111,
+       "setTimer": null,
+       "completed": null
+      }
+     ]
+    },
+    {
+     "entryId": "x0026xxxxxxxxxxxxxxxxxxxxxxx",
+     "exerciseId": "x0026xxxxxxxxxxxxxxxxxxxxxxx",
+     "equipment": "leverageMachine",
+     "name": "M10xxxxxxxxxxx",
+     "imageUrl": "https://example.invalid/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "superset": null,
+     "notes": null,
+     "description": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "hasUpdateScript": false,
+     "promptedVars": [],
+     "warmupSets": [],
+     "sets": [
+      {
+       "setId": "x0027x",
+       "index": 0,
+       "isWarmup": false,
+       "reps": 11,
+       "minReps": null,
+       "isAmrap": false,
+       "weight": "11kg",
+       "originalWeight": "11kg",
+       "plates": [
+        {
+         "weight": "1kg",
+         "num": 1
+        },
+        {
+         "weight": "1kg",
+         "num": 1
+        }
+       ],
+       "rpe": null,
+       "logRpe": false,
+       "askWeight": false,
+       "isUnilateral": false,
+       "timer": 11,
+       "setTimer": null,
+       "completed": null
+      },
+      {
+       "setId": "x0028x",
+       "index": 1,
+       "isWarmup": false,
+       "reps": 11,
+       "minReps": null,
+       "isAmrap": false,
+       "weight": "11kg",
+       "originalWeight": "11kg",
+       "plates": [
+        {
+         "weight": "1kg",
+         "num": 1
+        },
+        {
+         "weight": "1kg",
+         "num": 1
+        }
+       ],
+       "rpe": null,
+       "logRpe": false,
+       "askWeight": false,
+       "isUnilateral": false,
+       "timer": 11,
+       "setTimer": null,
+       "completed": null
+      }
+     ]
+    },
+    {
+     "entryId": "x0029xxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "exerciseId": "x0029xxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "equipment": "leverageMachine",
+     "name": "M11xxxxxxxxxxxxxxxxxx",
+     "imageUrl": "https://example.invalid/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "superset": null,
+     "notes": null,
+     "description": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "hasUpdateScript": false,
+     "promptedVars": [],
+     "warmupSets": [],
+     "sets": [
+      {
+       "setId": "x002ax",
+       "index": 0,
+       "isWarmup": false,
+       "reps": 11,
+       "minReps": null,
+       "isAmrap": false,
+       "weight": "11kg",
+       "originalWeight": "11kg",
+       "plates": [
+        {
+         "weight": "1kg",
+         "num": 1
+        },
+        {
+         "weight": "1kg",
+         "num": 1
+        }
+       ],
+       "rpe": null,
+       "logRpe": false,
+       "askWeight": false,
+       "isUnilateral": true,
+       "timer": 11,
+       "setTimer": null,
+       "completed": null
+      },
+      {
+       "setId": "x002bx",
+       "index": 1,
+       "isWarmup": false,
+       "reps": 11,
+       "minReps": null,
+       "isAmrap": false,
+       "weight": "11kg",
+       "originalWeight": "11kg",
+       "plates": [
+        {
+         "weight": "1kg",
+         "num": 1
+        },
+        {
+         "weight": "1kg",
+         "num": 1
+        }
+       ],
+       "rpe": null,
+       "logRpe": false,
+       "askWeight": false,
+       "isUnilateral": true,
+       "timer": 11,
+       "setTimer": null,
+       "completed": null
+      }
+     ]
+    },
+    {
+     "entryId": "x002cxxxxxxxxxxxxxxxxxxxxxxx",
+     "exerciseId": "x002cxxxxxxxxxxxxxxxxxxxxxxx",
+     "equipment": "leverageMachine",
+     "name": "M12xxxxxxxxxx",
+     "imageUrl": "https://example.invalid/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "superset": null,
+     "notes": null,
+     "description": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "hasUpdateScript": false,
+     "promptedVars": [],
+     "warmupSets": [],
+     "sets": [
+      {
+       "setId": "x002dx",
+       "index": 0,
+       "isWarmup": false,
+       "reps": 11,
+       "minReps": null,
+       "isAmrap": false,
+       "weight": "11kg",
+       "originalWeight": "11kg",
+       "plates": [
+        {
+         "weight": "1kg",
+         "num": 1
+        },
+        {
+         "weight": "1kg",
+         "num": 1
+        }
+       ],
+       "rpe": null,
+       "logRpe": false,
+       "askWeight": false,
+       "isUnilateral": false,
+       "timer": 11,
+       "setTimer": null,
+       "completed": null
+      },
+      {
+       "setId": "x002ex",
+       "index": 1,
+       "isWarmup": false,
+       "reps": 11,
+       "minReps": null,
+       "isAmrap": false,
+       "weight": "11kg",
+       "originalWeight": "11kg",
+       "plates": [
+        {
+         "weight": "1kg",
+         "num": 1
+        },
+        {
+         "weight": "1kg",
+         "num": 1
+        }
+       ],
+       "rpe": null,
+       "logRpe": false,
+       "askWeight": false,
+       "isUnilateral": false,
+       "timer": 11,
+       "setTimer": null,
+       "completed": null
+      }
+     ]
+    },
+    {
+     "entryId": "x002fxxxxxxxxxxxxxxxxxxxxxx",
+     "exerciseId": "x002fxxxxxxxxxxxxxxxxxxxxxx",
+     "equipment": "leverageMachine",
+     "name": "M13xxxxxxxxx",
+     "imageUrl": "https://example.invalid/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "superset": null,
+     "notes": null,
+     "description": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "hasUpdateScript": false,
+     "promptedVars": [],
+     "warmupSets": [],
+     "sets": [
+      {
+       "setId": "x0030x",
+       "index": 0,
+       "isWarmup": false,
+       "reps": 11,
+       "minReps": null,
+       "isAmrap": false,
+       "weight": "11kg",
+       "originalWeight": "11kg",
+       "plates": [
+        {
+         "weight": "1kg",
+         "num": 1
+        },
+        {
+         "weight": "1kg",
+         "num": 1
+        }
+       ],
+       "rpe": null,
+       "logRpe": false,
+       "askWeight": false,
+       "isUnilateral": false,
+       "timer": 11,
+       "setTimer": null,
+       "completed": null
+      },
+      {
+       "setId": "x0031x",
+       "index": 1,
+       "isWarmup": false,
+       "reps": 11,
+       "minReps": null,
+       "isAmrap": false,
+       "weight": "11kg",
+       "originalWeight": "11kg",
+       "plates": [
+        {
+         "weight": "1kg",
+         "num": 1
+        },
+        {
+         "weight": "1kg",
+         "num": 1
+        }
+       ],
+       "rpe": null,
+       "logRpe": false,
+       "askWeight": false,
+       "isUnilateral": false,
+       "timer": 11,
+       "setTimer": null,
+       "completed": null
+      }
+     ]
+    },
+    {
+     "entryId": "x0032xxxxxxxxxxxxxxxxxxx",
+     "exerciseId": "x0032xxxxxxxxxxxxxxxxxxx",
+     "equipment": "bodyweight",
+     "name": "M14xxxxxxxxxxx",
+     "imageUrl": "https://example.invalid/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "superset": null,
+     "notes": null,
+     "description": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "hasUpdateScript": false,
+     "promptedVars": [],
+     "warmupSets": [],
+     "sets": [
+      {
+       "setId": "x0033x",
+       "index": 0,
+       "isWarmup": false,
+       "reps": 11,
+       "minReps": null,
+       "isAmrap": false,
+       "weight": "0kg",
+       "originalWeight": "0kg",
+       "plates": [],
+       "rpe": null,
+       "logRpe": false,
+       "askWeight": false,
+       "isUnilateral": false,
+       "timer": 11,
+       "setTimer": null,
+       "completed": null
+      },
+      {
+       "setId": "x0034x",
+       "index": 1,
+       "isWarmup": false,
+       "reps": 11,
+       "minReps": null,
+       "isAmrap": false,
+       "weight": "0kg",
+       "originalWeight": "0kg",
+       "plates": [],
+       "rpe": null,
+       "logRpe": false,
+       "askWeight": false,
+       "isUnilateral": false,
+       "timer": 11,
+       "setTimer": null,
+       "completed": null
+      }
+     ]
+    },
+    {
+     "entryId": "x0035xxx",
+     "exerciseId": "x0035xxx",
+     "equipment": null,
+     "name": "M15xxxxx",
+     "imageUrl": null,
+     "superset": null,
+     "notes": null,
+     "description": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+     "hasUpdateScript": false,
+     "promptedVars": [],
+     "warmupSets": [],
+     "sets": [
+      {
+       "setId": "x0036x",
+       "index": 0,
+       "isWarmup": false,
+       "reps": 1,
+       "minReps": null,
+       "isAmrap": false,
+       "weight": "0kg",
+       "originalWeight": "0kg",
+       "plates": [],
+       "rpe": null,
+       "logRpe": false,
+       "askWeight": false,
+       "isUnilateral": false,
+       "timer": 11,
+       "setTimer": 11,
+       "completed": null
+      },
+      {
+       "setId": "x0037x",
+       "index": 1,
+       "isWarmup": false,
+       "reps": 1,
+       "minReps": null,
+       "isAmrap": false,
+       "weight": "0kg",
+       "originalWeight": "0kg",
+       "plates": [],
+       "rpe": null,
+       "logRpe": false,
+       "askWeight": false,
+       "isUnilateral": false,
+       "timer": 11,
+       "setTimer": 11,
+       "completed": null
+      },
+      {
+       "setId": "x0038x",
+       "index": 2,
+       "isWarmup": false,
+       "reps": 1,
+       "minReps": null,
+       "isAmrap": false,
+       "weight": "0kg",
+       "originalWeight": "0kg",
+       "plates": [],
+       "rpe": null,
+       "logRpe": false,
+       "askWeight": false,
+       "isUnilateral": false,
+       "timer": 11,
+       "setTimer": 11,
+       "completed": null
+      }
+     ]
+    }
+   ]
+  }
+ }
+}
+  </jsonData>
+</jsonDataResources>

@@ -41,6 +41,18 @@ module Err {
     const LOG_A_SET_BEFORE_SAVING = 36;
     const ACTIVITY_SAVED_HISTORY_UPDATE_FAILED = 37;
     const AT_LEAST_ONE_ROUTINE_IS_KEPT = 38;
+    const LIFTOSAUR_KEY_REQUIRED = 39;
+    const ROUTINE_SYNC_REQUEST_FAILED = 40;
+    const LIFTOSAUR_UNAUTHORIZED = 41;
+    const ROUTINE_SYNC_INVALID_RESPONSE = 42;
+    const ROUTINE_SYNC_SAVE_FAILED = 43;
+    const ROUTINE_SYNC_RESPONSE_TOO_LARGE = 44;
+    const UPLOAD_QUEUE_FULL = 45;
+    const UPLOAD_QUEUE_DAMAGED = 46;
+    const WORKOUT_UPLOAD_FAILED = 47;
+    const WORKOUT_UPLOAD_BLOCKED = 48;
+    const WORKOUT_UPLOAD_PROGRAM_ERROR = 49;
+    const WORKOUT_UPLOAD_MAPPING = 50;
 
     const MESSAGES = [
         null,
@@ -81,7 +93,19 @@ module Err {
         "Workout is already finishing",
         "Log a set before saving",
         "Activity saved; history update failed",
-        "At least one routine is required"
+        "At least one routine is required",
+        "Set the Liftosaur key in the Connect IQ app",
+        "Could not reach Liftosaur",
+        "Liftosaur key was rejected",
+        "Liftosaur routine data is invalid",
+        "Could not save routines",
+        "Liftosaur response too large; try later",
+        "Workout upload queue is full",
+        "Workout upload queue is damaged",
+        "Workout upload failed; it will retry",
+        "Liftosaur has another workout open",
+        "Fix the program in Liftosaur, then retry",
+        "Program changed; skip the upload or re-sync"
     ];
 
     function message(code as Number) as String? {

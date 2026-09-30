@@ -1,8 +1,8 @@
-# connect-sets (NextSet archive + Liftosaur sync)
+# connect-sets (NextSet FIT archive)
 
-The directory name is historical: the job no longer writes anything to Garmin Connect. It reads NextSet's
-per-set FIT laps from your synced Garmin activities (read-only), archives every workout and, when enabled,
-logs it into the matching Liftosaur workout. Docstring in `sync.py` lists the commands.
+The directory name is historical: the job no longer writes to Garmin Connect. It reads NextSet's per-set FIT
+laps from synced Garmin activities (read-only) and archives workouts. The watch app writes directly to
+Liftosaur.
 
 Setup (uid 1000 must own `./data`; the tokens grant full access to your Garmin account):
 
@@ -23,22 +23,16 @@ undos merged the same way the watch app treats them) and upserted into `data/arc
 
 ## Liftosaur
 
-`.env` (chmod 600, never commit): `LIFTOSAUR_API_KEY=lftsk_...`, `LIFTOSAUR_SYNC=0|1` (default 0: nothing is
-written to Liftosaur). Details and the observed API schema: `docs/LIFTOSAUR_PLAN.md`.
+The watch app reads routines from and writes workouts directly to Liftosaur. This NAS job remains an
+optional FIT archive backup. Keep `LIFTOSAUR_SYNC=0` in `.env` (the Compose default) to prevent duplicate
+writes. No NAS HTTP service or Tailscale setup is used.
+
+Do not enable NAS write-back or run a real `liftosaur-sync` command while the watch writes directly.
+`liftosaur-discover` is still available as a GET-only diagnostic and needs `LIFTOSAUR_API_KEY` in `.env`
+(chmod 600, never commit). The observed API schema is in `docs/LIFTOSAUR_PLAN.md`.
 
     python sync.py liftosaur-discover                 # GET only; raw JSON to data/liftosaur-discovery/
-    python sync.py liftosaur-sync --dry-run [--only ID]   # prints the start/sets/finish calls, sends nothing
-    python sync.py liftosaur-sync --only ID           # real write of one workout (first time: check the dry run)
-
-Liftosaur owns the exercise list: a NextSet exercise name must equal the Liftosaur entry `name` exactly
-(case-sensitive). The routine name must equal exactly one day name of the active program (case-insensitive);
-that day is started explicitly with the FIT start time, whatever Liftosaur's "next day" is. No match or an
-ambiguous name: skipped with a notice. Status per activity is kept in `state.json` (`done`/`skipped` final,
-`blocked`/`failed` retried). An active workout in the Liftosaur app is never touched (blocked + ntfy).
-With `LIFTOSAUR_SYNC=1` the loop writes archived workouts that started at or after `LIFTOSAUR_SINCE` (ISO
-datetime or unix seconds, e.g. `2026-10-01T00:00:00Z`) and are at least `LIFTOSAUR_MIN_SEC` (default 300) long
-(shorter ones are skipped with a notice). If `LIFTOSAUR_SINCE` is unset nothing is written (a warning is
-logged); there is no default window. `liftosaur-sync --only ID` bypasses both limits.
+    python sync.py liftosaur-sync --dry-run [--only ID]   # optional backup-path preview; sends nothing
 
 Env: `INTERVAL_SEC`, `LOOKBACK` (activities checked per run). Self-check: `python test_sync.py` (offline).
 

@@ -30,10 +30,34 @@ module Navigator {
         }
         menu.addItem(new WatchUi.MenuItem("Workout history", null, "history", null));
         if (controller.configurationEditable()) {
+            menu.addItem(new WatchUi.MenuItem("Sync routines", null, "sync", null));
+            addUploadItems(menu, controller);
             menu.addItem(new WatchUi.MenuItem("Routines", null, "routines", null));
             menu.addItem(new WatchUi.MenuItem("Settings", null, "settings", null));
         }
         WatchUi.pushView(menu, new HomeMenuDelegate(), WatchUi.SLIDE_UP);
+    }
+
+    function addUploadItems(menu as WatchUi.Menu2, controller as SessionController) as Void {
+        var pending = controller.pendingUploadCount();
+        if (pending > 0) {
+            menu.addItem(new WatchUi.MenuItem("Retry workout upload",
+                pending.toString() + " pending", "retry_upload", null));
+        }
+        if (controller.uploadQueueDamaged()) {
+            menu.addItem(new WatchUi.MenuItem("Clear upload queue", null, "clear_queue", null));
+        } else if (controller.hasStuckUpload()) {
+            menu.addItem(new WatchUi.MenuItem("Skip this upload", null, "skip_upload", null));
+        }
+    }
+
+    // Destructive queue actions need a second step; local workout history is never touched.
+    function confirmQueue(action as String) as Void {
+        var clearing = Model.sameString(action, "clear_queue");
+        var menu = new WatchUi.Menu2({:title=>clearing ? "Clear queue?" : "Skip upload?"});
+        menu.addItem(new WatchUi.MenuItem("Keep", null, "cancel", null));
+        menu.addItem(new WatchUi.MenuItem(clearing ? "Clear queue" : "Skip upload", null, action, null));
+        WatchUi.pushView(menu, new ConfirmQueueDelegate(), WatchUi.SLIDE_UP);
     }
 
     function routineList() as Void {
@@ -44,64 +68,14 @@ module Navigator {
             var routine = routines[i] as Dictionary;
             var entries = routine["entries"] as Array;
             menu.addItem(new WatchUi.MenuItem(routine["name"] as String,
-                entries.size() == 0 ? "Add exercise" : entries.size().toString() + " exercises",
+                entries.size().toString() + " exercises · W" + routine["week"].toString() +
+                    " D" + routine["dayInWeek"].toString(),
                 routine["id"], null));
         }
-        if (routines.size() < Model.MAX_TEMPLATES) {
-            var nameIndex = routines.size() + 1;
-            var suggested = "Routine " + nameIndex.toString();
-            while (routineNameExists(routines, suggested)) {
-                nameIndex++;
-                suggested = "Routine " + nameIndex.toString();
-            }
-            menu.addItem(new WatchUi.MenuItem("Create routine", suggested,
-                "create_routine", null));
-        } else {
-            menu.addItem(new WatchUi.MenuItem("Routine limit reached", "8 routines",
-                "routine_limit", null));
+        if (routines.size() == 0) {
+            menu.addItem(new WatchUi.MenuItem("No routines synced", null, "empty", null));
         }
         WatchUi.switchToView(menu, new RoutineListDelegate(), WatchUi.SLIDE_UP);
-    }
-
-    function routineNameExists(routines as Array, name as String) as Boolean {
-        for (var i = 0; i < routines.size(); i++) {
-            if (Model.sameString((routines[i] as Dictionary)["name"], name)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    function createRoutinePicker(name as String) as Void {
-        if (WatchUi has :TextPicker) {
-            WatchUi.pushView(new WatchUi.TextPicker(name), new RoutineNameDelegate(),
-                WatchUi.SLIDE_DOWN);
-        } else {
-            feedback("Text entry unavailable");
-        }
-    }
-
-    function renameRoutinePicker(templateId as String) as Void {
-        var name = "";
-        var routines = getApp().controller().routineTemplates();
-        for (var i = 0; i < routines.size(); i++) {
-            if (Model.sameString(routines[i]["id"], templateId)) {
-                name = routines[i]["name"] as String;
-            }
-        }
-        if (WatchUi has :TextPicker) {
-            WatchUi.pushView(new WatchUi.TextPicker(name), new RoutineRenameDelegate(templateId),
-                WatchUi.SLIDE_DOWN);
-        } else {
-            feedback("Text entry unavailable");
-        }
-    }
-
-    function confirmDeleteRoutine(templateId as String) as Void {
-        var menu = new WatchUi.Menu2({:title=>"Delete routine?"});
-        menu.addItem(new WatchUi.MenuItem("Cancel", null, "cancel", null));
-        menu.addItem(new WatchUi.MenuItem("Delete", null, "delete", null));
-        WatchUi.pushView(menu, new DeleteRoutineDelegate(templateId), WatchUi.SLIDE_UP);
     }
 
     function overview() as Void {
@@ -136,6 +110,12 @@ module Navigator {
         WatchUi.pushView(view, new ExerciseDelegate(view), WatchUi.SLIDE_UP);
     }
 
+    // Replaces the current exercise view (superset alternation) without growing the stack.
+    function switchToExercise(entryId as String) as Void {
+        var view = new ExerciseView(entryId);
+        WatchUi.switchToView(view, new ExerciseDelegate(view), WatchUi.SLIDE_IMMEDIATE);
+    }
+
     function numberEdit(entryId as String, slot as Number, field as String,
                         correcting as Boolean) as Void {
         var view = new NumberEditView(entryId, slot, field, correcting, null, null, null);
@@ -151,6 +131,8 @@ module Navigator {
     function settings() as Void {
         var menu = new WatchUi.Menu2({:title=>"Settings"});
         var controller = getApp().controller();
+        menu.addItem(new WatchUi.MenuItem("Sync routines", null, "sync", null));
+        addUploadItems(menu, controller);
         menu.addItem(new WatchUi.MenuItem("Default rest (new exercises)", controller.defaultRestSec().toString() + " sec",
             "default_rest", null));
         menu.addItem(new WatchUi.MenuItem(controller.vibrationEnabled() ? "Vibration: On" : "Vibration: Off",
@@ -158,347 +140,138 @@ module Navigator {
         WatchUi.switchToView(menu, new SettingsMenuDelegate(), WatchUi.SLIDE_UP);
     }
 
+    function syncRoutines() as Void {
+        if (!getApp().controller().syncRoutines()) {
+            var error = getApp().controller().errorMessage();
+            feedback(error == null ? "Routine sync could not start" : error as String);
+        }
+    }
+
     function editTemplate(templateId as String) as Void {
-        var controller = getApp().controller();
-        var templates = controller.routineTemplates();
-        var template = null;
-        for (var i = 0; i < templates.size(); i++) {
-            if (Model.sameString(templates[i]["id"], templateId)) {
-                template = templates[i] as Dictionary;
+        var routines = getApp().controller().routineTemplates();
+        var selected = null;
+        for (var i = 0; i < routines.size(); i++) {
+            if (Model.sameString((routines[i] as Dictionary)["id"], templateId)) {
+                selected = routines[i] as Dictionary;
                 break;
             }
         }
-        if (template == null || !getApp().controller().configurationEditable()) {
+        if (selected == null) {
             return;
         }
-        var templateName = (template as Dictionary)["name"] as String;
-        var menu = new WatchUi.Menu2({:title=>"Edit " + templateName});
-        var entries = (template as Dictionary)["entries"] as Array;
-        if (entries.size() == 0) {
-            menu.addItem(new WatchUi.MenuItem("Add exercise", null, "add_exercise", null));
-        }
+        var menu = new WatchUi.Menu2({:title=>selected["name"] as String});
+        var entries = selected["entries"] as Array;
         for (var i = 0; i < entries.size(); i++) {
             var entry = entries[i] as Dictionary;
-            var definition = Catalog.exerciseForEntry(entry);
-            if (definition == null) {
-                feedback("Saved exercise unavailable");
+            var targets = entry["setTargets"] as Array;
+            var detail = entry["workingSetCount"].toString() + " sets · " +
+                targetPreview(targets, entry["loadType"] as String);
+            var warmups = entry["warmups"] as Array;
+            if (warmups.size() > 0) {
+                detail += " · WU " + targetPreview(warmups, entry["loadType"] as String);
+            }
+            if (entry["restSec"] instanceof Number) {
+                detail += " · rest " + entry["restSec"].toString() + "s";
+            }
+            if (entry["equipment"] instanceof String && (entry["equipment"] as String).length() > 0) {
+                detail += " · " + (entry["equipment"] as String);
+            }
+            if (entry["superset"] instanceof String && (entry["superset"] as String).length() > 0) {
+                detail += " · superset " + (entry["superset"] as String);
+            }
+            menu.addItem(new WatchUi.MenuItem(entry["name"] as String, detail,
+                entry["entryId"] as String, null));
+        }
+        if (entries.size() == 0) {
+            menu.addItem(new WatchUi.MenuItem("No exercises", null, "read_only", null));
+        }
+        WatchUi.pushView(menu, new RoutineDetailDelegate(templateId), WatchUi.SLIDE_UP);
+    }
+
+    function targetPreview(targets as Array, loadType as String) as String {
+        var result = "";
+        var count = targets.size() < 3 ? targets.size() : 3;
+        for (var i = 0; i < count; i++) {
+            var target = targets[i] as Dictionary;
+            if (i > 0) {
+                result += "/";
+            }
+            if (Model.sameString(loadType, "timed")) {
+                result += target["durationSec"].toString() + "s";
+            } else if (target["load100"] instanceof Number) {
+                result += UiFormat.load100(target["load100"] as Number) + "×" +
+                    target["reps"].toString();
+            } else {
+                result += target["reps"].toString();
+            }
+        }
+        if (targets.size() > count) {
+            result += "/+" + (targets.size() - count).toString();
+        }
+        return result;
+    }
+
+    function routineExerciseDetail(templateId as String, entryId as String) as Void {
+        var routines = getApp().controller().routineTemplates();
+        for (var r = 0; r < routines.size(); r++) {
+            var routine = routines[r] as Dictionary;
+            if (!Model.sameString(routine["id"], templateId)) {
+                continue;
+            }
+            var entries = routine["entries"] as Array;
+            for (var e = 0; e < entries.size(); e++) {
+                var entry = entries[e] as Dictionary;
+                if (!Model.sameString(entry["entryId"], entryId)) {
+                    continue;
+                }
+                var menu = new WatchUi.Menu2({:title=>entry["name"] as String});
+                var targets = entry["setTargets"] as Array;
+                for (var s = 0; s < targets.size(); s++) {
+                    menu.addItem(new WatchUi.MenuItem("Set " + (s + 1).toString(),
+                        targetPreview([targets[s]], entry["loadType"] as String), "read_only", null));
+                }
+                var warmups = entry["warmups"] as Array;
+                for (var w = 0; w < warmups.size(); w++) {
+                    menu.addItem(new WatchUi.MenuItem("Warm-up " + (w + 1).toString(),
+                        targetPreview([warmups[w]], entry["loadType"] as String), "read_only", null));
+                }
+                var rest = entry["restSec"] instanceof Number ? entry["restSec"] as Number :
+                    getApp().controller().defaultRestSec();
+                menu.addItem(new WatchUi.MenuItem("Rest", rest.toString() + " sec",
+                    "read_only", null));
+                if (entry["equipment"] instanceof String &&
+                    (entry["equipment"] as String).length() > 0) {
+                    menu.addItem(new WatchUi.MenuItem("Equipment", entry["equipment"] as String,
+                        "read_only", null));
+                }
+                if (entry["superset"] instanceof String &&
+                    (entry["superset"] as String).length() > 0) {
+                    menu.addItem(new WatchUi.MenuItem("Superset", entry["superset"] as String,
+                        "read_only", null));
+                }
+                WatchUi.pushView(menu, new RoutineDetailDelegate(templateId), WatchUi.SLIDE_UP);
                 return;
             }
-            var exercise = definition as Dictionary;
-            var value = entry["workingSetCount"].toString() + " × " +
-                (Model.sameString(exercise["loadType"], "timed") ?
-                    entry["targetDurationSec"].toString() + " sec" :
-                    (entry["targetRepsMin"] == entry["targetRepsMax"] ?
-                        entry["targetRepsMin"].toString() + " reps" :
-                        entry["targetRepsMin"].toString() + "–" +
-                        entry["targetRepsMax"].toString() + " reps"));
-            if ((Model.sameString(exercise["loadType"], "weight") ||
-                 Model.sameString(exercise["loadType"], "assistance")) &&
-                entry["startingLoad100"] instanceof Number) {
-                value += " · " + UiFormat.load100(entry["startingLoad100"] as Number) + " kg";
-            }
-            menu.addItem(new WatchUi.MenuItem(exercise["name"] as String, value,
-                entry["entryId"], null));
-        }
-        if (entries.size() > 0) {
-            menu.addItem(new WatchUi.MenuItem("Add exercise", null, "add_exercise", null));
-        }
-        menu.addItem(new WatchUi.MenuItem("Rename routine", null, "rename_routine", null));
-        if (templates.size() > 1) {
-            menu.addItem(new WatchUi.MenuItem("Delete routine", null, "delete_routine", null));
-        }
-        WatchUi.switchToView(menu, new RoutineSetupDelegate(templateId), WatchUi.SLIDE_UP);
-    }
-
-    // focusId: which move item to focus after a reorder (null for a fresh menu).
-    // replaceView: rebuild in place, so repeated START keeps moving the same entry.
-    function routineEntryOptions(templateId as String, entryId as String, focusId as String?,
-                                 replaceView as Boolean) as Void {
-        var controller = getApp().controller();
-        var entries = null;
-        var routines = controller.routineTemplates();
-        for (var i = 0; i < routines.size(); i++) {
-            if (Model.sameString(routines[i]["id"], templateId)) {
-                entries = routines[i]["entries"] as Array;
-                break;
-            }
-        }
-        if (entries == null) {
-            editTemplate(templateId);
-            return;
-        }
-        var index = -1;
-        for (var i = 0; i < (entries as Array).size(); i++) {
-            if (Model.sameString(entries[i]["entryId"], entryId)) {
-                index = i;
-                break;
-            }
-        }
-        var definition = index < 0 ? null : Catalog.exerciseForEntry(entries[index] as Dictionary);
-        if (definition == null) {
-            editTemplate(templateId);
-            return;
-        }
-        var entry = entries[index] as Dictionary;
-        var garminName = entry["garminCategory"] instanceof String && entry["garminCode"] instanceof String ?
-            Catalog.garminName(entry["garminCategory"] as String, entry["garminCode"] as String) : null;
-        var menu = new WatchUi.Menu2({:title=>definition["name"] as String});
-        menu.addItem(new WatchUi.MenuItem("Edit values", null, "edit_values", null));
-        var count = 1;
-        var focusIndex = -1;
-        var fallbackIndex = -1;
-        if (index > 0) {
-            menu.addItem(new WatchUi.MenuItem("Move up", null, "move_up", null));
-            if (Model.sameString(focusId, "move_up")) {
-                focusIndex = count;
-            } else {
-                fallbackIndex = count;
-            }
-            count++;
-        }
-        if (index < (entries as Array).size() - 1) {
-            menu.addItem(new WatchUi.MenuItem("Move down", null, "move_down", null));
-            if (Model.sameString(focusId, "move_down")) {
-                focusIndex = count;
-            } else if (fallbackIndex < 0) {
-                fallbackIndex = count;
-            }
-        }
-        menu.addItem(new WatchUi.MenuItem("Replace exercise", garminName, "replace", null));
-        menu.addItem(new WatchUi.MenuItem("Remove exercise", null, "remove", null));
-        if (focusId != null) {
-            menu.setFocus(focusIndex >= 0 ? focusIndex : (fallbackIndex >= 0 ? fallbackIndex : 0));
-        }
-        var delegate = new RoutineEntryDelegate(templateId, entryId);
-        if (replaceView) {
-            WatchUi.switchToView(menu, delegate, WatchUi.SLIDE_IMMEDIATE);
-        } else {
-            WatchUi.pushView(menu, delegate, WatchUi.SLIDE_UP);
         }
     }
 
-    function templateEntryFields(templateId as String, entryId as String,
-                                 replace as Boolean) as Void {
-        var entry = getApp().controller().templateEntry(templateId, entryId);
-        if (entry == null) {
-            return;
+    function programExercisePicker(entryId as String, mode as String,
+                                   view as ExerciseView, fromOverview as Boolean) as Void {
+        var exercises = getApp().controller().programExercises();
+        var menu = new WatchUi.Menu2({:title=>"Program exercises"});
+        for (var i = 0; i < exercises.size(); i++) {
+            var exercise = exercises[i] as Dictionary;
+            var detail = exercise["equipment"] instanceof String &&
+                (exercise["equipment"] as String).length() > 0 ?
+                exercise["equipment"] as String : exercise["loadType"] as String;
+            menu.addItem(new WatchUi.MenuItem(exercise["name"] as String, detail,
+                exercise["id"], null));
         }
-        var definition = getApp().controller().templateExercise(templateId, entryId) as Dictionary;
-        var type = definition["loadType"] as String;
-        var menu = new WatchUi.Menu2({:title=>definition["name"] as String});
-        var fields = ["workingSetCount"];
-        if (Model.sameString(type, "timed")) {
-            fields.add("targetDurationSec");
-        } else {
-            fields.add("targetRepsMin");
+        if (exercises.size() == 0) {
+            menu.addItem(new WatchUi.MenuItem("Sync routines first", null, "none", null));
         }
-        if (Model.sameString(type, "weight") || Model.sameString(type, "assistance")) {
-            fields.add("startingLoad100");
-            fields.add("increment100");
-        }
-        fields.add("restSec");
-        for (var i = 0; i < fields.size(); i++) {
-            var field = fields[i] as String;
-            var value = getApp().controller().numericConfigValue("template", templateId, entryId, field);
-            var detail = value == null ? "" : configValueLabel(field, value as Number);
-            var label = configFieldLabel(field);
-            if (Model.sameString(field, "targetRepsMin")) {
-                // One "Reps" row shows the range; START edits the minimum, then the maximum.
-                var maximum = getApp().controller().numericConfigValue("template", templateId,
-                    entryId, "targetRepsMax");
-                label = "Reps";
-                detail = value == null || maximum == null ? "" :
-                    (value == maximum ? value.toString() : value.toString() + "–" + maximum.toString());
-            }
-            menu.addItem(new WatchUi.MenuItem(label, detail, field, null));
-        }
-        var delegate = new TemplateFieldMenuDelegate(templateId, entryId);
-        if (replace) {
-            WatchUi.switchToView(menu, delegate, WatchUi.SLIDE_UP);
-        } else {
-            WatchUi.pushView(menu, delegate, WatchUi.SLIDE_UP);
-        }
-    }
-
-    function garminCategoryPage(templateId as String, entryId as String?, page as Number,
-                                mode as String, push as Boolean) as Void {
-        var categories = Catalog.garminCategories();
-        var order = Catalog.garminCategoryOrder();
-        var pageSize = 14;
-        var pages = pageCount(categories.size(), pageSize);
-        var menu = new WatchUi.Menu2({:title=>"Choose category " + (page + 1).toString() + "/" + pages.toString()});
-        menu.addItem(new WatchUi.MenuItem("Recent", null, "recent", null));
-        menu.addItem(new WatchUi.MenuItem("Used in routines", null, "used", null));
-        var start = page * pageSize;
-        var end = start + pageSize;
-        if (end > categories.size()) {
-            end = categories.size();
-        }
-        for (var i = start; i < end; i++) {
-            var index = order[i] as Number;
-            menu.addItem(new WatchUi.MenuItem(Catalog.garminCategoryName(index), null,
-                categories[index], null));
-        }
-        if (page > 0) {
-            menu.addItem(new WatchUi.MenuItem("Previous categories", null, "prev", null));
-        }
-        if (page + 1 < pages) {
-            menu.addItem(new WatchUi.MenuItem("More categories", null, "next", null));
-        }
-        var delegate = new GarminCategoryDelegate(templateId, entryId, page, mode);
-        if (push) {
-            WatchUi.pushView(menu, delegate, WatchUi.SLIDE_UP);
-        } else {
-            WatchUi.switchToView(menu, delegate, WatchUi.SLIDE_UP);
-        }
-    }
-
-    function garminQuickList(templateId as String, entryId as String?, mode as String,
-                             source as String) as Void {
-        var controller = getApp().controller();
-        var items = Model.sameString(source, "recent") ? controller.recentGarminExercises() :
-            controller.usedGarminExercises();
-        var menu = new WatchUi.Menu2({:title=>Model.sameString(source, "recent") ?
-            (items.size() == 0 ? "No recent choices" : "Recent exercises") :
-            (items.size() == 0 ? "No used choices" : "Used in routines")});
-        for (var i = 0; i < items.size(); i++) {
-            var definition = items[i] as Dictionary;
-            var name = definition["pickerName"] instanceof String ?
-                definition["pickerName"] as String : definition["name"] as String;
-            var category = definition["category"] as String;
-            var categoryIndex = Catalog.garminCategoryIndex(category);
-            var categoryName = categoryIndex < 0 ? "" : Catalog.garminCategoryName(categoryIndex);
-            menu.addItem(new WatchUi.MenuItem(name, categoryName, definition["id"], null));
-        }
-        WatchUi.switchToView(menu,
-            new GarminQuickDelegate(templateId, entryId, mode, source), WatchUi.SLIDE_UP);
-    }
-
-    function garminExercisePage(templateId as String, entryId as String?,
-                                categoryIndex as Number, page as Number,
-                                mode as String) as Void {
-        var count = Catalog.garminEntries(categoryIndex).size();
-        var pageSize = 20;
-        var pages = pageCount(count, pageSize);
-        var menu = new WatchUi.Menu2({:title=>Catalog.garminCategoryName(categoryIndex) +
-            " " + (page + 1).toString() + "/" + pages.toString()});
-        var start = page * pageSize;
-        var end = start + pageSize;
-        if (end > count) {
-            end = count;
-        }
-        for (var i = start; i < end; i++) {
-            // code is null when Garmin Connect only knows the category, not this exercise
-            var row = Catalog.garminRow(categoryIndex, i);
-            menu.addItem(new WatchUi.MenuItem(row["name"] as String,
-                row["code"] == null ? "Category only" : null, row["id"], null));
-        }
-        if (page > 0) {
-            menu.addItem(new WatchUi.MenuItem("Previous exercises", null, "prev", null));
-        }
-        if (page + 1 < pages) {
-            menu.addItem(new WatchUi.MenuItem("More exercises", null, "next", null));
-        }
-        WatchUi.switchToView(menu,
-            new GarminExerciseDelegate(templateId, entryId, categoryIndex, page, mode), WatchUi.SLIDE_UP);
-    }
-
-    function garminTrackingType(templateId as String, entryId as String?,
-                                categoryIndex as Number, page as Number,
-                                definition as Dictionary, mode as String,
-                                source as String, defaultType as String) as Void {
-        var menu = new WatchUi.Menu2({:title=>definition["name"] as String});
-        var types = ["weight", "assistance", "bodyweight", "timed"];
-        menu.addItem(new WatchUi.MenuItem(trackingLabel(defaultType) + " · suggested",
-            null, defaultType, null));
-        for (var i = 0; i < types.size(); i++) {
-            var type = types[i] as String;
-            if (!Model.sameString(type, defaultType)) {
-                menu.addItem(new WatchUi.MenuItem(trackingLabel(type), null, type, null));
-            }
-        }
-        WatchUi.switchToView(menu, new GarminTrackingDelegate(templateId, entryId,
-            categoryIndex, page, definition, mode, source, defaultType), WatchUi.SLIDE_UP);
-    }
-
-    function trackingLabel(type as String) as String {
-        if (Model.sameString(type, "assistance")) {
-            return "Assistance";
-        }
-        if (Model.sameString(type, "bodyweight")) {
-            return "Bodyweight";
-        }
-        if (Model.sameString(type, "timed")) {
-            return "Timed";
-        }
-        return "Weight";
-    }
-
-    function suggestedTrackingType(definition as Dictionary, mode as String,
-                                    templateId as String, entryId as String?) as String {
-        if (Model.sameString(mode, "active_swap") && entryId != null) {
-            var session = getApp().controller().session();
-            var exercise = session == null ? null :
-                UiFormat.exercise(session as Dictionary, entryId as String);
-            if (exercise != null) {
-                return (exercise as Dictionary)["loadType"] as String;
-            }
-        } else if (Model.sameString(mode, "setup") && entryId != null) {
-            var existing = getApp().controller().templateExercise(templateId, entryId as String);
-            if (existing != null) {
-                return (existing as Dictionary)["loadType"] as String;
-            }
-        }
-        return definition["isBodyWeight"] == true ? "bodyweight" : "weight";
-    }
-
-    function pageCount(itemCount as Number, pageSize as Number) as Number {
-        var pages = 0;
-        for (var remaining = itemCount; remaining > 0; remaining -= pageSize) {
-            pages++;
-        }
-        return pages > 0 ? pages : 1;
-    }
-
-    function configFieldLabel(field as String) as String {
-        if (Model.sameString(field, "workingSetCount")) {
-            return "Set count";
-        }
-        if (Model.sameString(field, "targetRepsMin")) {
-            return "Minimum reps";
-        }
-        if (Model.sameString(field, "targetRepsMax")) {
-            return "Maximum reps";
-        }
-        if (Model.sameString(field, "targetDurationSec")) {
-            return "Target duration";
-        }
-        if (Model.sameString(field, "startingLoad100")) {
-            return "Starting load";
-        }
-        if (Model.sameString(field, "increment100")) {
-            return "Load increment";
-        }
-        if (Model.sameString(field, "defaultRestSec")) {
-            return "Default rest";
-        }
-        return "Rest after set";
-    }
-
-    function configValueLabel(field as String, value as Number) as String {
-        if (Model.sameString(field, "startingLoad100")) {
-            return UiFormat.load100(value) + " kg";
-        }
-        if (Model.sameString(field, "increment100")) {
-            return UiFormat.load100(value) + " kg";
-        }
-        if (Model.sameString(field, "workingSetCount")) {
-            return value.toString() + " sets";
-        }
-        if (Model.sameString(field, "targetRepsMin") || Model.sameString(field, "targetRepsMax")) {
-            return value.toString() + " reps";
-        }
-        return value.toString() + " sec";
+        WatchUi.pushView(menu,
+            new ProgramExerciseDelegate(entryId, mode, view, fromOverview), WatchUi.SLIDE_UP);
     }
 
     function correctionMenu(entryId as String, view as ExerciseView, fromOverview as Boolean) as Void {
@@ -578,7 +351,8 @@ module Navigator {
         var session = getApp().controller().session() as Dictionary;
         var exercise = UiFormat.exercise(session, entryId) as Dictionary;
         var next = SessionLogic.nextSlot(exercise);
-        var last = UiFormat.lastSlot(exercise);
+        var lastEntry = SessionLogic.lastEditEntryId(session, entryId);
+        var last = lastEntry == null ? -1 : 0;
         if (Model.sameString(exercise["loadType"], "weight") ||
             Model.sameString(exercise["loadType"], "assistance")) {
             if (next >= 0) {
@@ -594,6 +368,10 @@ module Navigator {
         }
         if (last >= 0) {
             menu.addItem(new WatchUi.MenuItem("Edit last set", null, "edit_last", null));
+        }
+        if (Model.sameString(exercise["loadType"], "weight")) {
+            menu.addItem(new WatchUi.MenuItem("Weight step",
+                UiFormat.load100(exercise["weightIncrement100"] as Number) + " kg", "weight_step", null));
         }
         if ((exercise["slots"] as Array).size() < Model.MAX_SETS &&
             SessionLogic.totals(session)["planned"] < Model.MAX_SETS_PER_WORKOUT) {
@@ -623,6 +401,16 @@ module Navigator {
         }
         menu.addItem(new WatchUi.MenuItem("Workout…", null, "workout", null));
         WatchUi.pushView(menu, new ExerciseMenuDelegate(entryId, view, fromOverview), WatchUi.SLIDE_UP);
+    }
+
+    function weightStepMenu(entryId as String) as Void {
+        var menu = new WatchUi.Menu2({:title=>"Weight step"});
+        var steps = [50, 100, 250, 500];
+        for (var i = 0; i < steps.size(); i++) {
+            menu.addItem(new WatchUi.MenuItem(UiFormat.load100(steps[i]) + " kg", null,
+                steps[i].toString(), null));
+        }
+        WatchUi.pushView(menu, new WeightStepDelegate(entryId), WatchUi.SLIDE_UP);
     }
 
     function summary(outcome as String) as Void {
@@ -701,6 +489,10 @@ class HomeDelegate extends WatchUi.BehaviorDelegate {
             var templateId = _view.selectedTemplateId();
             if (templateId != null) {
                 getApp().requestWorkoutStart(templateId as String);
+            } else if (!controller.syncRoutines()) {
+                var error = controller.errorMessage();
+                Navigator.feedback(error == null ? "Set the Liftosaur key in app settings" :
+                    error as String);
             }
         }
         return true;
@@ -759,6 +551,15 @@ class HomeMenuDelegate extends WatchUi.Menu2InputDelegate {
             Navigator.resumeWorkout();
         } else if (Model.sameString(item.getId(), "history")) {
             Navigator.history();
+        } else if (Model.sameString(item.getId(), "sync")) {
+            WatchUi.popView(WatchUi.SLIDE_DOWN);
+            Navigator.syncRoutines();
+        } else if (Model.sameString(item.getId(), "retry_upload")) {
+            WatchUi.popView(WatchUi.SLIDE_DOWN);
+            getApp().controller().retryUploads();
+        } else if (Model.sameString(item.getId(), "skip_upload") ||
+            Model.sameString(item.getId(), "clear_queue")) {
+            Navigator.confirmQueue(item.getId() as String);
         } else if (Model.sameString(item.getId(), "routines")) {
             Navigator.routineList();
         } else if (Model.sameString(item.getId(), "settings")) {
@@ -780,10 +581,38 @@ class SettingsMenuDelegate extends WatchUi.Menu2InputDelegate {
         var id = item.getId() as String;
         if (Model.sameString(id, "default_rest")) {
             Navigator.configNumberEdit("setting", "", "", "defaultRestSec", "Default rest (new)");
+        } else if (Model.sameString(id, "sync")) {
+            WatchUi.popView(WatchUi.SLIDE_DOWN);
+            Navigator.syncRoutines();
+        } else if (Model.sameString(id, "retry_upload")) {
+            WatchUi.popView(WatchUi.SLIDE_DOWN);
+            getApp().controller().retryUploads();
+        } else if (Model.sameString(id, "skip_upload") || Model.sameString(id, "clear_queue")) {
+            Navigator.confirmQueue(id);
         } else if (Model.sameString(id, "vibration")) {
             if (getApp().controller().toggleVibration()) {
                 Navigator.settings();
             }
+        }
+    }
+
+    public function onBack() as Void {
+        WatchUi.popView(WatchUi.SLIDE_DOWN);
+    }
+}
+
+class RoutineDetailDelegate extends WatchUi.Menu2InputDelegate {
+    private var _routineId as String;
+
+    public function initialize(routineId as String) {
+        _routineId = routineId;
+        Menu2InputDelegate.initialize();
+    }
+
+    public function onSelect(item as MenuItem) as Void {
+        var id = item.getId();
+        if (id instanceof String && !Model.sameString(id, "read_only")) {
+            Navigator.routineExerciseDetail(_routineId, id as String);
         }
     }
 
@@ -856,6 +685,32 @@ class FeedbackDelegate extends WatchUi.BehaviorDelegate {
     }
 }
 
+class ConfirmQueueDelegate extends WatchUi.Menu2InputDelegate {
+    public function initialize() {
+        Menu2InputDelegate.initialize();
+    }
+
+    public function onSelect(item as MenuItem) as Void {
+        var id = item.getId() as String;
+        WatchUi.popView(WatchUi.SLIDE_DOWN);
+        if (Model.sameString(id, "cancel")) {
+            return;
+        }
+        var controller = getApp().controller();
+        var done = Model.sameString(id, "clear_queue") ? controller.clearUploadQueue() :
+            controller.skipUpload();
+        // Also leave the parent menu so Home shows the result.
+        WatchUi.popView(WatchUi.SLIDE_DOWN);
+        if (!done) {
+            Navigator.feedback("Could not change the upload queue");
+        }
+    }
+
+    public function onBack() as Void {
+        WatchUi.popView(WatchUi.SLIDE_DOWN);
+    }
+}
+
 class ConfirmMenuDelegate extends WatchUi.Menu2InputDelegate {
     public function initialize() {
         Menu2InputDelegate.initialize();
@@ -877,4 +732,3 @@ class ConfirmMenuDelegate extends WatchUi.Menu2InputDelegate {
         WatchUi.popView(WatchUi.SLIDE_DOWN);
     }
 }
-

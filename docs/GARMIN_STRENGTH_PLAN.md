@@ -1,5 +1,7 @@
 # Garmin strength activity and routine editor
 
+> **Superseded 2026-09-30:** the Garmin catalog, seed routines, and manual editor plan below describe the retired routine source. Liftosaur now owns routines and progression; NextSet syncs its active program directly. The FIT Activity remains as a Garmin recording fallback, not native per-exercise strength sets. Keep the historical plan and test evidence below for context; do not follow its catalog/editor steps. Current behavior is in [README.md](../README.md) and direct-sync checks are in [DEVICE_TESTS.md](DEVICE_TESTS.md).
+
 Implementation plan, 2026-09-29. Keep the existing app ID and signing key so an
 installed NextSet can update without losing its local data.
 

@@ -1,5 +1,11 @@
 import Toybox.Lang;
+import Toybox.Communications;
+import Toybox.Math;
+import Toybox.PersistedContent;
+import Toybox.System;
 import Toybox.Time;
+import Toybox.Timer;
+import Toybox.WatchUi;
 
 class SessionController {
     private var _store as Store;
@@ -19,9 +25,19 @@ class SessionController {
     private var _historyAlreadyWritten as Boolean = false;
     private var _pendingRecorderState as Dictionary? = null;
     private var _pendingHistory as Dictionary? = null;
+    private var _requestInFlight as Boolean = false;
+    private var _routineSyncRunning as Boolean = false;
+    private var _uploadRequested as Boolean = false;
+    private var _refreshAfterUploads as Boolean = false;
+    private var _responsePurpose as String? = null;
+    private var _responseUploadId as String? = null;
+    private var _notice as String? = null;
+    private var _preAlertRestId as Number = -1;
+    private var _asyncTimer as Timer.Timer;
 
     public function initialize(store as Store) {
         _store = store;
+        _asyncTimer = new Timer.Timer();
         _recorder = new StrengthRecorder();
         _session = _store.loadPair("active");
         _activeUnsupported = _store.hasUnsupportedRecord();
@@ -38,8 +54,39 @@ class SessionController {
         } else if (_store.recoveredEarlierGeneration()) {
             _errorCode = Err.RECOVERED_EARLIER_CHECKPOINT;
         }
+        restoreUploadNotice();
         if (hasActiveSession()) {
             recoverRunningSession(Time.now().value());
+        }
+    }
+
+    private function restoreUploadNotice() as Void {
+        if (_errorCode != Err.NONE) {
+            return;
+        }
+        var ids = _store.loadUploadQueue();
+        if (ids == null || ids.size() == 0) {
+            if (_store.hasUnsupportedRecord() || _store.hasCorruptRecord()) {
+                _errorCode = Err.UPLOAD_QUEUE_DAMAGED;
+            }
+            return;
+        }
+        var job = _store.loadUpload(ids[0] as String);
+        if (_store.hasUnsupportedRecord() || _store.hasCorruptRecord() || job == null) {
+            _errorCode = Err.UPLOAD_QUEUE_DAMAGED;
+            return;
+        }
+        var error = job["lastError"];
+        if (Model.sameString(error, "program_error")) {
+            _errorCode = Err.WORKOUT_UPLOAD_PROGRAM_ERROR;
+        } else if (Model.sameString(error, "program_changed")) {
+            _errorCode = Err.WORKOUT_UPLOAD_MAPPING;
+        } else if (Model.sameString(job["state"], "blocked")) {
+            _errorCode = Err.WORKOUT_UPLOAD_BLOCKED;
+        } else if (Model.sameString(error, "http-401") || Model.sameString(error, "http-403")) {
+            _errorCode = Err.LIFTOSAUR_UNAUTHORIZED;
+        } else if (error != null) {
+            _errorCode = Err.WORKOUT_UPLOAD_FAILED;
         }
     }
 
@@ -67,28 +114,22 @@ class SessionController {
 
     private var _config as Dictionary? = null;
 
-    private function defaultRoutines() as Array {
-        var routines = Catalog.routineTemplates(null);
-        if (routines.size() == 0) {
-            routines.add({"id" => "routine-1", "name" => "Routine 1",
-                "revision" => 1, "entries" => []});
-        }
-        return routines;
-    }
-
     private function defaultConfig() as Dictionary {
         var settings = {
             "defaultRestSec" => 90,
             "vibrationEnabled" => true
         };
         return {
-            "schemaVersion" => 3,
+            "schemaVersion" => 4,
             "nextSessionSeq" => 1,
             "settings" => settings,
             "templateOverrides" => {},
             "incrementOverrides" => {},
-            "routines" => defaultRoutines(),
-            "routineNextEntrySeq" => 1
+            "routines" => [],
+            "routineSyncSeq" => 0,
+            "programId" => null,
+            "programName" => null,
+            "nextRoutineId" => null
         };
     }
 
@@ -117,7 +158,7 @@ class SessionController {
             _errorCode = Err.SAVED_SETTINGS_ARE_DAMAGED;
             return null;
         }
-        if (config["schemaVersion"] != 3) {
+        if (config["schemaVersion"] != 4) {
             // Beta: older schemas are not migrated. Start from the defaults, keeping only the
             // session counter so new session ids stay unique.
             var fresh = defaultConfig();
@@ -125,12 +166,12 @@ class SessionController {
             _stored = false;
             return fresh;
         }
-        var routines = loadRoutines(config["routineIds"] as Array);
-        config.remove("routineIds");
-        if (routines.size() == 0) {
+        if (!(config["routineIds"] instanceof Array)) {
             _errorCode = Err.SAVED_SETTINGS_ARE_DAMAGED;
             return null;
         }
+        var routines = loadRoutines(config["routineIds"] as Array);
+        config.remove("routineIds");
         config["routines"] = routines;
         if (!(config["settings"] instanceof Dictionary)) {
             config["settings"] = {"defaultRestSec" => 90, "vibrationEnabled" => true};
@@ -151,8 +192,8 @@ class SessionController {
             config["incrementOverrides"] = {};
         }
         if (!(config["routines"] instanceof Array) ||
-            !(config["routineNextEntrySeq"] instanceof Number) ||
-            config["routineNextEntrySeq"] < 1) {
+            !(config["routineSyncSeq"] instanceof Number) ||
+            config["routineSyncSeq"] < 0) {
             _errorCode = Err.SAVED_SETTINGS_ARE_DAMAGED;
             return null;
         }
@@ -197,7 +238,7 @@ class SessionController {
         var result = SessionLogic.copyDictionary(config);
         result.remove("routines");
         result["routineIds"] = ids;
-        result["schemaVersion"] = 3;
+        result["schemaVersion"] = 4;
         return result;
     }
 
@@ -217,46 +258,20 @@ class SessionController {
         return true;
     }
 
-    // Persists only what changed. Order keeps storage consistent if interrupted: a new routine
-    // is written before the config that references it, config before edits to an existing routine
-    // (a skipped sequence number is harmless), and a deleted routine's keys are removed last.
-    // On failure the cache is dropped so the next read reflects what is actually stored.
+    // Config settings/session sequence are independent of routine domains. Routine changes use
+    // the journaled atomic sync path below.
     private function writeParts(next as Dictionary, routineId as String?, writeConfig as Boolean) as Boolean {
-        var routines = next["routines"] as Array;
-        var previousRoutines = _config == null ? [] : (_config as Dictionary)["routines"] as Array;
-        var previousIds = routineIdsOf(previousRoutines);
-        var ids = routineIdsOf(routines);
-        var ok = true;
-        if (!_stored) {
-            ok = writeAll(next);
-        } else {
-            var index = routineId == null ? -1 : routineIndexIn(routines, routineId as String);
-            var isNew = index >= 0 && !containsId(previousIds, routineId as String);
-            if (isNew) {
-                ok = _store.commitPair("routine." + (routineId as String), routines[index] as Dictionary);
-            }
-            if (ok && writeConfig) {
-                ok = _store.commitPair("config", configOnly(next, ids));
-            }
-            if (ok && index >= 0 && !isNew) {
-                ok = _store.commitPair("routine." + (routineId as String), routines[index] as Dictionary);
-            }
-        }
-        if (!ok) {
+        if (!_stored && !writeAll(next)) {
             _config = null;
             return false;
         }
-        for (var i = 0; i < previousIds.size(); i++) {
-            if (!containsId(ids, previousIds[i] as String)) {
-                _store.deletePair("routine." + (previousIds[i] as String));
-            }
+        if (_stored && writeConfig &&
+            !_store.commitPair("config", configOnly(next, routineIdsOf(next["routines"] as Array)))) {
+            _config = null;
+            return false;
         }
         _config = SessionLogic.copyDictionary(next);
         return true;
-    }
-
-    private function validRoutineName(name as String) as Boolean {
-        return Model.validNonblankText(name, 64);
     }
 
     // Config-only save: settings, sequence numbers and overrides.
@@ -313,30 +328,30 @@ class SessionController {
         return config == null ? [] : Catalog.routineTemplates(config as Dictionary);
     }
 
-    private function routineDefinition(config as Dictionary, templateId as String) as Dictionary? {
-        return Catalog.routineTemplate(config, templateId);
+    public function programExercises() as Array {
+        var config = readConfig();
+        return config == null ? [] : Catalog.allRoutineExercises(config as Dictionary);
     }
 
-    private function entryDefinition(config as Dictionary, templateId as String,
-                                     entryId as String) as Dictionary? {
-        var template = routineDefinition(config, templateId);
-        if (template == null) {
-            return null;
-        }
-        var entries = (template as Dictionary)["entries"] as Array;
-        for (var i = 0; i < entries.size(); i++) {
-            var entry = entries[i] as Dictionary;
-            if (Model.sameString(entry["entryId"], entryId)) {
-                return entry;
-            }
-        }
-        return null;
+    public function nextRoutineId() as String? {
+        var config = readConfig();
+        return config == null ? null : (config as Dictionary)["nextRoutineId"] as String?;
     }
 
     public function templateEntry(templateId as String, entryId as String) as Dictionary? {
         var config = readConfig();
-        var entry = config == null ? null : entryDefinition(config as Dictionary, templateId, entryId);
-        return entry == null ? null : SessionLogic.copyDictionary(entry as Dictionary);
+        var routine = config == null ? null : Catalog.routineTemplate(config as Dictionary, templateId);
+        if (routine == null) {
+            return null;
+        }
+        var entries = (routine as Dictionary)["entries"] as Array;
+        for (var i = 0; i < entries.size(); i++) {
+            var entry = entries[i] as Dictionary;
+            if (Model.sameString(entry["entryId"], entryId)) {
+                return SessionLogic.copyDictionary(entry);
+            }
+        }
+        return null;
     }
 
     public function templateExercise(templateId as String, entryId as String) as Dictionary? {
@@ -344,145 +359,18 @@ class SessionController {
         return entry == null ? null : Catalog.exerciseForEntry(entry as Dictionary);
     }
 
-    private function entryOverride(config as Dictionary, templateId as String,
-                                   entryId as String) as Dictionary? {
-        return Catalog.overridesFor(config, templateId, entryId);
-    }
-
-    private function templateNumber(config as Dictionary, templateId as String,
-                                    entryId as String, field as String) as Number? {
-        var entry = entryDefinition(config, templateId, entryId);
-        if (entry == null) {
-            return null;
-        }
-        var configured = (entry as Dictionary)[field];
-        if (configured instanceof Number) {
-            return configured as Number;
-        }
-        var override = Catalog.dictionaryValue(entryOverride(config, templateId, entryId), field);
-        if (override instanceof Number &&
-            (!Model.sameString(field, "workingSetCount") ||
-             Model.inRange(override, 1, Model.MAX_SETS, false)) &&
-            (!Model.sameString(field, "restSec") ||
-             Model.inRange(override, 0, Model.MAX_REST_SEC, false)) &&
-            ((!Model.sameString(field, "targetRepsMin") && !Model.sameString(field, "targetRepsMax")) ||
-             Model.inRange(override, 1, Model.MAX_REPS, false)) &&
-            (!Model.sameString(field, "targetDurationSec") ||
-             Model.inRange(override, 1, Model.MAX_DURATION_SEC, false)) &&
-            (!Model.sameString(field, "startingLoad100") ||
-             Model.inRange(override, 0, Model.MAX_LOAD100, false)) &&
-            (!Model.sameString(field, "increment100") ||
-             (Model.inRange(override, 25, 10000, false) && (override as Number) % 25 == 0))) {
-            return override as Number;
-        }
-        if (Model.sameString(field, "restSec")) {
-            var definition = Catalog.exerciseForEntry(entry as Dictionary);
-            if (definition != null && (definition as Dictionary)["defaultRestSec"] instanceof Number) {
-                return (definition as Dictionary)["defaultRestSec"] as Number;
-            }
-            var settings = Catalog.dictionaryValue(config, "settings");
-            var configuredDefault = Catalog.dictionaryValue(
-                settings instanceof Dictionary ? settings as Dictionary : null,
-                "defaultRestSec"
-            );
-            return Model.inRange(configuredDefault, 0, Model.MAX_REST_SEC, false) ?
-                configuredDefault as Number : 90;
-        }
-        if (Model.sameString(field, "increment100")) {
-            var definition = Catalog.exerciseForEntry(entry as Dictionary);
-            var increment = definition == null ? null : (definition as Dictionary)["increment100"];
-            var global = Catalog.dictionaryValue(config["incrementOverrides"] as Dictionary,
-                (entry as Dictionary)["exerciseId"] as String);
-            if (Model.inRange(global, 25, 10000, false) && (global as Number) % 25 == 0) {
-                return global as Number;
-            }
-            return Model.inRange(increment, 25, 10000, false) ? increment as Number : null;
-        }
-        return null;
-    }
-
     public function numericConfigValue(kind as String, parentId as String,
                                        id as String, field as String) as Number? {
-        var config = readConfig();
-        if (config == null) {
-            return null;
-        }
-        if (Model.sameString(kind, "setting")) {
-            return Model.sameString(field, "defaultRestSec") ? defaultRestSec() : null;
-        }
-        if (Model.sameString(kind, "template")) {
-            return templateNumber(config, parentId, id, field);
-        }
-        return null;
-    }
-
-    private function validTemplateNumber(templateId as String, entryId as String,
-                                         field as String, value as Number,
-                                         config as Dictionary) as Boolean {
-        var template = routineDefinition(config, templateId);
-        var entry = entryDefinition(config, templateId, entryId);
-        if (template == null || entry == null) {
-            return false;
-        }
-        var definition = Catalog.exerciseForEntry(entry as Dictionary);
-        if (definition == null) {
-            return false;
-        }
-        var type = (definition as Dictionary)["loadType"] as String;
-        if (Model.sameString(field, "workingSetCount")) {
-            if (!Model.inRange(value, 1, Model.MAX_SETS, false)) {
-                return false;
-            }
-            var entries = (template as Dictionary)["entries"] as Array;
-            var total = 0;
-            for (var i = 0; i < entries.size(); i++) {
-                var row = entries[i] as Dictionary;
-                var count = templateNumber(config, templateId, row["entryId"] as String,
-                    "workingSetCount");
-                total += Model.sameString(row["entryId"], entryId) ? value :
-                    (count instanceof Number ? count as Number : 0);
-            }
-            return total <= Model.MAX_SETS_PER_WORKOUT;
-        }
-        if (Model.sameString(field, "targetRepsMin") || Model.sameString(field, "targetRepsMax")) {
-            if (Model.sameString(type, "timed") || !Model.inRange(value, 1, Model.MAX_REPS, false)) {
-                return false;
-            }
-            var minimum = templateNumber(config, templateId, entryId, "targetRepsMin");
-            var maximum = templateNumber(config, templateId, entryId, "targetRepsMax");
-            if (Model.sameString(field, "targetRepsMin")) {
-                minimum = value;
-                // Raising the minimum past the maximum raises the maximum with it.
-                if (maximum instanceof Number && maximum < value) {
-                    maximum = value;
-                }
-            } else {
-                maximum = value;
-            }
-            return minimum instanceof Number && maximum instanceof Number && minimum <= maximum;
-        }
-        if (Model.sameString(field, "targetDurationSec")) {
-            return Model.sameString(type, "timed") &&
-                Model.inRange(value, 1, Model.MAX_DURATION_SEC, false);
-        }
-        if (Model.sameString(field, "restSec")) {
-            return Model.inRange(value, 0, Model.MAX_REST_SEC, false);
-        }
-        if (Model.sameString(field, "startingLoad100")) {
-            return (Model.sameString(type, "weight") || Model.sameString(type, "assistance")) &&
-                Model.inRange(value, 0, Model.MAX_LOAD100, false);
-        }
-        if (Model.sameString(field, "increment100")) {
-            return (Model.sameString(type, "weight") || Model.sameString(type, "assistance")) &&
-                Model.inRange(value, 25, 10000, false) && (value % 25) == 0;
-        }
-        return false;
+        return Model.sameString(kind, "setting") && Model.sameString(field, "defaultRestSec") ?
+            defaultRestSec() : null;
     }
 
     public function updateNumericConfig(kind as String, parentId as String,
                                         id as String, field as String,
                                         value as Number) as Boolean {
-        if (!configurationEditable()) {
+        if (!configurationEditable() || !Model.sameString(kind, "setting") ||
+            !Model.sameString(field, "defaultRestSec") ||
+            !Model.inRange(value, 0, Model.MAX_REST_SEC, false)) {
             return false;
         }
         var config = readConfig();
@@ -490,423 +378,866 @@ class SessionController {
             return false;
         }
         var next = config as Dictionary;
-        if (Model.sameString(kind, "setting") && Model.sameString(field, "defaultRestSec")) {
-            if (!Model.inRange(value, 0, Model.MAX_REST_SEC, false)) {
-                return false;
-            }
-            var settings = SessionLogic.copyDictionary(next["settings"] as Dictionary);
-            settings["defaultRestSec"] = value;
-            next["settings"] = settings;
-            return saveConfig(next);
-        }
-        if (!Model.sameString(kind, "template") ||
-            !validTemplateNumber(parentId, id, field, value, next)) {
-            return false;
-        }
-        var routines = copyRoutines(next);
-        var routineIndex = routineIndexIn(routines, parentId);
-        var entryIndex = routineIndex < 0 ? -1 : entryIndexIn(routines[routineIndex], id);
-        if (entryIndex < 0) {
-            return false;
-        }
-        var edited = routines[routineIndex]["entries"][entryIndex] as Dictionary;
-        edited[field] = value;
-        if (Model.sameString(field, "targetRepsMin") && edited["targetRepsMax"] instanceof Number &&
-            edited["targetRepsMax"] < value) {
-            edited["targetRepsMax"] = value;
-        }
-        return saveRoutines(next, routines, parentId, false);
+        var settings = SessionLogic.copyDictionary(next["settings"] as Dictionary);
+        settings["defaultRestSec"] = value;
+        next["settings"] = settings;
+        return saveConfig(next);
     }
 
-    private function copyRoutines(config as Dictionary) as Array {
-        var result = [];
-        var source = config["routines"] as Array;
-        for (var i = 0; i < source.size(); i++) {
-            var routine = SessionLogic.copyDictionary(source[i] as Dictionary);
-            var entries = [];
-            var sourceEntries = routine["entries"] as Array;
-            for (var j = 0; j < sourceEntries.size(); j++) {
-                entries.add(SessionLogic.copyDictionary(sourceEntries[j] as Dictionary));
-            }
-            routine["entries"] = entries;
-            result.add(routine);
-        }
-        return result;
+    public function toggleVibration() as Boolean {
+        return setVibrationEnabled(!vibrationEnabled());
     }
 
-    private function routineIndexIn(routines as Array, templateId as String) as Number {
-        for (var i = 0; i < routines.size(); i++) {
-            if (Model.sameString(routines[i]["id"], templateId)) {
-                return i;
-            }
-        }
-        return -1;
+    private function liftosaurKey() as String? {
+        var value = getApp().getProperty("liftosaurKey");
+        return value instanceof String && (value as String).length() > 0 ?
+            value as String : null;
     }
 
-    private function entryIndexIn(routine as Dictionary, entryId as String) as Number {
-        var entries = routine["entries"] as Array;
-        for (var i = 0; i < entries.size(); i++) {
-            if (Model.sameString(entries[i]["entryId"], entryId)) {
-                return i;
-            }
+    private function deviceId() as String? {
+        var existing = _store.loadDeviceId();
+        if (existing != null) {
+            return existing;
         }
-        return -1;
-    }
-
-    // Validates only the changed routine (the list size and ids are cheap checks).
-    private function saveRoutines(config as Dictionary, routines as Array, routineId as String,
-                                  writeConfig as Boolean) as Boolean {
-        var index = routineIndexIn(routines, routineId);
-        var valid = routines.size() >= 1 && routines.size() <= Model.MAX_TEMPLATES;
-        if (valid && index >= 0) {
-            var routine = routines[index] as Dictionary;
-            valid = Catalog.validRoutine(routine) && validRoutineName(routine["name"] as String);
-        }
-        if (!valid) {
-            _errorCode = Err.ROUTINE_LIST_IS_INVALID;
-            return false;
-        }
-        var next = SessionLogic.copyDictionary(config);
-        next["routines"] = routines;
-        return saveParts(next, routineId, writeConfig);
-    }
-
-    public function createRoutine(name as String) as String? {
-        if (!configurationEditable()) {
+        if (_store.hasUnsupportedRecord() || _store.hasCorruptRecord()) {
+            _errorCode = Err.SAVED_SETTINGS_ARE_DAMAGED;
             return null;
         }
-        if (!validRoutineName(name)) {
-            _errorCode = Err.ROUTINE_NAME_IS_REQUIRED_64_BYTES_MAX;
-            return null;
+        Math.srand((Time.now().value() % 1000000) * 1000 +
+            (System.getTimer() % 1000));
+        var alphabet = "abcdefghijklmnopqrstuvwxyz0123456789";
+        var id = "nextset-";
+        for (var i = 0; i < 24; i++) {
+            var index = Math.rand() % alphabet.length();
+            id += alphabet.substring(index, index + 1);
         }
-        var config = readConfig();
-        if (config == null) {
-            return null;
-        }
-        var routines = copyRoutines(config as Dictionary);
-        if (routines.size() >= Model.MAX_TEMPLATES) {
-            _errorCode = Err.ROUTINE_LIMIT_REACHED;
-            return null;
-        }
-        for (var i = 0; i < routines.size(); i++) {
-            if (Model.sameString((routines[i] as Dictionary)["name"], name)) {
-                _errorCode = Err.ROUTINE_NAME_ALREADY_EXISTS;
-                return null;
-            }
-        }
-        var sequence = config["routineNextEntrySeq"] as Number;
-        var id = "routine-" + sequence.toString();
-        while (routineIndexIn(routines, id) >= 0) {
-            sequence++;
-            id = "routine-" + sequence.toString();
-        }
-        var routine = {"id" => id, "name" => name, "revision" => 1, "entries" => []};
-        if (!Model.validId(id) || !Catalog.validRoutine(routine)) {
-            _errorCode = Err.ROUTINE_COULD_NOT_BE_CREATED;
-            return null;
-        }
-        routines.add(routine);
-        var next = SessionLogic.copyDictionary(config as Dictionary);
-        next["routineNextEntrySeq"] = sequence + 1;
-        if (!saveRoutines(next, routines, id, true)) {
+        if (!_store.saveDeviceId(id)) {
+            _errorCode = Err.SETTINGS_SAVE_FAILED;
             return null;
         }
         return id;
     }
 
-    public function renameRoutine(templateId as String, name as String) as Boolean {
-        if (!configurationEditable()) {
+    private function apiHeaders(write as Boolean) as Dictionary? {
+        var key = liftosaurKey();
+        if (key == null) {
+            _errorCode = Err.LIFTOSAUR_KEY_REQUIRED;
+            return null;
+        }
+        var headers = {
+            "Authorization" => "Bearer " + (key as String),
+            "X-Liftosaur-Client" => "nextset-watch/0.2.8",
+            "Content-Type" => "application/json"
+        };
+        if (write) {
+            var id = deviceId();
+            if (id == null) {
+                return null;
+            }
+            headers["X-Liftosaur-Device-Id"] = id as String;
+        }
+        return headers;
+    }
+
+    private function makeApiRequest(path as String,
+                                    httpMethod as Communications.HttpRequestMethod,
+                                    params as Dictionary?, write as Boolean,
+                                    purpose as String, uploadId as String?) as Boolean {
+        if (_requestInFlight) {
             return false;
         }
-        if (!validRoutineName(name)) {
-            _errorCode = Err.ROUTINE_NAME_IS_REQUIRED_64_BYTES_MAX;
+        var headers = apiHeaders(write);
+        if (headers == null) {
             return false;
         }
-        var config = readConfig();
-        if (config == null) {
+        _responsePurpose = purpose;
+        _responseUploadId = uploadId;
+        _requestInFlight = true;
+        try {
+            Communications.makeWebRequest("https://www.liftosaur.com/api/v1" + path,
+                params, {
+                    :method => httpMethod,
+                    :headers => headers as Dictionary,
+                    :responseType => Communications.HTTP_RESPONSE_CONTENT_TYPE_JSON,
+                    :context => null,
+                    :maxBandwidth => 0
+                }, method(:onApiResponse));
+            return true;
+        } catch (error) {
+            _requestInFlight = false;
+            _responsePurpose = null;
+            _responseUploadId = null;
+            _errorCode = Model.sameString(purpose, "upload_start") ||
+                Model.sameString(purpose, "upload_sets") ||
+                Model.sameString(purpose, "upload_finish") ? Err.WORKOUT_UPLOAD_FAILED :
+                Err.ROUTINE_SYNC_REQUEST_FAILED;
+            WatchUi.requestUpdate();
             return false;
         }
-        var routines = copyRoutines(config as Dictionary);
-        var index = routineIndexIn(routines, templateId);
-        if (index < 0) {
-            _errorCode = Err.ROUTINE_NOT_FOUND;
+    }
+
+    public function syncRoutines() as Boolean {
+        if (liftosaurKey() == null) {
+            _errorCode = Err.LIFTOSAUR_KEY_REQUIRED;
+            WatchUi.requestUpdate();
             return false;
         }
-        for (var i = 0; i < routines.size(); i++) {
-            if (i != index && Model.sameString((routines[i] as Dictionary)["name"], name)) {
-                _errorCode = Err.ROUTINE_NAME_ALREADY_EXISTS;
+        if (_routineSyncRunning && _requestInFlight) {
+            return true;
+        }
+        var journal = _store.loadRoutineSync();
+        if (_store.hasUnsupportedRecord() || _store.hasCorruptRecord()) {
+            _errorCode = Err.ROUTINE_SYNC_SAVE_FAILED;
+            return false;
+        }
+        // A manual sync always restarts: a journal that keeps failing must not be resumed forever.
+        // Launch-time resume goes through retryUploads().
+        if (journal != null) {
+            var current = readConfig();
+            var keep = current == null ? [] : routineIdsOf((current as Dictionary)["routines"] as Array);
+            var abandoned = journal["routineIds"] as Array;
+            for (var i = 0; i < abandoned.size(); i++) {
+                if (!containsId(keep, abandoned[i])) {
+                    _store.deletePair("routine." + (abandoned[i] as String));
+                }
+            }
+            _store.deletePair("rsync");
+            journal = null;
+        }
+        if (journal == null) {
+            var config = readConfig();
+            if (config == null) {
+                return false;
+            }
+            var sequence = ((config as Dictionary)["routineSyncSeq"] as Number) + 1;
+            journal = {
+                "sequence" => sequence,
+                "phase" => "program",
+                "index" => 0,
+                "days" => [],
+                "routineIds" => []
+            };
+            if (!_store.commitPair("rsync", journal as Dictionary)) {
+                _errorCode = Err.ROUTINE_SYNC_SAVE_FAILED;
                 return false;
             }
         }
-        routines[index]["name"] = name;
-        return saveRoutines(config as Dictionary, routines, templateId, false);
+        _errorCode = Err.NONE;
+        _notice = null;
+        _refreshAfterUploads = false;
+        _routineSyncRunning = true;
+        _uploadRequested = true;
+        WatchUi.requestUpdate();
+        pumpAsyncWork();
+        return true;
     }
 
-    public function deleteRoutine(templateId as String) as Boolean {
-        if (!configurationEditable()) {
-            return false;
+    // Called on launch, after a saved workout, and after a manual routine sync.
+    public function retryUploads() as Void {
+        _uploadRequested = true;
+        var journal = _store.loadRoutineSync();
+        if (_store.hasUnsupportedRecord() || _store.hasCorruptRecord()) {
+            _errorCode = Err.ROUTINE_SYNC_SAVE_FAILED;
+        } else if (journal != null) {
+            _routineSyncRunning = true;
         }
-        var config = readConfig();
-        if (config == null) {
-            return false;
-        }
-        var routines = copyRoutines(config as Dictionary);
-        var index = routineIndexIn(routines, templateId);
-        if (index < 0) {
-            _errorCode = Err.ROUTINE_NOT_FOUND;
-            return false;
-        }
-        if (routines.size() <= 1) {
-            _errorCode = Err.AT_LEAST_ONE_ROUTINE_IS_KEPT;
-            return false;
-        }
-        var kept = [];
-        for (var i = 0; i < routines.size(); i++) {
-            if (i != index) {
-                kept.add(routines[i]);
-            }
-        }
-        return saveRoutines(config as Dictionary, kept, templateId, true);
+        pumpAsyncWork();
     }
 
-    private function makeRoutineEntry(templateId as String, entryId as String,
-                                      definition as Dictionary, loadType as String,
-                                      previous as Dictionary?, defaultRest as Number) as Dictionary? {
-        var exerciseId = definition["id"];
-        var name = definition["name"];
-        var category = definition["category"];
-        var code = definition["code"];
-        if (!Model.validId(exerciseId) || !Model.validText(name, 64, false) ||
-            !Model.validText(category, 48, false) || !Model.validText(code, 64, true) ||
-            !Model.validLoadType(loadType)) {
-            return null;
-        }
-        var timed = Model.sameString(loadType, "timed");
-        var loadable = Model.sameString(loadType, "weight") ||
-            Model.sameString(loadType, "assistance");
-        var entry = {
-            "entryId" => entryId,
-            "exerciseId" => exerciseId,
-            "name" => name,
-            "garminCategory" => category,
-            "garminCode" => code,
-            "isBodyWeight" => definition["isBodyWeight"],
-            "loadType" => loadType,
-            "unit" => loadable ? "kg" : null,
-            "increment100" => loadable ? (previous != null &&
-                Model.inRange(previous["increment100"], 25, 10000, false) ?
-                previous["increment100"] : 500) : null,
-            "defaultRestSec" => defaultRest,
-            "workingSetCount" => previous != null && previous["workingSetCount"] instanceof Number ?
-                previous["workingSetCount"] : 3,
-            "targetRepsMin" => timed ? null : 10,
-            "targetRepsMax" => timed ? null : 10,
-            "targetDurationSec" => timed ? 30 : null,
-            "startingLoad100" => loadable ? 0 : null,
-            "restSec" => previous != null && previous["restSec"] instanceof Number ?
-                previous["restSec"] : defaultRest,
-            "notes" => previous == null ? null : previous["notes"]
-        };
-        if (previous != null && !timed && !Model.sameString(previous["loadType"], "timed") &&
-            previous["targetRepsMin"] instanceof Number && previous["targetRepsMax"] instanceof Number) {
-            entry["targetRepsMin"] = previous["targetRepsMin"];
-            entry["targetRepsMax"] = previous["targetRepsMax"];
-        }
-        if (timed && previous != null && Model.sameString(previous["loadType"], "timed") &&
-            previous["targetDurationSec"] instanceof Number) {
-            entry["targetDurationSec"] = previous["targetDurationSec"];
-        }
-        if (loadable && previous != null &&
-            (Model.sameString(previous["loadType"], "weight") ||
-             Model.sameString(previous["loadType"], "assistance")) &&
-            previous["startingLoad100"] instanceof Number) {
-            entry["startingLoad100"] = previous["startingLoad100"];
-        }
-        return entry;
+    public function pendingUploadCount() as Number {
+        var ids = _store.loadUploadQueue();
+        return ids == null ? 0 : ids.size();
     }
 
-    public function addRoutineExercise(templateId as String, definition as Dictionary,
-                                       loadType as String) as String? {
-        if (!configurationEditable()) {
-            return null;
+    // True when the head upload has stopped on an error (blocked, mapping, program error...).
+    public function hasStuckUpload() as Boolean {
+        var ids = _store.loadUploadQueue();
+        if (ids == null || ids.size() == 0) {
+            return false;
         }
-        var config = readConfig();
-        if (config == null) {
-            return null;
-        }
-        var routines = copyRoutines(config as Dictionary);
-        var index = routineIndexIn(routines, templateId);
-        if (index < 0) {
-            return null;
-        }
-        var routine = routines[index] as Dictionary;
-        var entries = routine["entries"] as Array;
-        var sets = Catalog.totalSets(routine);
-        if (entries.size() >= Model.MAX_ENTRIES || sets + 3 > Model.MAX_SETS_PER_WORKOUT) {
-            _errorCode = Err.ROUTINE_LIMIT_REACHED;
-            return null;
-        }
-        var nextSeq = config["routineNextEntrySeq"] as Number;
-        var entryId = templateId + "-new-" + nextSeq.toString();
-        var added = makeRoutineEntry(templateId, entryId, definition, loadType, null,
-            defaultRestSec());
-        if (added == null) {
-            return null;
-        }
-        entries.add(added);
-        var nextConfig = SessionLogic.copyDictionary(config as Dictionary);
-        nextConfig["routineNextEntrySeq"] = nextSeq + 1;
-        if (!Catalog.validRoutine(routine)) {
-            return null;
-        }
-        return saveRoutines(nextConfig, routines, templateId, true) ? entryId : null;
+        var job = _store.loadUpload(ids[0] as String);
+        return job != null && (Model.sameString(job["state"], "blocked") ||
+            job["lastError"] != null);
     }
 
-    public function replaceRoutineExercise(templateId as String, entryId as String,
-                                           definition as Dictionary,
-                                           loadType as String) as Boolean {
-        if (!configurationEditable()) {
-            return false;
-        }
-        var config = readConfig();
-        if (config == null) {
-            return false;
-        }
-        var routines = copyRoutines(config as Dictionary);
-        var routineIndex = routineIndexIn(routines, templateId);
-        var index = routineIndex < 0 ? -1 : entryIndexIn(routines[routineIndex], entryId);
-        if (index < 0) {
-            return false;
-        }
-        var routine = routines[routineIndex] as Dictionary;
-        var previous = (routine["entries"] as Array)[index] as Dictionary;
-        var replacement = makeRoutineEntry(templateId, entryId, definition, loadType, previous,
-            defaultRestSec());
-        if (replacement == null) {
-            return false;
-        }
-        routine["entries"][index] = replacement;
-        var total = Catalog.totalSets(routine);
-        if (total > Model.MAX_SETS_PER_WORKOUT || !Catalog.validRoutine(routine)) {
-            return false;
-        }
-        return saveRoutines(config as Dictionary, routines, templateId, false);
-    }
-
-    public function moveRoutineEntry(templateId as String, entryId as String,
-                                      direction as Number) as Boolean {
-        if (!configurationEditable() || (direction != -1 && direction != 1)) {
-            return false;
-        }
-        var config = readConfig();
-        if (config == null) {
-            return false;
-        }
-        var routines = copyRoutines(config as Dictionary);
-        var routineIndex = routineIndexIn(routines, templateId);
-        var index = routineIndex < 0 ? -1 : entryIndexIn(routines[routineIndex], entryId);
-        if (index < 0) {
-            return false;
-        }
-        var entries = routines[routineIndex]["entries"] as Array;
-        var target = index + direction;
-        if (target < 0 || target >= entries.size()) {
-            return false;
-        }
-        var swap = entries[index];
-        entries[index] = entries[target];
-        entries[target] = swap;
-        return saveRoutines(config as Dictionary, routines, templateId, false);
-    }
-
-    public function removeRoutineEntry(templateId as String, entryId as String) as Boolean {
-        if (!configurationEditable()) {
-            return false;
-        }
-        var config = readConfig();
-        if (config == null) {
-            return false;
-        }
-        var routines = copyRoutines(config as Dictionary);
-        var routineIndex = routineIndexIn(routines, templateId);
-        var index = routineIndex < 0 ? -1 : entryIndexIn(routines[routineIndex], entryId);
-        if (index < 0) {
-            return false;
-        }
-        var source = routines[routineIndex]["entries"] as Array;
-        var kept = [];
-        for (var i = 0; i < source.size(); i++) {
-            if (i != index) {
-                kept.add(source[i]);
-            }
-        }
-        routines[routineIndex]["entries"] = kept;
-        return saveRoutines(config as Dictionary, routines, templateId, false);
-    }
-
-    public function recentGarminExercises() as Array {
-        var saved = _store.loadPair("recent");
-        if (saved == null || !(saved["items"] instanceof Array)) {
-            return [];
-        }
-        return saved["items"] as Array;
-    }
-
-    public function usedGarminExercises() as Array {
-        var result = [];
-        var seen = {};
-        var routines = routineTemplates();
-        for (var r = 0; r < routines.size(); r++) {
-            var entries = routines[r]["entries"] as Array;
-            for (var e = 0; e < entries.size(); e++) {
-                var entry = entries[e] as Dictionary;
-                if (!(entry["garminCategory"] instanceof String) ||
-                    seen[entry["exerciseId"]] == true) {
-                    continue;
-                }
-                var definition = Catalog.exerciseForEntry(entry);
-                if (definition == null) {
-                    continue;
-                }
-                var item = SessionLogic.copyDictionary(definition as Dictionary);
-                item["category"] = entry["garminCategory"];
-                item["code"] = entry["garminCode"];
-                item["pickerName"] = entry["name"];
-                result.add(item);
-                seen[entry["exerciseId"]] = true;
-            }
+    // Session id -> "done" | "skipped" | "pending" for the History screen (two small reads).
+    public function uploadStatuses() as Dictionary {
+        var result = _store.loadUploadStatus();
+        var ids = _store.loadUploadQueue();
+        for (var i = 0; ids != null && i < ids.size(); i++) {
+            result[ids[i]] = "pending";
         }
         return result;
     }
 
-    public function rememberGarminExercise(definition as Dictionary,
-                                           categoryIndex as Number) as Boolean {
-        var category = definition["category"] instanceof String ? definition["category"] :
-            definition["garminCategory"];
-        var code = definition["code"] instanceof String ? definition["code"] :
-            definition["garminCode"];
-        if (!Model.validId(definition["id"]) || !(category instanceof String) ||
-            !Model.validText(code, 64, true) || categoryIndex < 0) {
-            return false;
-        }
-        var items = [];
-        var recent = recentGarminExercises();
-        items.add({"id" => definition["id"],
-            "name" => code instanceof String ? Catalog.garminName(category as String, code as String) :
-                definition["name"],
-            "category" => category, "code" => code, "categoryIndex" => categoryIndex,
-            "isBodyWeight" => definition["isBodyWeight"]});
-        for (var i = 0; i < recent.size() && items.size() < 8; i++) {
-            var item = recent[i] as Dictionary;
-            if (!Model.sameString(item["id"], definition["id"])) {
-                items.add(item);
-            }
-        }
-        return _store.commitPair("recent", {"items" => items});
+    public function uploadQueueDamaged() as Boolean {
+        return _store.loadUploadQueue() == null;
     }
 
-    public function toggleVibration() as Boolean {
-        return setVibrationEnabled(!vibrationEnabled());
+    // Retires the head upload; the local history of that workout is kept.
+    public function skipUpload() as Boolean {
+        var ids = _store.loadUploadQueue();
+        if (_requestInFlight || ids == null || ids.size() == 0) {
+            return false;
+        }
+        _store.markUploadStatus(ids[0] as String, "skipped");
+        if (!_store.removeUploadFromQueue(ids[0] as String)) {
+            return false;
+        }
+        _uploadRequested = false;
+        _errorCode = Err.NONE;
+        _notice = "Upload skipped";
+        WatchUi.requestUpdate();
+        return true;
+    }
+
+    public function clearUploadQueue() as Boolean {
+        if (_requestInFlight) {
+            return false;
+        }
+        _store.clearUploadQueue(true);
+        _uploadRequested = false;
+        _errorCode = Err.NONE;
+        _notice = "Upload queue cleared";
+        WatchUi.requestUpdate();
+        return true;
+    }
+
+    // Home status while a request is in flight.
+    public function activityLabel() as String? {
+        if (_routineSyncRunning) {
+            return "Syncing…";
+        }
+        return _uploadRequested && _requestInFlight ? "Uploading…" : null;
+    }
+
+    public function infoNotice() as String? {
+        return _notice;
+    }
+
+    // One-shot timer target: continue sync/upload work outside the response callback.
+    public function continueAsyncWork() as Void {
+        pumpAsyncWork();
+    }
+
+    private function scheduleAsyncWork() as Void {
+        _asyncTimer.stop();
+        _asyncTimer.start(method(:continueAsyncWork), 150, false);
+    }
+
+    private function pumpAsyncWork() as Void {
+        if (_requestInFlight) {
+            return;
+        }
+        if (_routineSyncRunning) {
+            advanceRoutineSync();
+        } else if (_uploadRequested) {
+            advanceUploadQueue();
+        }
+    }
+
+    private function saveRoutineJournal(journal as Dictionary) as Boolean {
+        if (!_store.commitPair("rsync", journal)) {
+            _errorCode = Err.ROUTINE_SYNC_SAVE_FAILED;
+            _routineSyncRunning = false;
+            WatchUi.requestUpdate();
+            return false;
+        }
+        return true;
+    }
+
+    private function reclaimPriorRoutineDomains(sequence as Number, currentIds as Array,
+                                                fallbackIds as Array) as Void {
+        if (sequence <= 2) {
+            return;
+        }
+        for (var ordinal = 1; ordinal <= Model.MAX_TEMPLATES; ordinal++) {
+            var stale = Catalog.routineId(sequence - 2, ordinal);
+            if (!containsId(currentIds, stale) && !containsId(fallbackIds, stale)) {
+                _store.deletePair("routine." + stale);
+            }
+        }
+    }
+
+    private function advanceRoutineSync() as Void {
+        if (!_routineSyncRunning || _requestInFlight) {
+            return;
+        }
+        var journal = _store.loadRoutineSync();
+        if (journal == null || _store.hasUnsupportedRecord() || _store.hasCorruptRecord()) {
+            _routineSyncRunning = false;
+            _errorCode = Err.ROUTINE_SYNC_SAVE_FAILED;
+            WatchUi.requestUpdate();
+            pumpAsyncWork();
+            return;
+        }
+        var config = readConfig();
+        if (config == null) {
+            _routineSyncRunning = false;
+            WatchUi.requestUpdate();
+            pumpAsyncWork();
+            return;
+        }
+        if (SessionLogic.routineSyncAlreadyCommitted(journal["sequence"] as Number,
+            (config as Dictionary)["routineSyncSeq"] as Number)) {
+            var olderConfig = _store.loadOlderPair("config");
+            if (_store.hasUnsupportedRecord() || _store.hasCorruptRecord()) {
+                _routineSyncRunning = false;
+                _errorCode = Err.ROUTINE_SYNC_SAVE_FAILED;
+                WatchUi.requestUpdate();
+                pumpAsyncWork();
+                return;
+            }
+            var currentIds = routineIdsOf((config as Dictionary)["routines"] as Array);
+            var fallbackIds = olderConfig != null && olderConfig["routineIds"] instanceof Array ?
+                olderConfig["routineIds"] as Array : [];
+            reclaimPriorRoutineDomains(journal["sequence"] as Number, currentIds, fallbackIds);
+            _store.deletePair("rsync");
+            _routineSyncRunning = false;
+            _uploadRequested = true;
+            WatchUi.requestUpdate();
+            pumpAsyncWork();
+            return;
+        }
+        var phase = journal["phase"] as String;
+        if (Model.sameString(phase, "program")) {
+            if (!makeApiRequest("/programs/current", Communications.HTTP_REQUEST_METHOD_GET,
+                null, false, "sync_program", null)) {
+                _routineSyncRunning = false;
+                pumpAsyncWork();
+            }
+            return;
+        }
+        if (Model.sameString(phase, "next")) {
+            if (!makeApiRequest("/workout/next", Communications.HTTP_REQUEST_METHOD_GET,
+                null, false, "sync_next", null)) {
+                _routineSyncRunning = false;
+                pumpAsyncWork();
+            }
+            return;
+        }
+        var days = journal["days"] as Array;
+        var index = journal["index"] as Number;
+        if (index < days.size()) {
+            var day = days[index] as Dictionary;
+            var query = {
+                "programId" => journal["programId"],
+                "week" => day["week"],
+                "dayInWeek" => day["dayInWeek"]
+            };
+            if (!makeApiRequest("/workout/next", Communications.HTTP_REQUEST_METHOD_GET,
+                query, false, "sync_day", null)) {
+                _routineSyncRunning = false;
+                pumpAsyncWork();
+            }
+            return;
+        }
+        if (!pivotRoutineSync(journal as Dictionary)) {
+            _routineSyncRunning = false;
+            WatchUi.requestUpdate();
+            pumpAsyncWork();
+            return;
+        }
+        _store.deletePair("rsync");
+        _routineSyncRunning = false;
+        _errorCode = Err.NONE;
+        _notice = "Synced " + (journal["routineIds"] as Array).size().toString() +
+            ((journal["routineIds"] as Array).size() == 1 ? " day" : " days");
+        _uploadRequested = true;
+        WatchUi.requestUpdate();
+        pumpAsyncWork();
+    }
+
+    private function responseBody(data as Object?) as Dictionary? {
+        if (!(data instanceof Dictionary)) {
+            return null;
+        }
+        var body = data as Dictionary;
+        if (body["data"] instanceof Dictionary) {
+            body = body["data"] as Dictionary;
+        }
+        return body;
+    }
+
+    private function errorCodeFrom(data as Object?) as String? {
+        var body = data instanceof Dictionary ? data as Dictionary : null;
+        if (body != null && body["error"] instanceof Dictionary) {
+            body = body["error"] as Dictionary;
+        }
+        return body != null && body["code"] instanceof String ? body["code"] as String : null;
+    }
+
+    private function syncRequestFailed(responseCode as Number, data as Object?) as Void {
+        _routineSyncRunning = false;
+        _errorCode = (responseCode == -402 || responseCode == -403) ?
+            Err.ROUTINE_SYNC_RESPONSE_TOO_LARGE :
+            ((responseCode == 401 || responseCode == 403) ? Err.LIFTOSAUR_UNAUTHORIZED :
+                Err.ROUTINE_SYNC_REQUEST_FAILED);
+        WatchUi.requestUpdate();
+        pumpAsyncWork();
+    }
+
+    private function routineProgramReceived(data as Object?) as Boolean {
+        var body = responseBody(data);
+        if (body == null) {
+            return false;
+        }
+        var program = body["program"] instanceof Dictionary ? body["program"] as Dictionary : body;
+        var days = program["text"] instanceof String ?
+            LiftosaurLogic.parseDays(program["text"] as String) : null;
+        if (!Model.validId(program["id"]) || !Model.validNonblankText(program["name"], 64) ||
+            days == null || (days as Array).size() == 0 ||
+            (days as Array).size() > Model.MAX_PROGRAM_DAYS) {
+            return false;
+        }
+        var journal = _store.loadRoutineSync();
+        if (journal == null) {
+            return false;
+        }
+        journal["phase"] = "next";
+        journal["programId"] = program["id"];
+        journal["programName"] = program["name"];
+        journal["days"] = days;
+        journal["index"] = 0;
+        journal["routineIds"] = [];
+        journal.remove("nextWeek");
+        journal.remove("nextDay");
+        return saveRoutineJournal(journal as Dictionary);
+    }
+
+    private function routineNextReceived(data as Object?) as Boolean {
+        var coordinates = Catalog.nextRoutineCoordinates(data);
+        var journal = _store.loadRoutineSync();
+        if (coordinates == null || journal == null ||
+            !Model.sameString((coordinates as Dictionary)["programId"], journal["programId"])) {
+            return false;
+        }
+        // Only the current week is synced; the program text lists every week.
+        var weekDays = LiftosaurLogic.daysForWeek(journal["days"] as Array,
+            (coordinates as Dictionary)["week"] as Number);
+        if (weekDays.size() == 0) {
+            return false;
+        }
+        journal["days"] = weekDays;
+        journal["phase"] = "days";
+        journal["nextWeek"] = (coordinates as Dictionary)["week"];
+        journal["nextDay"] = (coordinates as Dictionary)["dayInWeek"];
+        return saveRoutineJournal(journal as Dictionary);
+    }
+
+    private function routineDayReceived(data as Object?) as Boolean {
+        var journal = _store.loadRoutineSync();
+        if (journal == null) {
+            return false;
+        }
+        var index = journal["index"] as Number;
+        var routine = Catalog.parseRoutine(data, journal["sequence"] as Number, index + 1);
+        if (routine == null) {
+            return false;
+        }
+        var day = (journal["days"] as Array)[index] as Dictionary;
+        if (!Model.sameString((routine as Dictionary)["programId"], journal["programId"]) ||
+            (routine as Dictionary)["week"] != day["week"] ||
+            (routine as Dictionary)["dayInWeek"] != day["dayInWeek"] ||
+            !Model.sameString((routine as Dictionary)["name"], day["name"])) {
+            return false;
+        }
+        var id = (routine as Dictionary)["id"] as String;
+        if (!_store.commitPair("routine." + id, routine as Dictionary)) {
+            _errorCode = Err.ROUTINE_SYNC_SAVE_FAILED;
+            return false;
+        }
+        var ids = (journal["routineIds"] as Array).slice(0, null);
+        ids.add(id);
+        journal["routineIds"] = ids;
+        journal["index"] = index + 1;
+        return saveRoutineJournal(journal as Dictionary);
+    }
+
+    private function pivotRoutineSync(journal as Dictionary) as Boolean {
+        var ids = journal["routineIds"] as Array;
+        var nextRoutines = [];
+        for (var i = 0; i < ids.size(); i++) {
+            var routine = _store.loadPair("routine." + (ids[i] as String));
+            if (routine == null || _store.hasUnsupportedRecord() || _store.hasCorruptRecord() ||
+                !Model.sameString(routine["id"], ids[i])) {
+                _errorCode = Err.ROUTINE_SYNC_SAVE_FAILED;
+                return false;
+            }
+            nextRoutines.add(routine);
+        }
+        var nextId = Catalog.findRoutineId(nextRoutines,
+            journal["nextWeek"] as Number, journal["nextDay"] as Number);
+        if (nextId == null) {
+            _errorCode = Err.ROUTINE_SYNC_INVALID_RESPONSE;
+            return false;
+        }
+        var config = readConfig();
+        if (config == null) {
+            _errorCode = Err.SAVED_SETTINGS_ARE_DAMAGED;
+            return false;
+        }
+        var priorFallback = _store.loadOlderPair("config");
+        if (_store.hasUnsupportedRecord()) {
+            _errorCode = Err.ROUTINE_SYNC_SAVE_FAILED;
+            return false;
+        }
+        var oldIds = routineIdsOf((config as Dictionary)["routines"] as Array);
+        var fallbackIds = priorFallback != null && priorFallback["routineIds"] instanceof Array ?
+            priorFallback["routineIds"] as Array : [];
+        var next = SessionLogic.copyDictionary(config as Dictionary);
+        next["routines"] = nextRoutines;
+        next["routineSyncSeq"] = journal["sequence"];
+        next["programId"] = journal["programId"];
+        next["programName"] = journal["programName"];
+        next["nextRoutineId"] = nextId;
+        if (!_store.commitPair("config", configOnly(next, ids))) {
+            _errorCode = Err.ROUTINE_SYNC_SAVE_FAILED;
+            _config = null;
+            return false;
+        }
+        _stored = true;
+        _config = next;
+        // Keep domains used by both readable config generations. Older fallback domains are now
+        // unreferenced and can be reclaimed after the new pivot is durable.
+        for (var i = 0; i < fallbackIds.size(); i++) {
+            var old = fallbackIds[i] as String;
+            if (!containsId(ids, old) && !containsId(oldIds, old)) {
+                _store.deletePair("routine." + old);
+            }
+        }
+        var sequence = journal["sequence"] as Number;
+        reclaimPriorRoutineDomains(sequence, ids, oldIds);
+        return true;
+    }
+
+    private function findQueuedUpload(id as String) as Dictionary? {
+        return _store.loadUpload(id);
+    }
+
+    private function advanceUploadQueue() as Void {
+        if (!_uploadRequested || _requestInFlight || _routineSyncRunning) {
+            return;
+        }
+        var ids = _store.loadUploadQueue();
+        if (ids == null || _store.hasUnsupportedRecord() || _store.hasCorruptRecord()) {
+            _uploadRequested = false;
+            _errorCode = Err.UPLOAD_QUEUE_DAMAGED;
+            WatchUi.requestUpdate();
+            return;
+        }
+        if (ids.size() == 0) {
+            _uploadRequested = false;
+            if (_refreshAfterUploads && !hasPendingFinalization() && !hasActiveSession() &&
+                liftosaurKey() != null) {
+                _refreshAfterUploads = false;
+                syncRoutines();
+                return;
+            }
+            if (_errorCode == Err.WORKOUT_UPLOAD_FAILED || _errorCode == Err.WORKOUT_UPLOAD_BLOCKED) {
+                _errorCode = Err.NONE;
+            }
+            WatchUi.requestUpdate();
+            return;
+        }
+        var id = ids[0] as String;
+        var job = findQueuedUpload(id);
+        if (job == null || _store.hasUnsupportedRecord() || _store.hasCorruptRecord()) {
+            _uploadRequested = false;
+            _errorCode = Err.UPLOAD_QUEUE_DAMAGED;
+            WatchUi.requestUpdate();
+            return;
+        }
+        if (Model.sameString(job["state"], "done")) {
+            if (_store.removeUploadFromQueue(id)) {
+                pumpAsyncWork();
+            } else {
+                _uploadRequested = false;
+                _errorCode = Err.UPLOAD_QUEUE_DAMAGED;
+                WatchUi.requestUpdate();
+            }
+            return;
+        }
+        if (Model.sameString(job["state"], "blocked")) {
+            var unblocked = SessionLogic.copyDictionary(job as Dictionary);
+            unblocked["state"] = unblocked["setsBody"] instanceof Dictionary ? "sets" : "start";
+            unblocked.remove("lastError");
+            if (!_store.saveUpload(unblocked)) {
+                _uploadRequested = false;
+                _errorCode = Err.UPLOAD_QUEUE_DAMAGED;
+                return;
+            }
+            job = unblocked;
+        }
+        var key = liftosaurKey();
+        if (key == null) {
+            _uploadRequested = false;
+            _errorCode = Err.LIFTOSAUR_KEY_REQUIRED;
+            WatchUi.requestUpdate();
+            return;
+        }
+        if (_errorCode == Err.WORKOUT_UPLOAD_FAILED || _errorCode == Err.WORKOUT_UPLOAD_BLOCKED ||
+            _errorCode == Err.WORKOUT_UPLOAD_PROGRAM_ERROR || _errorCode == Err.WORKOUT_UPLOAD_MAPPING) {
+            _errorCode = Err.NONE;
+        }
+        _notice = null;
+        var state = job["state"] as String;
+        if (Model.sameString(state, "start")) {
+            // Non-mutating check first: never open a Liftosaur workout that cannot be filled.
+            var routine = (job as Dictionary)["routine"] as Dictionary;
+            var query = {"programId" => routine["programId"], "week" => routine["week"],
+                "dayInWeek" => routine["dayInWeek"]};
+            if (!makeApiRequest("/workout/next", Communications.HTTP_REQUEST_METHOD_GET,
+                query, false, "upload_preview", id)) {
+                _uploadRequested = false;
+            }
+        } else if (Model.sameString(state, "sets")) {
+            var body = job["setsBody"];
+            if (!(body instanceof Dictionary)) {
+                _uploadRequested = false;
+                _errorCode = Err.UPLOAD_QUEUE_DAMAGED;
+                return;
+            }
+            // Reacquire the server's current workout ids before resending the durable sets body.
+            if (!makeApiRequest("/workout/start", Communications.HTTP_REQUEST_METHOD_POST,
+                UploadLogic.startBody(job as Dictionary), true, "upload_resume_sets", id)) {
+                _uploadRequested = false;
+            }
+        } else if (Model.sameString(state, "finish")) {
+            var body = UploadLogic.finishBody(job as Dictionary);
+            if (!makeApiRequest("/workout/finish", Communications.HTTP_REQUEST_METHOD_POST,
+                body, true, "upload_finish", id)) {
+                _uploadRequested = false;
+            }
+        } else {
+            _uploadRequested = false;
+            _errorCode = Err.UPLOAD_QUEUE_DAMAGED;
+        }
+    }
+
+    private function markUploadBlocked(id as String, job as Dictionary,
+                                       detail as String?) as Void {
+        var blocked = SessionLogic.copyDictionary(job);
+        blocked["state"] = "blocked";
+        blocked["lastError"] = detail == null ? "workout_already_active" : detail;
+        if (!_store.saveUpload(blocked)) {
+            _uploadRequested = false;
+            _errorCode = Err.UPLOAD_QUEUE_DAMAGED;
+            WatchUi.requestUpdate();
+            return;
+        }
+        _uploadRequested = false;
+        _errorCode = Err.WORKOUT_UPLOAD_BLOCKED;
+        WatchUi.requestUpdate();
+    }
+
+    // Permanent mismatch (program changed): stays queued but is not "blocked" by an open workout.
+    private function markUploadMismatch(id as String, job as Dictionary) as Void {
+        var failed = SessionLogic.copyDictionary(job);
+        failed["lastError"] = "program_changed";
+        _uploadRequested = false;
+        _errorCode = _store.saveUpload(failed) ? Err.WORKOUT_UPLOAD_MAPPING :
+            Err.UPLOAD_QUEUE_DAMAGED;
+        WatchUi.requestUpdate();
+    }
+
+    private function markUploadDone(id as String, job as Dictionary) as Void {
+        var done = SessionLogic.copyDictionary(job);
+        done["state"] = "done";
+        done.remove("setsBody");
+        done.remove("lastError");
+        _store.markUploadStatus(id, "done");
+        if (!_store.saveUpload(done) || !_store.removeUploadFromQueue(id)) {
+            _uploadRequested = false;
+            _errorCode = Err.UPLOAD_QUEUE_DAMAGED;
+            WatchUi.requestUpdate();
+            return;
+        }
+        _errorCode = Err.NONE;
+        _notice = "Workout uploaded";
+        WatchUi.requestUpdate();
+        var remaining = _store.loadUploadQueue();
+        if (remaining != null && remaining.size() == 0 && !_routineSyncRunning) {
+            _refreshAfterUploads = true;
+        }
+        pumpAsyncWork();
+    }
+
+    private function postUploadSets(id as String, job as Dictionary) as Void {
+        var body = job["setsBody"];
+        if (!(body instanceof Dictionary) ||
+            !makeApiRequest("/workout/sets", Communications.HTTP_REQUEST_METHOD_POST,
+                body as Dictionary, true, "upload_sets", id)) {
+            _uploadRequested = false;
+            _errorCode = body instanceof Dictionary ? Err.WORKOUT_UPLOAD_FAILED :
+                Err.UPLOAD_QUEUE_DAMAGED;
+            WatchUi.requestUpdate();
+        }
+    }
+
+    private function uploadFailed(responseCode as Number, data as Object?,
+                                  uploadId as String?, job as Dictionary?) as Void {
+        var code = errorCodeFrom(data);
+        if (code != null && Model.sameString(code, "workout_already_active")) {
+            if (uploadId != null && job != null) {
+                markUploadBlocked(uploadId as String, job as Dictionary, code as String);
+                return;
+            }
+        }
+        if (uploadId != null && job != null) {
+            var failed = SessionLogic.copyDictionary(job as Dictionary);
+            failed["lastError"] = code != null && (code as String).length() <= 48 ?
+                code as String : "http-" + responseCode.toString();
+            if (!_store.saveUpload(failed)) {
+                _uploadRequested = false;
+                _errorCode = Err.UPLOAD_QUEUE_DAMAGED;
+                WatchUi.requestUpdate();
+                return;
+            }
+        }
+        _uploadRequested = false;
+        _errorCode = (responseCode == 401 || responseCode == 403) ? Err.LIFTOSAUR_UNAUTHORIZED :
+            (responseCode == 422 && code != null && Model.sameString(code, "program_error") ?
+                Err.WORKOUT_UPLOAD_PROGRAM_ERROR : Err.WORKOUT_UPLOAD_FAILED);
+        WatchUi.requestUpdate();
+    }
+
+    public function onApiResponse(responseCode as Number,
+                                  data as Dictionary or String or PersistedContent.Iterator or Null) as Void {
+        var purpose = _responsePurpose;
+        var uploadId = _responseUploadId;
+        _requestInFlight = false;
+        _responsePurpose = null;
+        _responseUploadId = null;
+        handleApiResponse(purpose, uploadId, responseCode, data);
+    }
+
+    // Shared response handler keeps callback behavior directly testable without making requests.
+    public function handleApiResponse(purpose as String?, uploadId as String?,
+                                      responseCode as Number,
+                                      data as Dictionary or String or PersistedContent.Iterator or Null) as Void {
+        _requestInFlight = false;
+        if (purpose == null) {
+            pumpAsyncWork();
+            return;
+        }
+        var ok = responseCode >= 200 && responseCode < 300;
+        if (Model.sameString(purpose, "sync_program") || Model.sameString(purpose, "sync_next") ||
+            Model.sameString(purpose, "sync_day")) {
+            if (!ok) {
+                syncRequestFailed(responseCode, data);
+                return;
+            }
+            var accepted = Model.sameString(purpose, "sync_program") ?
+                routineProgramReceived(data) : (Model.sameString(purpose, "sync_next") ?
+                    routineNextReceived(data) : routineDayReceived(data));
+            if (!accepted) {
+                _routineSyncRunning = false;
+                if (_errorCode != Err.ROUTINE_SYNC_SAVE_FAILED) {
+                    _errorCode = Err.ROUTINE_SYNC_INVALID_RESPONSE;
+                }
+                WatchUi.requestUpdate();
+                pumpAsyncWork();
+                return;
+            }
+            // The last day's continuation (pivot) is heavy: run it in its own callback.
+            scheduleAsyncWork();
+            return;
+        }
+        var job = uploadId == null ? null : _store.loadUpload(uploadId as String);
+        if (job == null || _store.hasUnsupportedRecord() || _store.hasCorruptRecord()) {
+            _uploadRequested = false;
+            _errorCode = Err.UPLOAD_QUEUE_DAMAGED;
+            WatchUi.requestUpdate();
+            return;
+        }
+        if ((Model.sameString(purpose, "upload_start") ||
+             Model.sameString(purpose, "upload_resume_sets")) && responseCode == 409) {
+            var code = errorCodeFrom(data);
+            if (code != null && Model.sameString(code, "workout_start_time_taken")) {
+                markUploadDone(uploadId as String, job as Dictionary);
+                return;
+            }
+            if (code != null && Model.sameString(code, "workout_already_active")) {
+                // Crash-resume: the open workout may be ours (same startTime); ask Liftosaur.
+                if (!makeApiRequest("/workout/current", Communications.HTTP_REQUEST_METHOD_GET,
+                    null, false, Model.sameString(purpose, "upload_start") ?
+                        "upload_current" : "upload_current_resume", uploadId)) {
+                    markUploadBlocked(uploadId as String, job as Dictionary, code as String);
+                }
+                return;
+            }
+        }
+        var currentCheck = Model.sameString(purpose, "upload_current") ||
+            Model.sameString(purpose, "upload_current_resume");
+        if (currentCheck && !ok) {
+            markUploadBlocked(uploadId as String, job as Dictionary, "workout_already_active");
+            return;
+        }
+        if (!ok) {
+            uploadFailed(responseCode, data, uploadId,
+                job instanceof Dictionary ? job as Dictionary : null);
+            return;
+        }
+        if (Model.sameString(purpose, "upload_preview")) {
+            if (!UploadLogic.previewMaps(job as Dictionary, data)) {
+                markUploadMismatch(uploadId as String, job as Dictionary);
+                return;
+            }
+            if (!makeApiRequest("/workout/start", Communications.HTTP_REQUEST_METHOD_POST,
+                UploadLogic.startBody(job as Dictionary), true, "upload_start", uploadId)) {
+                _uploadRequested = false;
+                WatchUi.requestUpdate();
+            }
+            return;
+        }
+        if (Model.sameString(purpose, "upload_start") ||
+            Model.sameString(purpose, "upload_resume_sets") || currentCheck) {
+            var started = UploadLogic.withStartedWorkout(job as Dictionary, data);
+            if (started == null) {
+                if (currentCheck) {
+                    markUploadBlocked(uploadId as String, job as Dictionary,
+                        "workout_already_active");
+                } else {
+                    markUploadMismatch(uploadId as String, job as Dictionary);
+                }
+                return;
+            }
+            if (Model.sameString(purpose, "upload_resume_sets") ||
+                Model.sameString(purpose, "upload_current_resume")) {
+                var resumed = SessionLogic.copyDictionary(started as Dictionary);
+                resumed["state"] = "sets";
+                resumed["setsBody"] = (job as Dictionary)["setsBody"];
+                started = resumed;
+            }
+            (started as Dictionary).remove("lastError");
+            if (!_store.saveUpload(started as Dictionary)) {
+                _uploadRequested = false;
+                _errorCode = Err.UPLOAD_QUEUE_DAMAGED;
+                return;
+            }
+            if (Model.sameString(started["state"], "sets")) {
+                postUploadSets(uploadId as String, started as Dictionary);
+                return;
+            }
+            _errorCode = Err.NONE;
+            pumpAsyncWork();
+            return;
+        } else if (Model.sameString(purpose, "upload_sets")) {
+            var done = UploadLogic.setsDone(job as Dictionary);
+            (done as Dictionary).remove("lastError");
+            if (!_store.saveUpload(done as Dictionary)) {
+                _uploadRequested = false;
+                _errorCode = Err.UPLOAD_QUEUE_DAMAGED;
+                return;
+            }
+        } else if (Model.sameString(purpose, "upload_finish")) {
+            markUploadDone(uploadId as String, job as Dictionary);
+            return;
+        }
+        _errorCode = Err.NONE;
+        WatchUi.requestUpdate();
+        pumpAsyncWork();
     }
 
     public function historySessions() as Array {
@@ -1206,6 +1537,11 @@ class SessionController {
             if (index >= 0) {
                 var exercise = (_session["exercises"] as Array)[index] as Dictionary;
                 var target = exercise["targetDurationSec"];
+                var plans = exercise["planTargets"];
+                if (plans instanceof Array && run["slot"] instanceof Number &&
+                    (run["slot"] as Number) < (plans as Array).size()) {
+                    target = (plans as Array)[run["slot"] as Number]["durationSec"];
+                }
                 if (target instanceof Number &&
                     SessionLogic.timedElapsedSec(run as Dictionary, now) >= (target as Number)) {
                     if (candidate == null) {
@@ -1223,6 +1559,54 @@ class SessionController {
         }
         checkpoint(now);
         return false;
+    }
+
+    // True once per rest (in memory only, no write) when the 10 s warning is due and the caller
+    // may vibrate; a due warning is still consumed silently when it may not (app just resumed).
+    public function takePreRestAlert(now as Number, canVibrate as Boolean) as Boolean {
+        if (!isWorkoutRunning() || !(_session["rest"] instanceof Dictionary)) {
+            return false;
+        }
+        var rest = _session["rest"] as Dictionary;
+        if (rest["id"] == _preAlertRestId || !RestClock.preAlertDue(rest, now)) {
+            return false;
+        }
+        _preAlertRestId = rest["id"] as Number;
+        return canVibrate;
+    }
+
+    // Persists a weight step for the exercise name (survives re-sync) and applies it to this
+    // workout's exercise. Config is written directly: the editable-configuration gate is closed
+    // during a workout.
+    public function setWeightStep(entryId as String, increment100 as Number) as Boolean {
+        if (!isWorkoutRunning() || !Model.inRange(increment100, 25, 10000, false) ||
+            increment100 % 25 != 0) {
+            return false;
+        }
+        var index = SessionLogic.exerciseIndex(_session as Dictionary, entryId);
+        var config = readConfig();
+        if (index < 0 || config == null) {
+            return false;
+        }
+        var exercise = ((_session as Dictionary)["exercises"] as Array)[index] as Dictionary;
+        if (!Model.sameString(exercise["loadType"], "weight")) {
+            return false;
+        }
+        var overrides = SessionLogic.copyDictionary(
+            (config as Dictionary)["incrementOverrides"] as Dictionary);
+        if (!overrides.hasKey(exercise["name"]) && overrides.size() >= 32) {
+            return false;
+        }
+        overrides[exercise["name"]] = increment100;
+        var next = SessionLogic.copyDictionary(config as Dictionary);
+        next["incrementOverrides"] = overrides;
+        if (!writeParts(next, null, true)) {
+            return false;
+        }
+        var state = SessionLogic.exerciseCandidate(_session as Dictionary, index);
+        var changed = state["exercise"] as Dictionary;
+        changed["weightIncrement100"] = increment100;
+        return commit(state["session"] as Dictionary);
     }
 
     public function restAction(action as String, now as Number) as Boolean {
@@ -1357,6 +1741,57 @@ class SessionController {
         return rebuilt;
     }
 
+    private function enqueueFinalWorkout(ended as Dictionary) as Boolean {
+        var made = UploadLogic.makeJob(ended);
+        if (made == null) {
+            return true; // Not a Liftosaur routine day, or no completed mapped sets.
+        }
+        var id = (made as Dictionary)["sessionId"] as String;
+        var existing = _store.loadUpload(id);
+        if (_store.hasUnsupportedRecord() || _store.hasCorruptRecord()) {
+            _errorCode = Err.UPLOAD_QUEUE_DAMAGED;
+            return false;
+        }
+        var job = existing == null ? made as Dictionary : existing as Dictionary;
+        var ids = _store.loadUploadQueue();
+        if (ids == null) {
+            if (_store.hasUnsupportedRecord()) {
+                // Written by a newer app: leave it alone; the workout stays in local history only.
+                _errorCode = Err.UPLOAD_QUEUE_DAMAGED;
+                return true;
+            }
+            // Corrupt manifest: reset it so finishing never depends on it.
+            _store.clearUploadQueue(false);
+            ids = [];
+        } else if (_store.hasUnsupportedRecord() || _store.hasCorruptRecord()) {
+            _errorCode = Err.UPLOAD_QUEUE_DAMAGED;
+            return false;
+        }
+        if (containsId(ids as Array, id)) {
+            return true;
+        }
+        if (ids.size() >= QueueLimits.MAX_PENDING_UPLOADS) {
+            _errorCode = Err.UPLOAD_QUEUE_FULL;
+            return false;
+        }
+        var nextIds = UploadLogic.enqueue(ids, job as Dictionary);
+        if (nextIds == null) {
+            _errorCode = Err.UPLOAD_QUEUE_FULL;
+            return false;
+        }
+        // The job is durable before the queue manifest can reference it. If the manifest write
+        // fails, finalization remains active and the same session id reuses the saved job.
+        if (existing == null && !_store.saveUpload(job as Dictionary)) {
+            _errorCode = Err.UPLOAD_QUEUE_DAMAGED;
+            return false;
+        }
+        if (!_store.saveUploadQueue(nextIds as Array)) {
+            _errorCode = Err.UPLOAD_QUEUE_DAMAGED;
+            return false;
+        }
+        return true;
+    }
+
     public function advanceFinalization() as Boolean {
         if (!hasPendingFinalization()) {
             return false;
@@ -1448,6 +1883,10 @@ class SessionController {
             return false;
         }
 
+        if (Model.sameString(outcome, "completed") && !enqueueFinalWorkout(ended)) {
+            return false;
+        }
+
         var tombstone = {
             "id" => frozen["id"],
             "sessionSeq" => frozen["sessionSeq"],
@@ -1481,7 +1920,14 @@ class SessionController {
                 (_activeCorrupt ? Err.SAVED_WORKOUT_IS_DAMAGED : Err.WORKOUT_CANNOT_START);
             return false;
         }
-        _errorCode = Err.NONE;
+        // A damaged queue must not brick workouts; it is reset when the workout is finalized.
+        var queued = _store.loadUploadQueue();
+        if (queued != null && queued.size() >= QueueLimits.MAX_PENDING_UPLOADS) {
+            _errorCode = Err.UPLOAD_QUEUE_FULL;
+            return false;
+        }
+        _errorCode = queued == null ? Err.UPLOAD_QUEUE_DAMAGED : Err.NONE;
+        _notice = null;
         var config = readConfig();
         if (config == null) {
             return false;
@@ -1517,8 +1963,15 @@ class SessionController {
             cancelWorkoutStart();
             return false;
         }
-        var config = _pendingStartConfig as Dictionary;
-        var sequence = config["nextSessionSeq"] as Number;
+        // Re-read the config: a routine sync may have replaced it since prepareWorkoutStart.
+        var config = readConfig();
+        var sequence = config == null ? 0 : (config as Dictionary)["nextSessionSeq"] as Number;
+        if (config == null ||
+            sequence != (_pendingStartSession as Dictionary)["sessionSeq"]) {
+            _errorCode = Err.COULD_NOT_RESERVE_WORKOUT_ID;
+            cancelWorkoutStart();
+            return false;
+        }
         var nextConfig = SessionLogic.copyDictionary(config as Dictionary);
         nextConfig["nextSessionSeq"] = sequence + 1;
         if (!writeParts(nextConfig, null, true)) {
@@ -1671,34 +2124,28 @@ class SessionController {
                                                 definition as Dictionary,
                                                 loadType as String,
                                                 setCount as Number) as Dictionary? {
-        var previous = {
-            "workingSetCount" => setCount,
-            "restSec" => previousExercise["restSec"],
-            "notes" => previousExercise["notes"],
-            "targetRepsMin" => previousExercise["targetRepsMin"],
-            "targetRepsMax" => previousExercise["targetRepsMax"],
-            "targetDurationSec" => previousExercise["targetDurationSec"],
-            "loadType" => previousExercise["loadType"],
-            "increment100" => previousExercise["weightIncrement100"]
-        };
-        var nextSlot = SessionLogic.nextSlot(previousExercise);
-        if (nextSlot >= 0) {
-            var slots = previousExercise["slots"] as Array;
-            var draft = slots[nextSlot]["draft"] as Dictionary;
-            if (draft["load100"] instanceof Number) {
-                previous["startingLoad100"] = draft["load100"];
-            }
-        }
-        var entry = makeRoutineEntry(source["templateId"] as String, entryId,
-            definition, loadType, previous, defaultRestSec());
-        if (entry == null) {
+        var sourceTargets = definition["setTargets"];
+        if (!(sourceTargets instanceof Array) || (sourceTargets as Array).size() == 0 ||
+            !Model.validLoadType(loadType)) {
             _errorCode = Err.EXERCISE_CHOICE_INVALID;
             return null;
         }
+        var targets = [];
+        for (var i = 0; i < setCount; i++) {
+            var target = (sourceTargets as Array)[i < (sourceTargets as Array).size() ?
+                i : (sourceTargets as Array).size() - 1] as Dictionary;
+            targets.add(SessionLogic.copyDictionary(target));
+        }
+        var entry = SessionLogic.copyDictionary(definition);
+        entry["entryId"] = entryId;
+        entry["exerciseId"] = definition["id"];
+        entry["liftosaurEntryId"] = null;
+        entry["workingSetCount"] = setCount;
+        entry["setTargets"] = targets;
         var routine = {
-            "id" => source["templateId"],
-            "name" => source["templateName"],
-            "revision" => source["templateRevision"],
+            "id" => source["templateId"], "name" => source["templateName"],
+            "revision" => source["templateRevision"], "programId" => source["programId"],
+            "week" => source["week"], "dayInWeek" => source["dayInWeek"],
             "entries" => [entry]
         };
         var config = readConfig();
@@ -1714,7 +2161,28 @@ class SessionController {
             _errorCode = Err.EXERCISE_CHOICE_INVALID;
             return null;
         }
-        return (generated as Dictionary)["exercises"][0] as Dictionary;
+        var alternative = SessionLogic.copyDictionary(
+            (generated as Dictionary)["exercises"][0] as Dictionary);
+        alternative["liftosaurEntryId"] = null;
+        alternative["liftosaurPlannedSetCount"] = null;
+        return alternative;
+    }
+
+    private function substitutionSnapshot(source as Dictionary, from as String,
+                                          to as String) as Array? {
+        var existing = source["substitutions"];
+        var changes = existing instanceof Array ? (existing as Array).slice(0, null) : [];
+        for (var i = 0; i < changes.size(); i++) {
+            var change = changes[i] as Dictionary;
+            if (Model.sameString(change["from"], from) && Model.sameString(change["to"], to)) {
+                return changes;
+            }
+        }
+        if (changes.size() >= Model.MAX_ENTRIES) {
+            return null;
+        }
+        changes.add({"from" => from, "to" => to});
+        return changes;
     }
 
     public function replaceSessionExercise(entryId as String,
@@ -1733,6 +2201,12 @@ class SessionController {
             return false;
         }
         var old = exercises[index] as Dictionary;
+        var substitutions = substitutionSnapshot(source, old["name"] as String,
+            definition["name"] as String);
+        if (substitutions == null) {
+            _errorCode = Err.EXERCISE_CHOICE_INVALID;
+            return false;
+        }
         var replacement = sessionAlternativeSnapshot(source, old, entryId, definition,
             loadType, old["plannedSetCount"] as Number);
         if (replacement == null) {
@@ -1744,6 +2218,7 @@ class SessionController {
             nextExercises.add(i == index ? replacement : exercises[i]);
         }
         candidate["exercises"] = nextExercises;
+        candidate["substitutions"] = substitutions;
         var rest = candidate["rest"];
         if (rest instanceof Dictionary && Model.sameString(rest["entryId"], entryId)) {
             candidate["rest"] = null;
@@ -1774,6 +2249,12 @@ class SessionController {
             _errorCode = Err.ROUTINE_LIMIT_REACHED;
             return false;
         }
+        var substitutions = substitutionSnapshot(source, old["name"] as String,
+            definition["name"] as String);
+        if (substitutions == null) {
+            _errorCode = Err.EXERCISE_CHOICE_INVALID;
+            return false;
+        }
         var seq = 1;
         var entryIdNew = "alt-" + source["sessionSeq"].toString() + "-" + seq.toString();
         while (SessionLogic.exerciseIndex(source, entryIdNew) >= 0) {
@@ -1796,6 +2277,7 @@ class SessionController {
         }
         var candidate = SessionLogic.copyDictionary(source);
         candidate["exercises"] = nextExercises;
+        candidate["substitutions"] = substitutions;
         var rest = candidate["rest"];
         if (rest instanceof Dictionary && Model.sameString(rest["entryId"], entryId)) {
             candidate["rest"] = null;

@@ -283,4 +283,25 @@ module LastPerformance {
         exercise["last"] = prior != null ? cloneEntry(cachedEntry as Dictionary, prior as Array) : null;
         return exercise;
     }
+
+    function applyPlanTargets(prefilled as Dictionary, targets as Array) as Dictionary {
+        var exercise = SessionLogic.copyDictionary(prefilled);
+        var sourceSlots = prefilled["slots"] as Array;
+        var slots = [];
+        for (var i = 0; i < sourceSlots.size(); i++) {
+            var slot = SessionLogic.copyDictionary(sourceSlots[i] as Dictionary);
+            var draft = SessionLogic.copyDictionary(slot["draft"] as Dictionary);
+            var target = targets[i < targets.size() ? i : targets.size() - 1] as Dictionary;
+            draft["load100"] = target["load100"];
+            draft["reps"] = Model.sameString(exercise["loadType"], "timed") ?
+                null : target["reps"];
+            draft["durationSec"] = target["durationSec"];
+            draft["durationEdited"] = false;
+            draft["targetAlertConsumed"] = false;
+            slot["draft"] = draft;
+            slots.add(slot);
+        }
+        exercise["slots"] = slots;
+        return exercise;
+    }
 }

@@ -39,6 +39,16 @@ module RestClock {
         return left < 0 ? 0 : (left > duration ? duration : left);
     }
 
+    // One short warning 10 s before the end of a rest of at least 20 s.
+    function preAlertDue(rest as Dictionary, now as Number) as Boolean {
+        if (!Model.sameString(rest["state"], "running") ||
+            (rest["durationSec"] as Number) < 20) {
+            return false;
+        }
+        var left = remaining(rest, now);
+        return left > 0 && left <= 10;
+    }
+
     function pause(rest as Dictionary, now as Number) as Dictionary? {
         if (!Model.sameString(rest["state"], "running")) {
             return null;

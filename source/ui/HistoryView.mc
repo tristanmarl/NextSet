@@ -10,9 +10,11 @@ class HistoryView extends WatchUi.View {
     private var _detailLines as Array = [];
     private var _detailOffset as Number = 0;
     private var _detailVisible as Number = 5;
+    private var _uploads as Dictionary;
 
     public function initialize() {
         _sessions = getApp().controller().historySessions();
+        _uploads = getApp().controller().uploadStatuses();
         View.initialize();
     }
 
@@ -56,7 +58,9 @@ class HistoryView extends WatchUi.View {
             }
             var title = record["unavailable"] == true ? "Workout unavailable" :
                 shortText(record["templateName"], 30, "Workout");
-            var detailY = UiFormat.drawLine(dc, title, y, Graphics.FONT_XTINY);
+            var mark = uploadMark(record);
+            var detailY = UiFormat.drawLine(dc, mark == null ? title : title + " " + mark, y,
+                Graphics.FONT_XTINY);
             UiFormat.drawLine(dc, listSummary(record), detailY, caption);
             dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
             y += rowHeight;
@@ -78,7 +82,9 @@ class HistoryView extends WatchUi.View {
             y = UiFormat.drawLine(dc, statusLabel(record, totals) + "  " +
                 totals["done"].toString() + "/" + totals["planned"].toString() + " sets",
                 y, caption) + 4;
-            y = UiFormat.drawLine(dc, dateAndElapsed(record), y, caption) + 10;
+            y = UiFormat.drawLine(dc, dateAndElapsed(record), y, caption) + 4;
+            var upload = uploadLabel(record);
+            y = upload == null ? y + 6 : UiFormat.drawLine(dc, upload, y, caption) + 6;
         }
         var footerY = height - 28;
         var rowHeight = dc.getFontHeight(caption) + 4;
@@ -98,6 +104,23 @@ class HistoryView extends WatchUi.View {
         for (var i = _detailOffset; i < end; i++) {
             y = UiFormat.drawLine(dc, _detailLines[i] as String, y, caption) + 4;
         }
+    }
+
+    // Liftosaur upload outcome of a finished session; null for sessions that were never queued.
+    private function uploadLabel(record as Dictionary) as String? {
+        var state = record["id"] instanceof String ? _uploads[record["id"]] : null;
+        if (Model.sameString(state, "done")) {
+            return "Liftosaur ✓";
+        }
+        if (Model.sameString(state, "pending")) {
+            return "Liftosaur pending";
+        }
+        return Model.sameString(state, "skipped") ? "Liftosaur skipped" : null;
+    }
+
+    private function uploadMark(record as Dictionary) as String? {
+        var state = record["id"] instanceof String ? _uploads[record["id"]] : null;
+        return Model.sameString(state, "done") ? "✓" : null;
     }
 
     private function listSummary(record as Dictionary) as String {

@@ -80,7 +80,16 @@ class ExerciseMenuDelegate extends WatchUi.Menu2InputDelegate {
         }
         if (Model.sameString(id, "edit_last")) {
             WatchUi.popView(WatchUi.SLIDE_DOWN);
-            Navigator.correctionMenu(_entryId, _view, _fromOverview);
+            // In a superset the set just logged may belong to another member.
+            var target = SessionLogic.lastEditEntryId(controller.session() as Dictionary, _entryId);
+            if (target != null) {
+                Navigator.correctionMenu(target as String, _view, _fromOverview);
+            }
+            return;
+        }
+        if (Model.sameString(id, "weight_step")) {
+            WatchUi.popView(WatchUi.SLIDE_DOWN);
+            Navigator.weightStepMenu(_entryId);
             return;
         }
         if (Model.sameString(id, "log_timed")) {
@@ -136,8 +145,9 @@ class ExerciseMenuDelegate extends WatchUi.Menu2InputDelegate {
         }
         if (Model.sameString(id, "swap_today") || Model.sameString(id, "add_alt")) {
             WatchUi.popView(WatchUi.SLIDE_DOWN);
-            Navigator.garminCategoryPage((controller.session() as Dictionary)["templateId"] as String,
-                _entryId, 0, Model.sameString(id, "swap_today") ? "active_swap" : "active_add", true);
+            Navigator.programExercisePicker(_entryId,
+                Model.sameString(id, "swap_today") ? "active_swap" : "active_add",
+                _view, _fromOverview);
             return;
         }
         var session = controller.session() as Dictionary;
@@ -149,6 +159,83 @@ class ExerciseMenuDelegate extends WatchUi.Menu2InputDelegate {
         }
         WatchUi.popView(WatchUi.SLIDE_DOWN);
         WatchUi.requestUpdate();
+    }
+
+    public function onBack() as Void {
+        WatchUi.popView(WatchUi.SLIDE_DOWN);
+    }
+}
+
+class WeightStepDelegate extends WatchUi.Menu2InputDelegate {
+    private var _entryId as String;
+
+    public function initialize(entryId as String) {
+        _entryId = entryId;
+        Menu2InputDelegate.initialize();
+    }
+
+    public function onSelect(item as MenuItem) as Void {
+        var ok = getApp().controller().setWeightStep(_entryId, (item.getId() as String).toNumber() as Number);
+        WatchUi.popView(WatchUi.SLIDE_DOWN);
+        if (!ok) {
+            Navigator.feedback("Weight step not saved");
+        } else {
+            WatchUi.requestUpdate();
+        }
+    }
+
+    public function onBack() as Void {
+        WatchUi.popView(WatchUi.SLIDE_DOWN);
+    }
+}
+
+class ProgramExerciseDelegate extends WatchUi.Menu2InputDelegate {
+    private var _entryId as String;
+    private var _mode as String;
+    private var _view as ExerciseView;
+    private var _fromOverview as Boolean;
+
+    public function initialize(entryId as String, mode as String, view as ExerciseView,
+                               fromOverview as Boolean) {
+        _entryId = entryId;
+        _mode = mode;
+        _view = view;
+        _fromOverview = fromOverview;
+        Menu2InputDelegate.initialize();
+    }
+
+    public function onSelect(item as MenuItem) as Void {
+        var id = item.getId() as String;
+        if (Model.sameString(id, "none")) {
+            WatchUi.popView(WatchUi.SLIDE_DOWN);
+            return;
+        }
+        var exercises = getApp().controller().programExercises();
+        var definition = null;
+        for (var i = 0; i < exercises.size(); i++) {
+            if (Model.sameString((exercises[i] as Dictionary)["id"], id)) {
+                definition = exercises[i] as Dictionary;
+                break;
+            }
+        }
+        var succeeded = false;
+        if (definition != null) {
+            var type = (definition as Dictionary)["loadType"] as String;
+            succeeded = Model.sameString(_mode, "active_swap") ?
+                getApp().controller().replaceSessionExercise(_entryId,
+                    definition as Dictionary, type) :
+                getApp().controller().addSessionAlternative(_entryId,
+                    definition as Dictionary, type);
+        }
+        WatchUi.popView(WatchUi.SLIDE_DOWN);
+        if (!succeeded) {
+            Navigator.feedback("Exercise unchanged");
+        } else if (_fromOverview) {
+            Navigator.exercise(_entryId);
+        } else {
+            _view.showMessage("");
+            WatchUi.requestUpdate();
+        }
     }
 
     public function onBack() as Void {

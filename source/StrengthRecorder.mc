@@ -4,12 +4,7 @@ import Toybox.Lang;
 import Toybox.Time;
 import Toybox.WatchUi;
 
-// Owns the recording and its FIT developer fields. Garmin Connect has no native set rows for a
-// Connect IQ activity, so each logged set becomes one lap carrying the set as lap fields, and the
-// session gets summary fields. Field ids match resources/fitcontributions.
-// Limits (createField docs): apps get 256 bytes per message type; lap fields use 166 (name 65 incl.
-// terminator, set 1, void 1, reps 2, weight 4, duration 2, active 2, garmin category 24, garmin code 65)
-// and session fields 15. The longest catalog category is 18 bytes; codes are validated to 64.
+// Keeps the Connect activity as a fallback alongside the direct workout upload.
 // The firmware keeps one lap per second: a set logged in the same second as the previous lap is
 // queued and written by flush() on a later tick.
 // Any FitContributor failure is swallowed: logging a set must never depend on it.
@@ -22,8 +17,6 @@ class StrengthRecorder {
     private var _weightField as FitContributor.Field? = null;
     private var _durationField as FitContributor.Field? = null;
     private var _activeField as FitContributor.Field? = null;
-    private var _categoryField as FitContributor.Field? = null;
-    private var _codeField as FitContributor.Field? = null;
     private var _totalSetsField as FitContributor.Field? = null;
     private var _volumeField as FitContributor.Field? = null;
     private var _exercisesField as FitContributor.Field? = null;
@@ -69,8 +62,6 @@ class StrengthRecorder {
         _weightField = null;
         _durationField = null;
         _activeField = null;
-        _categoryField = null;
-        _codeField = null;
         _totalSetsField = null;
         _volumeField = null;
         _exercisesField = null;
@@ -95,10 +86,6 @@ class StrengthRecorder {
                 {:mesgType => lap, :units => "s"});
             _activeField = session.createField("active_s", 9, FitContributor.DATA_TYPE_UINT16,
                 {:mesgType => lap, :units => "s"});
-            _categoryField = session.createField("garmin_category", 10, FitContributor.DATA_TYPE_STRING,
-                {:mesgType => lap, :count => 24});
-            _codeField = session.createField("garmin_code", 11, FitContributor.DATA_TYPE_STRING,
-                {:mesgType => lap, :count => 65});
             _voidField = session.createField("void", 12, FitContributor.DATA_TYPE_UINT8,
                 {:mesgType => lap});
             _totalSetsField = session.createField("total_sets", 5, FitContributor.DATA_TYPE_UINT16,
@@ -116,8 +103,7 @@ class StrengthRecorder {
 
     private function setLapFields(name as String, setNumber as Number, reps as Number,
                                   weightKg as Float, durationSec as Number,
-                                  activeSec as Number, category as String, code as String,
-                                  voided as Number) as Void {
+                                  activeSec as Number, voided as Number) as Void {
         if (_nameField != null) {
             (_nameField as FitContributor.Field).setData(name);
         }
@@ -138,12 +124,6 @@ class StrengthRecorder {
         }
         if (_activeField != null) {
             (_activeField as FitContributor.Field).setData(activeSec);
-        }
-        if (_categoryField != null) {
-            (_categoryField as FitContributor.Field).setData(category);
-        }
-        if (_codeField != null) {
-            (_codeField as FitContributor.Field).setData(code);
         }
     }
 
@@ -173,7 +153,6 @@ class StrengthRecorder {
             setLapFields(payload["name"] as String, payload["set"] as Number,
                 payload["reps"] as Number, payload["weightKg"] as Float,
                 payload["durationSec"] as Number, payload["activeSec"] as Number,
-                payload["garminCategory"] as String, payload["garminCode"] as String,
                 payload["void"] as Number);
             (_session as ActivityRecording.Session).addLap();
             _lastLapAt = Time.now().value();
@@ -241,7 +220,7 @@ class StrengthRecorder {
             }
             // stop() closes a final lap; blank its fields so it is not a copy of the last set.
             if (Time.now().value() > _lastLapAt) {
-                setLapFields("", 0, 0, 0.0, 0, 0, "", "", 0);
+                setLapFields("", 0, 0, 0.0, 0, 0, 0);
             }
             if (session.isRecording() && !session.stop()) {
                 return false;

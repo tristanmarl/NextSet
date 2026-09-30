@@ -4,63 +4,59 @@ import Toybox.Graphics;
 import Toybox.Lang;
 import Toybox.System;
 import Toybox.Time;
-import Toybox.Time.Gregorian;
 import Toybox.Timer;
 import Toybox.WatchUi;
 
 class HomeView extends WatchUi.View {
     private var _routineIndex as Number = 0;
     private var _routines as Array = [];
-    private var _lastDone as Dictionary = {};
 
     public function initialize() {
         View.initialize();
     }
 
-    // Also runs when a menu or the routine editor closes, so routine changes show up.
+    // Also refresh on updates: async routine sync can complete while Home stays visible.
     public function onShow() as Void {
-        reload();
+        refreshRoutines();
     }
 
-    private function reload() as Void {
-        _lastDone = {};
-        loadLastDone();
-        _routines = getApp().controller().routineTemplates();
+    private function refreshRoutines() as Void {
+        var controller = getApp().controller();
+        var selected = _routineIndex >= 0 && _routineIndex < _routines.size() ?
+            _routines[_routineIndex] as Dictionary : null;
+        var selectedWeek = selected != null ? selected["week"] : null;
+        var selectedDay = selected != null ? selected["dayInWeek"] : null;
+        _routines = controller.routineTemplates();
         if (_routines.size() == 0) {
             _routineIndex = -1;
-        } else if (_routineIndex < 0 || _routineIndex >= _routines.size()) {
-            _routineIndex = 0;
-        }
-    }
-
-    // Newest completed session per routine, from history envelopes only (cheap, once per view).
-    private function loadLastDone() as Void {
-        for (var i = 0; i < 4; i++) {
-            var record = getApp().controller().peekHistory(i);
-            if (record != null && Model.sameString(record["status"], "completed") &&
-                record["templateId"] instanceof String && record["endedAt"] instanceof Number) {
-                var previous = _lastDone[record["templateId"]];
-                if (!(previous instanceof Number) || previous < record["endedAt"]) {
-                    _lastDone[record["templateId"]] = record["endedAt"];
+        } else {
+            _routineIndex = -1;
+            if (selectedWeek instanceof Number && selectedDay instanceof Number) {
+                for (var i = 0; i < _routines.size(); i++) {
+                    var routine = _routines[i] as Dictionary;
+                    if (routine["week"] == selectedWeek && routine["dayInWeek"] == selectedDay) {
+                        _routineIndex = i;
+                        break;
+                    }
                 }
+            }
+            if (_routineIndex < 0) {
+                var nextId = controller.nextRoutineId();
+                for (var i = 0; i < _routines.size(); i++) {
+                    if (Model.sameString((_routines[i] as Dictionary)["id"], nextId)) {
+                        _routineIndex = i;
+                        break;
+                    }
+                }
+            }
+            if (_routineIndex < 0) {
+                _routineIndex = 0;
             }
         }
     }
 
-    private function lastDoneLabel(templateId as String) as String? {
-        var endedAt = _lastDone[templateId];
-        if (!(endedAt instanceof Number)) {
-            return null;
-        }
-        var now = Time.now().value();
-        var info = Gregorian.info(new Time.Moment(endedAt), Time.FORMAT_MEDIUM);
-        if (now < endedAt || now - endedAt >= 6 * 86400) {
-            return "last " + info.month.toString() + " " + info.day.toString();
-        }
-        return "last " + info.day_of_week.toString();
-    }
-
     public function onUpdate(dc as Dc) as Void {
+        refreshRoutines();
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
         dc.clear();
         var controller = getApp().controller();
@@ -86,7 +82,9 @@ class HomeView extends WatchUi.View {
         } else if (routine != null) {
             var entries = routine["entries"] as Array;
             var empty = entries.size() == 0;
-            lines.add(routine["name"] as String);
+            var nextId = controller.nextRoutineId();
+            lines.add((Model.sameString(routine["id"], nextId) ? "NEXT · " : "") +
+                (routine["name"] as String));
             fonts.add(Graphics.FONT_MEDIUM);
             gaps.add(5);
             var totalSets = 0;
@@ -94,19 +92,21 @@ class HomeView extends WatchUi.View {
                 totalSets += (entries[i] as Dictionary)["workingSetCount"] as Number;
             }
             var summary = entries.size().toString() + " ex · " + totalSets.toString() + " sets";
-            var last = lastDoneLabel(routine["id"] as String);
-            lines.add(last == null ? summary : summary + " · " + last);
+            lines.add(summary);
             fonts.add(caption);
             gaps.add(8);
             lines.add(empty ? "START: Add an exercise" : "UP/DOWN select · START begin");
             fonts.add(Graphics.FONT_XTINY);
             gaps.add(8);
         } else {
-            lines.add("Workout unavailable");
+            lines.add("No routines synced");
             fonts.add(Graphics.FONT_SMALL);
             gaps.add(8);
+            lines.add("START: Sync routines");
+            fonts.add(Graphics.FONT_XTINY);
+            gaps.add(8);
         }
-        lines.add(active ? "MENU: Menu" : "MENU: History/Edit");
+        lines.add(active ? "MENU: Menu" : "MENU: Sync/History/Settings");
         fonts.add(caption);
         gaps.add(notice == null ? 0 : 4);
         if (notice != null) {
@@ -130,8 +130,13 @@ class HomeView extends WatchUi.View {
     }
 
     private function getHomeNotice() as String? {
-        var error = getApp().controller().errorMessage();
-        var code = getApp().controller().errorCode();
+        var controller = getApp().controller();
+        var error = controller.errorMessage();
+        var code = controller.errorCode();
+        var activity = controller.activityLabel();
+        if (activity != null) {
+            return activity;
+        }
         if (code == Err.RECOVERED_EARLIER_CHECKPOINT) {
             return "Recovered checkpoint";
         }
@@ -183,6 +188,41 @@ class HomeView extends WatchUi.View {
         }
         if (code == Err.HISTORY_NEEDS_NEWER_APP) {
             return "Update app to save history";
+        }
+        if (code == Err.LIFTOSAUR_KEY_REQUIRED) {
+            return "Set Liftosaur key in app settings";
+        }
+        if (code == Err.LIFTOSAUR_UNAUTHORIZED) {
+            return "Liftosaur key was rejected";
+        }
+        if (code == Err.ROUTINE_SYNC_REQUEST_FAILED || code == Err.ROUTINE_SYNC_INVALID_RESPONSE ||
+            code == Err.ROUTINE_SYNC_SAVE_FAILED || code == Err.ROUTINE_SYNC_RESPONSE_TOO_LARGE) {
+            return error as String;
+        }
+        if (code == Err.UPLOAD_QUEUE_FULL) {
+            return "Upload queue full · retry later";
+        }
+        if (code == Err.UPLOAD_QUEUE_DAMAGED) {
+            return "Upload queue damaged · MENU to clear";
+        }
+        if (code == Err.WORKOUT_UPLOAD_PROGRAM_ERROR) {
+            return "Fix program in Liftosaur";
+        }
+        if (code == Err.WORKOUT_UPLOAD_MAPPING) {
+            return "Program changed · MENU skip/re-sync";
+        }
+        if (code == Err.WORKOUT_UPLOAD_BLOCKED) {
+            return "Finish open Liftosaur workout";
+        }
+        if (code == Err.WORKOUT_UPLOAD_FAILED) {
+            return "Workout upload pending · MENU to retry";
+        }
+        if (code == Err.NONE && controller.infoNotice() != null) {
+            return controller.infoNotice();
+        }
+        var pending = controller.pendingUploadCount();
+        if (pending > 0) {
+            return "Upload " + pending.toString() + " pending";
         }
         return error == null ? null : "Check workout status";
     }

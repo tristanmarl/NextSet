@@ -5,7 +5,7 @@
         id="33A5A4CA541A443CB8BECEFF62ED870E"
         launcherIcon="@Drawables.LauncherIcon"
         minSdkVersion="5.2.0"
-        version="0.2.7"
+        version="0.2.8"
         name="@Strings.AppName"
         type="watch-app">
         <iq:products>
@@ -22,6 +22,7 @@
         <iq:permissions>
             <iq:uses-permission id="Fit"/>
             <iq:uses-permission id="FitContributor"/>
+            <iq:uses-permission id="Communications"/>
         </iq:permissions>
         <iq:barrels/>
     </iq:application>

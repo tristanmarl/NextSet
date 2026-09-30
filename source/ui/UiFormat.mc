@@ -151,7 +151,56 @@ module UiFormat {
         return draft["durationSec"].toString() + " sec";
     }
 
+    // "8–10" when the plan gave a rep range for this set, else null.
+    function repRange(exercise as Dictionary, slotIndex as Number) as String? {
+        var plans = exercise["planTargets"];
+        if (!(plans instanceof Array) || slotIndex < 0 || slotIndex >= (plans as Array).size()) {
+            return null;
+        }
+        var target = (plans as Array)[slotIndex] as Dictionary;
+        return target["minReps"] instanceof Number && target["reps"] instanceof Number ?
+            target["minReps"].toString() + "–" + target["reps"].toString() : null;
+    }
+
+    // "Next: <name> <load> × <reps>" for the open set that follows the running rest.
+    function nextUpLine(session as Dictionary) as String? {
+        var rest = session["rest"];
+        if (!(rest instanceof Dictionary)) {
+            return null;
+        }
+        var next = SessionLogic.nextUp(session, (rest as Dictionary)["entryId"] as String);
+        if (next == null) {
+            return null;
+        }
+        var target = exercise(session, (next as Dictionary)["entryId"] as String) as Dictionary;
+        var name = target["name"] as String;
+        if (name.length() > 16) {
+            name = name.substring(0, 14) + "..";
+        }
+        return "Next: " + name + " " + draftLine(target, (next as Dictionary)["slot"] as Number);
+    }
+
     function targetLine(exercise as Dictionary, slotIndex as Number) as String? {
+        var plans = exercise["planTargets"];
+        if (plans instanceof Array && slotIndex >= 0 && slotIndex < (plans as Array).size()) {
+            var target = (plans as Array)[slotIndex] as Dictionary;
+            if (Model.sameString(exercise["loadType"], "timed")) {
+                return null;
+            }
+            var draft = ((exercise["slots"] as Array)[slotIndex] as Dictionary)["draft"] as Dictionary;
+            var reps = target["reps"];
+            var load = target["load100"];
+            if (draft["reps"] == reps && draft["load100"] == load) {
+                return null;
+            }
+            if (Model.sameString(exercise["loadType"], "weight") && load instanceof Number) {
+                return "PLAN " + load100(load as Number) + " kg × " + reps.toString();
+            }
+            if (Model.sameString(exercise["loadType"], "assistance") && load instanceof Number) {
+                return "PLAN " + load100(load as Number) + " kg assist × " + reps.toString();
+            }
+            return "PLAN " + reps.toString() + " reps";
+        }
         var minimum = exercise["targetRepsMin"];
         var maximum = exercise["targetRepsMax"];
         if (Model.sameString(exercise["loadType"], "timed") || !(minimum instanceof Number) ||
@@ -163,6 +212,34 @@ module UiFormat {
             return draft["reps"] == minimum ? null : "target " + minimum.toString();
         }
         return "target " + minimum.toString() + "–" + maximum.toString();
+    }
+
+    function warmupsLine(exercise as Dictionary) as String? {
+        var warmups = exercise["warmups"];
+        if (!(warmups instanceof Array) || (warmups as Array).size() == 0) {
+            return null;
+        }
+        var line = "WU ";
+        var rows = warmups as Array;
+        var count = rows.size() < 2 ? rows.size() : 2;
+        for (var i = 0; i < count; i++) {
+            var target = rows[i] as Dictionary;
+            if (i > 0) {
+                line += " · ";
+            }
+            if (target["durationSec"] instanceof Number) {
+                line += target["durationSec"].toString() + "s";
+            } else if (target["load100"] instanceof Number) {
+                line += load100(target["load100"] as Number) + "kg×" +
+                    target["reps"].toString();
+            } else {
+                line += target["reps"].toString() + " reps";
+            }
+        }
+        if (rows.size() > count) {
+            line += " +" + (rows.size() - count).toString();
+        }
+        return line;
     }
 
     function lastLine(exercise as Dictionary, slotIndex as Number) as String? {
@@ -210,4 +287,3 @@ module UiFormat {
         return last;
     }
 }
-

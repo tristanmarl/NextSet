@@ -1,7 +1,7 @@
 import Toybox.Application;
 import Toybox.Lang;
 import Toybox.Test;
-import Toybox.Time;
+import Toybox.WatchUi;
 
 function check(logger as Test.Logger, condition as Boolean, message as String) as Boolean {
     if (!condition) {
@@ -11,409 +11,499 @@ function check(logger as Test.Logger, condition as Boolean, message as String) a
     return true;
 }
 
-(:test)
-function testSeedCatalog(logger as Test.Logger) as Boolean {
-    var upper = Catalog.template("upper");
-    var lower = Catalog.template("lower");
-    logger.debug("exercises=" + Catalog.exercises().size() + " templates=" + Catalog.templates().size());
-    var defs = Catalog.exercises();
-    for (var i = 0; i < defs.size(); i++) {
-        if (!Model.validExercise(defs[i])) {
-            var exercise = defs[i] as Dictionary;
-            logger.debug("invalid " + exercise["id"] + " id=" + Model.validId(exercise["id"]) +
-                " name=" + Model.validText(exercise["name"], 64, false) +
-                " type=" + Model.validLoadType(exercise["loadType"]) +
-                " rest=" + Model.inRange(exercise["defaultRestSec"], 0, Model.MAX_REST_SEC, false) +
-                " notes=" + Model.validText(exercise["notes"], 160, true) +
-                " increment=" + exercise["increment100"] + " unit=" + exercise["unit"]);
-        }
-    }
-    var allTemplates = Catalog.templates();
-    for (var t = 0; t < allTemplates.size(); t++) {
-        if (!Model.validTemplate(allTemplates[t])) {
-            logger.debug("invalid template " + allTemplates[t]["id"]);
-        }
-    }
-    return check(logger, Catalog.valid(), "seed catalog is invalid") &&
-        check(logger, upper != null && Catalog.totalSets(upper as Dictionary) == 19,
-            "Upper must contain 19 planned sets") &&
-        check(logger, lower != null && Catalog.totalSets(lower as Dictionary) == 17,
-            "Lower must contain 17 planned sets");
+function workoutFixtureReply(ordinal as Number) as Dictionary? {
+    return WatchUi.loadResource(ordinal == 1 ? Rez.JsonData.LiftosaurUpper :
+        Rez.JsonData.LiftosaurLower) as Dictionary;
 }
 
-(:test)
-function testGarminCodeMayBeNull(logger as Test.Logger) as Boolean {
-    var chest = Catalog.exercise("machine-chest-press") as Dictionary;
-    var routine = sizedRoutine("null-code", 0, 8, 8, 8, 0);
-    var first = (routine["entries"] as Array)[0] as Dictionary;
-    first["garminCode"] = null;
-    var sawGroupOnly = false;
-    var categories = Catalog.garminCategories();
-    for (var c = 0; c < categories.size(); c++) {
-        var count = Catalog.garminEntries(c).size();
-        for (var i = 0; i < count; i++) {
-            var code = Catalog.garminRow(c, i)["code"];
-            if (code == null) {
-                sawGroupOnly = true;
-            } else if (!check(logger, (code as String).substring(0, 1).equals("_") == false,
-                "catalog code has the Connect-only leading underscore: " + code)) {
-                return false;
-            }
-        }
-    }
-    return check(logger, Model.sameString(chest["garminCategory"], "BENCH_PRESS") &&
-            chest["garminCode"] == null, "Chest Press must be group-only BENCH_PRESS") &&
-        check(logger, Catalog.validRoutine(routine), "routine with a null garminCode must be valid") &&
-        check(logger, sawGroupOnly, "catalog must contain group-only entries");
+function workoutFixtureRoutine(ordinal as Number) as Dictionary? {
+    var reply = workoutFixtureReply(ordinal);
+    return reply == null ? null : Catalog.parseRoutine(reply, 1, ordinal);
 }
 
-(:test)
-function testSessionCommands(logger as Test.Logger) as Boolean {
-    var session = Catalog.createSession("upper", "test-1", 1, 100, null, null) as Dictionary;
-    var original = session;
-    var row = {};
-    row["load100"] = 5500;
-    row["reps"] = 9;
-    var chest = {};
-    chest["load100"] = 6500;
-    chest["reps"] = 8;
-    var afterRow1 = SessionLogic.completeSet(session, "upper-row", 0, row, 110) as Dictionary;
-    var afterChest = SessionLogic.completeSet(afterRow1, "upper-chest", 0, chest, 120) as Dictionary;
-    var afterRow2 = SessionLogic.completeSet(afterChest, "upper-row", 1, row, 130) as Dictionary;
-    var correctedValues = {};
-    correctedValues["load100"] = 5500;
-    correctedValues["reps"] = 8;
-    var corrected = SessionLogic.correctSet(afterRow2, "upper-row", 0, correctedValues, 200) as Dictionary;
-    var correctedRow = (corrected["exercises"] as Array)[0] as Dictionary;
-    var correctedSet = ((correctedRow["slots"] as Array)[0] as Dictionary)["completed"] as Dictionary;
-    var undo = SessionLogic.undoSet(corrected, "upper-row", 0) as Dictionary;
-    var totals = SessionLogic.totals(undo);
-
-    return check(logger, SessionLogic.totals(original)["done"] == 0,
-            "candidate writes mutated the original session") &&
-        check(logger, totals["done"] == 2 && totals["planned"] == 19,
-            "interleaved completion and undo totals are wrong") &&
-        check(logger, correctedSet["completedAt"] == 110 && correctedSet["updatedAt"] == 200,
-            "correction must preserve completion time") &&
-        check(logger, SessionLogic.completeSet(afterRow2, "upper-row", 0, row, 210) == null,
-            "duplicate completion was accepted") &&
-        check(logger, Model.sameString(SessionLogic.exerciseStatus((undo["exercises"] as Array)[0]), "partial"),
-            "undo should reopen a partially completed exercise");
+function workoutFixtureConfig() as Dictionary {
+    return {"routines" => [workoutFixtureRoutine(1), workoutFixtureRoutine(2)],
+        "settings" => {"defaultRestSec" => 90, "vibrationEnabled" => true}};
 }
 
-(:test)
-function testSeedSemantics(logger as Test.Logger) as Boolean {
-    var lower = Catalog.createSession("lower", "test-2", 2, 100, null, null) as Dictionary;
-    var exercises = lower["exercises"] as Array;
-    var press = exercises[0] as Dictionary;
-    var hyper = exercises[5] as Dictionary;
-    var deadBug = exercises[6] as Dictionary;
-    return check(logger, ((press["slots"] as Array)[0]["draft"])["load100"] == 21300,
-            "Leg Press must retain 213 kg") &&
-        check(logger, Model.sameString(hyper["loadType"], "bodyweight") && hyper["loadUnit"] == null,
-            "Back Extension must be bodyweight") &&
-        check(logger, Model.sameString(deadBug["loadType"], "timed") && deadBug["targetDurationSec"] == 35,
-            "Dead Bug must be timed with a 35-second target");
+function workoutFixtureSession(ordinal as Number, id as String,
+                               sequence as Number, startedAt as Number) as Dictionary? {
+    var config = workoutFixtureConfig();
+    var routine = (config["routines"] as Array)[ordinal - 1] as Dictionary;
+    return Catalog.createSession(routine["id"] as String, id, sequence, startedAt,
+        null, config);
 }
 
-(:test)
-function testRoutineNameAndEmptyRoutine(logger as Test.Logger) as Boolean {
-    var tooLong = "";
-    for (var i = 0; i < 65; i++) {
-        tooLong += "a";
-    }
-    var routine = {"id" => "routine-empty", "name" => "Empty",
-        "revision" => 1, "entries" => []};
-    var config = {"routines" => [routine]};
-    return check(logger, Model.validNonblankText("Routine 3", 64) &&
-            !Model.validNonblankText("   ", 64) && !Model.validNonblankText(tooLong, 64),
-            "routine names must be nonblank and at most 64 UTF-8 bytes") &&
-        check(logger, Catalog.validRoutine(routine),
-            "an empty routine must be a valid saved routine") &&
-        check(logger, Catalog.createSession("routine-empty", "empty-1", 1, 100,
-            null, config) == null,
-            "an empty routine must not create a workout session");
-}
-
-(:test)
-function testTimedSetLifecycle(logger as Test.Logger) as Boolean {
-    var session = Catalog.createSession("lower", "timed-1", 1, 100, null, null) as Dictionary;
-    var running = SessionLogic.startTimed(session, "lower-dead-bug", 0, 100) as Dictionary;
-    var run = running["timedRun"] as Dictionary;
-    var elapsedAtTarget = SessionLogic.timedElapsedSec(run, 135);
-    var slotBeforeTarget = ((running["exercises"] as Array)[6]["slots"] as Array)[0] as Dictionary;
-    var paused = SessionLogic.pauseTimed(running, "lower-dead-bug", 0, 135) as Dictionary;
-    var pausedDraft = ((paused["exercises"] as Array)[6]["slots"] as Array)[0]["draft"] as Dictionary;
-    var resumed = SessionLogic.startTimed(paused, "lower-dead-bug", 0, 200) as Dictionary;
-    var secondRunRejected = SessionLogic.startTimed(resumed, "lower-dead-bug", 1, 200) == null;
-    var completed = SessionLogic.completeTimed(resumed, "lower-dead-bug", 0, 203) as Dictionary;
-    var completedSlot = ((completed["exercises"] as Array)[6]["slots"] as Array)[0] as Dictionary;
-    var completedSet = completedSlot["completed"] as Dictionary;
-    var canceledStart = SessionLogic.startTimed(completed, "lower-dead-bug", 1, 300) as Dictionary;
-    var canceled = SessionLogic.cancelTimed(canceledStart, "lower-dead-bug", 1) as Dictionary;
-    var canceledDraft = ((canceled["exercises"] as Array)[6]["slots"] as Array)[1]["draft"] as Dictionary;
-
-    return check(logger, elapsedAtTarget == 35 && slotBeforeTarget["completed"] == null,
-            "reaching the target measures time without completing the set") &&
-        check(logger, paused["timedRun"] == null && pausedDraft["measuredSec"] == 35,
-            "pause checkpoints the elapsed seconds into the slot") &&
-        check(logger, secondRunRejected,
-            "a second timed set cannot run concurrently") &&
-        check(logger, completedSet["durationSec"] == 38 &&
-            Model.sameString(completedSet["durationSource"], "measured") &&
-            completedSlot["draft"]["measuredSec"] == 0 && completed["timedRun"] == null,
-            "resume accumulates whole seconds and completes the measured duration") &&
-        check(logger, canceled["timedRun"] == null && canceledDraft["measuredSec"] == 0,
-            "cancel clears the timed run and its paused measurement");
-}
-
-(:test)
-function testNumericTemplateOverrides(logger as Test.Logger) as Boolean {
-    var row = {};
-    row["workingSetCount"] = 4;
-    row["targetRepsMin"] = 8;
-    row["targetRepsMax"] = 11;
-    row["targetDurationSec"] = 90;
-    row["restSec"] = 45;
-    row["startingLoad100"] = 5750;
-    var chest = {};
-    chest["workingSetCount"] = 0;
-    chest["targetRepsMin"] = 101;
-    chest["startingLoad100"] = -25;
-    chest["restSec"] = 9999;
-    var upperOverrides = {};
-    upperOverrides["upper-row"] = row;
-    upperOverrides["upper-chest"] = chest;
-    var templateOverrides = {};
-    templateOverrides["upper"] = upperOverrides;
-    var increments = {};
-    increments["seated-row-machine"] = 250;
-    increments["machine-chest-press"] = 260;
-    var config = {};
-    config["schemaVersion"] = 1;
-    config["templateOverrides"] = templateOverrides;
-    config["incrementOverrides"] = increments;
-
-    var session = Catalog.createSession("upper", "overrides", 1, 100, null, config) as Dictionary;
-    var exercises = session["exercises"] as Array;
-    var rowSnapshot = exercises[0] as Dictionary;
-    var chestSnapshot = exercises[1] as Dictionary;
-    var rowDraft = ((rowSnapshot["slots"] as Array)[0] as Dictionary)["draft"] as Dictionary;
-    var chestDraft = ((chestSnapshot["slots"] as Array)[0] as Dictionary)["draft"] as Dictionary;
-    var seedRow = (((Catalog.template("upper") as Dictionary)["entries"] as Array)[0]) as Dictionary;
-    var timed = {};
-    timed["targetRepsMin"] = 7;
-    timed["targetDurationSec"] = 42;
-    timed["startingLoad100"] = 1000;
-    var lowerOverrides = {};
-    lowerOverrides["lower-dead-bug"] = timed;
-    var lowerTemplates = {};
-    lowerTemplates["lower"] = lowerOverrides;
-    var lowerConfig = {};
-    lowerConfig["templateOverrides"] = lowerTemplates;
-    var lower = Catalog.createSession("lower", "timed-overrides", 2, 100, null, lowerConfig) as Dictionary;
-    var deadBug = (lower["exercises"] as Array)[6] as Dictionary;
-
-    return check(logger, rowSnapshot["plannedSetCount"] == 4 &&
-            rowSnapshot["targetRepsMin"] == 8 && rowSnapshot["targetRepsMax"] == 11 &&
-            rowSnapshot["restSec"] == 45 && rowDraft["load100"] == 5750 &&
-            rowSnapshot["weightIncrement100"] == 250,
-            "valid row overrides must populate the session snapshot and drafts") &&
-        check(logger, rowSnapshot["targetDurationSec"] == null,
-            "timed-only override must be ignored for a weight exercise") &&
-        check(logger, chestSnapshot["plannedSetCount"] == 3 && chestSnapshot["targetRepsMin"] == 8 &&
-            chestDraft["load100"] == 6500 && chestSnapshot["restSec"] == 120 &&
-            chestSnapshot["weightIncrement100"] == 500,
-            "malformed numeric overrides must fall back to seed values") &&
-        check(logger, seedRow["workingSetCount"] == 3 && seedRow["targetRepsMin"] == 9 &&
-            seedRow["startingLoad100"] == 5500,
-            "creating an overridden session must not mutate seed data") &&
-        check(logger, deadBug["targetRepsMin"] == null && deadBug["targetDurationSec"] == 42 &&
-            ((deadBug["slots"] as Array)[0] as Dictionary)["draft"]["durationSec"] == 42 &&
-            ((deadBug["slots"] as Array)[0] as Dictionary)["draft"]["load100"] == null,
-            "timed entry accepts duration while rejecting reps and load overrides");
-}
-
-(:test)
-function testStoredSessionPayloadValidation(logger as Test.Logger) as Boolean {
-    var session = Catalog.createSession("upper", "validation-1", 1, 100, null, null) as Dictionary;
-    var malformed = SessionLogic.copyDictionary(session);
-    malformed["rest"] = ["bad", "record"];
-    return check(logger, Model.validStoredSession(session, false),
-            "a bounded session created from a valid routine must be recoverable") &&
-        check(logger, !Model.validStoredSession(malformed, false),
-            "malformed nested saved state must be rejected before recovery casts");
-}
-
-(:test)
-function testOverrideSetCeiling(logger as Test.Logger) as Boolean {
-    var upperOverrides = {};
-    var entries = (Catalog.template("upper") as Dictionary)["entries"] as Array;
+function fixtureEntryWithSetCount(routine as Dictionary, minimum as Number,
+                                  loadType as String?) as Dictionary? {
+    var entries = routine["entries"] as Array;
     for (var i = 0; i < entries.size(); i++) {
         var entry = entries[i] as Dictionary;
-        var override = {};
-        override["workingSetCount"] = 10;
-        upperOverrides[entry["entryId"] as String] = override;
-    }
-    var templateOverrides = {};
-    templateOverrides["upper"] = upperOverrides;
-    var config = {};
-    config["templateOverrides"] = templateOverrides;
-    var session = Catalog.createSession("upper", "ceiling", 1, 100, null, config) as Dictionary;
-    var exerciseList = session["exercises"] as Array;
-    var total = 0;
-    var allEntryCounts = true;
-    for (var i = 0; i < exerciseList.size(); i++) {
-        var exerciseSnapshot = exerciseList[i] as Dictionary;
-        total += exerciseSnapshot["plannedSetCount"];
-        var seedCount = (entries[i] as Dictionary)["workingSetCount"];
-        if (exerciseSnapshot["plannedSetCount"] != seedCount) {
-            allEntryCounts = false;
+        if ((entry["workingSetCount"] as Number) >= minimum &&
+            (loadType == null || Model.sameString(entry["loadType"], loadType))) {
+            return entry;
         }
     }
-    return check(logger, total == Catalog.totalSets(Catalog.template("upper") as Dictionary) &&
-            total <= Model.MAX_SETS_PER_WORKOUT && allEntryCounts,
-            "over-capacity count overrides must fall back to seed counts without dropping entries");
+    return null;
 }
 
-function clearConfigKeys() as Void {
-    var domains = ["config", "routine.upper", "routine.lower", "routine.worst"];
-    for (var i = 1; i <= 12; i++) {
-        domains.add("routine.routine-" + i.toString());
+function fixtureExerciseWithType(session as Dictionary, loadType as String) as Dictionary? {
+    var exercises = session["exercises"] as Array;
+    for (var i = 0; i < exercises.size(); i++) {
+        if (Model.sameString((exercises[i] as Dictionary)["loadType"], loadType)) {
+            return exercises[i] as Dictionary;
+        }
     }
-    for (var i = 0; i < Model.MAX_TEMPLATES; i++) {
-        domains.add("routine.worst-" + i.toString());
+    return null;
+}
+
+function fixtureSessionExercise(session as Dictionary, entryId as String) as Dictionary? {
+    var exercises = session["exercises"] as Array;
+    for (var i = 0; i < exercises.size(); i++) {
+        var exercise = exercises[i] as Dictionary;
+        if (Model.sameString(exercise["entryId"], entryId)) {
+            return exercise;
+        }
     }
-    for (var i = 0; i < domains.size(); i++) {
-        Application.Storage.deleteValue((domains[i] as String) + ".a");
-        Application.Storage.deleteValue((domains[i] as String) + ".b");
+    return null;
+}
+
+function fixtureQueueUpload(store as UploadMemoryStore, job as Dictionary) as Boolean {
+    var id = job["sessionId"] as String;
+    return store.saveUpload(job) && store.saveUploadQueue([id]);
+}
+
+function fixtureRepeat(text as String, count as Number) as String {
+    var result = "";
+    while (result.length() < count) {
+        result += text;
     }
+    return result.substring(0, count) as String;
+}
+
+function fixtureWorstRoutine() as Dictionary {
+    var sourceRoutine = workoutFixtureRoutine(1) as Dictionary;
+    var sourceEntries = sourceRoutine["entries"] as Array;
+    var entries = [];
+    for (var e = 0; e < Model.MAX_ENTRIES; e++) {
+        var entry = SessionLogic.copyDictionary(sourceEntries[e % sourceEntries.size()] as Dictionary);
+        entry["entryId"] = "w" + e.toString();
+        entry["exerciseId"] = "x" + e.toString();
+        entry["liftosaurEntryId"] = fixtureRepeat("L", 64);
+        entry["name"] = fixtureRepeat("N", 64);
+        entry["equipment"] = fixtureRepeat("E", 48);
+        entry["superset"] = fixtureRepeat("S", 24);
+        entry["loadType"] = "weight";
+        entry["unit"] = "kg";
+        entry["increment100"] = 10000;
+        entry["unilateral"] = false;
+        entry["restSec"] = Model.MAX_REST_SEC;
+        entry["defaultRestSec"] = Model.MAX_REST_SEC;
+        entry["workingSetCount"] = 5;
+        entry["notes"] = fixtureRepeat("T", 160);
+        var targets = [];
+        for (var s = 0; s < 5; s++) {
+            targets.add({"reps" => Model.MAX_REPS, "load100" => Model.MAX_LOAD100,
+                "durationSec" => null});
+        }
+        entry["setTargets"] = targets;
+        entry["warmups"] = [{"reps" => Model.MAX_REPS, "load100" => Model.MAX_LOAD100,
+            "durationSec" => null}, {"reps" => Model.MAX_REPS, "load100" => Model.MAX_LOAD100,
+            "durationSec" => null}];
+        entries.add(entry);
+    }
+    return {"id" => "sync-2147483647-d1", "revision" => 2147483647,
+        "name" => fixtureRepeat("R", 64), "programId" => fixtureRepeat("P", 64),
+        "week" => 1000, "dayInWeek" => 1000, "entries" => entries};
+}
+
+function fixtureCompleteAll(session as Dictionary, start as Number) as Dictionary? {
+    var current = session;
+    var initial = session["exercises"] as Array;
+    for (var e = 0; e < initial.size(); e++) {
+        var entryId = (initial[e] as Dictionary)["entryId"] as String;
+        var count = ((initial[e] as Dictionary)["slots"] as Array).size();
+        for (var s = 0; s < count; s++) {
+            var exercise = fixtureSessionExercise(current, entryId) as Dictionary;
+            var slot = ((exercise["slots"] as Array)[s]) as Dictionary;
+            var draft = SessionLogic.copyDictionary(slot["draft"] as Dictionary);
+            var completed = SessionLogic.completeSet(current, entryId, s, draft,
+                start + 10 + e * 5 + s);
+            if (completed == null) {
+                return null;
+            }
+            current = completed as Dictionary;
+        }
+    }
+    return current;
+}
+
+function fixtureEstimateBytes(value as Object?) as Number {
+    if (value == null) {
+        return 1;
+    }
+    if (value instanceof String) {
+        return 3 + (value as String).toUtf8Array().size();
+    }
+    if (value instanceof Array) {
+        var total = 3;
+        for (var i = 0; i < (value as Array).size(); i++) {
+            total += fixtureEstimateBytes((value as Array)[i]);
+        }
+        return total;
+    }
+    if (value instanceof Dictionary) {
+        var total = 3;
+        var keys = (value as Dictionary).keys();
+        for (var i = 0; i < keys.size(); i++) {
+            total += fixtureEstimateBytes(keys[i]) +
+                fixtureEstimateBytes((value as Dictionary)[keys[i]]);
+        }
+        return total;
+    }
+    return value instanceof Boolean ? 2 : 5;
+}
+
+function fixtureCommitSize(logger as Test.Logger, store as Store, domain as String,
+                           payload as Dictionary) as Boolean {
+    var committed = store.commitPair(domain, payload);
+    var loaded = committed ? store.loadPair(domain) : null;
+    var size = fixtureEstimateBytes(payload);
+    logger.debug(domain + " estimated bytes=" + size.toString() + " / 32768");
+    return loaded != null && size < 32768;
 }
 
 (:test)
-function testConfigCacheReflectsEdits(logger as Test.Logger) as Boolean {
-    var store = new Store();
-    clearConfigKeys();
+function testDirectRoutineFixturesAndSessionSnapshot(logger as Test.Logger) as Boolean {
+    var upper = workoutFixtureRoutine(1);
+    var lower = workoutFixtureRoutine(2);
+    if (upper == null || lower == null) {
+        return check(logger, false, "sanitized Liftosaur fixtures parse into v4 routines");
+    }
+    var upperRoutine = upper as Dictionary;
+    var lowerRoutine = lower as Dictionary;
+    var session = Catalog.createSession(upperRoutine["id"] as String,
+        "fixture-session", 1, 1790752141, null, workoutFixtureConfig());
+    if (session == null) {
+        return check(logger, false, "Liftosaur routine creates a valid session snapshot");
+    }
+    var snapshot = session as Dictionary;
+    var firstEntry = (upperRoutine["entries"] as Array)[0] as Dictionary;
+    var firstExercise = (snapshot["exercises"] as Array)[0] as Dictionary;
+    var firstTarget = (firstEntry["setTargets"] as Array)[0] as Dictionary;
+    var firstDraft = ((firstExercise["slots"] as Array)[0] as Dictionary)["draft"] as Dictionary;
+    var lowerHasBodyweight = false;
+    var lowerHasTimed = false;
+    var lowerEntries = lowerRoutine["entries"] as Array;
+    for (var i = 0; i < lowerEntries.size(); i++) {
+        lowerHasBodyweight = lowerHasBodyweight ||
+            Model.sameString((lowerEntries[i] as Dictionary)["loadType"], "bodyweight");
+        lowerHasTimed = lowerHasTimed ||
+            Model.sameString((lowerEntries[i] as Dictionary)["loadType"], "timed");
+    }
+    return check(logger, Catalog.validRoutine(upperRoutine) && Catalog.validRoutine(lowerRoutine) &&
+            upperRoutine["week"] == 1 && upperRoutine["dayInWeek"] == 1,
+            "Liftosaur fixture routines retain stable day metadata") &&
+        check(logger, Catalog.totalSets(upperRoutine) == 19 && Catalog.totalSets(lowerRoutine) == 17 &&
+            (firstEntry["warmups"] as Array).size() > 0,
+            "working targets and display-only warmups convert without adding logged slots") &&
+        check(logger, Model.validStoredSession(snapshot, false) &&
+            Model.sameString(firstExercise["liftosaurEntryId"], firstEntry["liftosaurEntryId"]) &&
+            firstDraft["load100"] == firstTarget["load100"] &&
+            firstDraft["reps"] == firstTarget["reps"] && lowerHasBodyweight && lowerHasTimed,
+            "session drafts use each plan target while preserving Liftosaur identity and load types");
+}
+
+(:test)
+function testSessionCommandsAndCorrection(logger as Test.Logger) as Boolean {
+    var routine = workoutFixtureRoutine(1) as Dictionary;
+    var session = workoutFixtureSession(1, "test-session", 1, 100) as Dictionary;
+    var first = fixtureEntryWithSetCount(routine, 2, null) as Dictionary;
+    var entries = routine["entries"] as Array;
+    var second = null;
+    for (var i = 0; i < entries.size(); i++) {
+        var candidate = entries[i] as Dictionary;
+        if (!Model.sameString(candidate["entryId"], first["entryId"])) {
+            second = candidate;
+            break;
+        }
+    }
+    var firstId = first["entryId"] as String;
+    var secondId = (second as Dictionary)["entryId"] as String;
+    var firstExercise = fixtureSessionExercise(session, firstId) as Dictionary;
+    var actual0 = SessionLogic.copyDictionary(
+        ((firstExercise["slots"] as Array)[0] as Dictionary)["draft"] as Dictionary);
+    var completed1 = SessionLogic.completeSet(session, firstId, 0, actual0, 110) as Dictionary;
+    var secondExercise = null;
+    for (var i = 0; i < (session["exercises"] as Array).size(); i++) {
+        var candidate = (session["exercises"] as Array)[i] as Dictionary;
+        if (Model.sameString(candidate["entryId"], secondId)) {
+            secondExercise = candidate;
+            break;
+        }
+    }
+    var actualSecond = SessionLogic.copyDictionary(
+        ((secondExercise as Dictionary)["slots"] as Array)[0]["draft"] as Dictionary);
+    var interleaved = SessionLogic.completeSet(completed1, secondId, 0, actualSecond, 120) as Dictionary;
+    var nextDraft = SessionLogic.copyDictionary(
+        ((firstExercise["slots"] as Array)[1]["draft"] as Dictionary));
+    var completed2 = SessionLogic.completeSet(interleaved, firstId, 1, nextDraft, 130) as Dictionary;
+    var correction = SessionLogic.copyDictionary(actual0);
+    if (Model.sameString(first["loadType"], "weight") ||
+        Model.sameString(first["loadType"], "assistance")) {
+        correction["load100"] = (actual0["load100"] as Number) + 25;
+    }
+    var corrected = SessionLogic.correctSet(completed2, firstId, 0, correction, 200) as Dictionary;
+    var correctedExercise = fixtureSessionExercise(corrected, firstId) as Dictionary;
+    var correctedValue = ((correctedExercise["slots"] as Array)[0] as Dictionary)["completed"] as Dictionary;
+    var undone = SessionLogic.undoSet(corrected, firstId, 0) as Dictionary;
+    return check(logger, SessionLogic.totals(session)["done"] == 0 &&
+            SessionLogic.totals(undone)["done"] == 2,
+            "candidate writes remain isolated across interleaved completion and undo") &&
+        check(logger, correctedValue["completedAt"] == 110 && correctedValue["updatedAt"] == 200,
+            "correcting a set preserves its original completion time") &&
+        check(logger, SessionLogic.completeSet(completed2, firstId, 0, actual0, 210) == null &&
+            Model.sameString(SessionLogic.exerciseStatus(
+                fixtureSessionExercise(undone, firstId) as Dictionary), "partial"),
+            "duplicate completion is rejected and undo reopens the exercise");
+}
+
+(:test)
+function testPerSetTargetsSurviveActualLoadCorrection(logger as Test.Logger) as Boolean {
+    var session = workoutFixtureSession(1, "targets-session", 1, 100) as Dictionary;
+    var exercises = session["exercises"] as Array;
+    var index = -1;
+    for (var i = 0; i < exercises.size(); i++) {
+        var exercise = exercises[i] as Dictionary;
+        if ((exercise["slots"] as Array).size() > 1 &&
+            Model.sameString(exercise["loadType"], "weight")) {
+            index = i;
+            break;
+        }
+    }
+    if (index < 0) {
+        return check(logger, false, "fixture contains a multi-set weight exercise");
+    }
+    var exercise = exercises[index] as Dictionary;
+    var entryId = exercise["entryId"] as String;
+    var targets = exercise["planTargets"] as Array;
+    var firstTarget = SessionLogic.copyDictionary(targets[0] as Dictionary);
+    var secondTarget = SessionLogic.copyDictionary(targets[1] as Dictionary);
+    var secondLoad = (firstTarget["load100"] as Number) + 100;
+    secondTarget["load100"] = secondLoad;
+    var nextTargets = [firstTarget, secondTarget];
+    for (var i = 2; i < targets.size(); i++) {
+        nextTargets.add(targets[i]);
+    }
+    exercise["planTargets"] = nextTargets;
+    var slots = exercise["slots"] as Array;
+    var secondSlot = SessionLogic.copyDictionary(slots[1] as Dictionary);
+    var secondDraft = SessionLogic.copyDictionary(secondSlot["draft"] as Dictionary);
+    secondDraft["load100"] = secondLoad;
+    secondSlot["draft"] = secondDraft;
+    slots[1] = secondSlot;
+    var firstDraft = SessionLogic.copyDictionary(slots[0]["draft"] as Dictionary);
+    var completed = SessionLogic.completeSet(session, entryId, 0, firstDraft, 110) as Dictionary;
+    var corrected = SessionLogic.copyDictionary(firstDraft);
+    corrected["load100"] = (firstDraft["load100"] as Number) + 25;
+    var changed = SessionLogic.correctSet(completed, entryId, 0, corrected, 120) as Dictionary;
+    var changedExercise = (changed["exercises"] as Array)[index] as Dictionary;
+    var preserved = (((changedExercise["slots"] as Array)[1] as Dictionary)["draft"] as Dictionary);
+    return check(logger, Model.validStoredSession(session, false) &&
+            preserved["load100"] == secondLoad,
+            "editing one actual set does not overwrite a different later plan target");
+}
+
+(:test)
+function testTimedPlanTargetAndFitPayload(logger as Test.Logger) as Boolean {
+    var session = workoutFixtureSession(2, "timed-session", 1, 100) as Dictionary;
+    var exercise = fixtureExerciseWithType(session, "timed");
+    if (exercise == null) {
+        return check(logger, false, "lower fixture contains a timed exercise");
+    }
+    var timed = exercise as Dictionary;
+    var entryId = timed["entryId"] as String;
+    var targets = timed["planTargets"] as Array;
+    var target = (targets[0] as Dictionary)["durationSec"] as Number;
+    var started = SessionLogic.startTimed(session, entryId, 0, 100) as Dictionary;
+    var run = started["timedRun"] as Dictionary;
+    var completion = SessionLogic.completeTimed(started, entryId, 0, 100 + target) as Dictionary;
+    var completedExercise = null;
+    var completedExercises = completion["exercises"] as Array;
+    for (var i = 0; i < completedExercises.size(); i++) {
+        if (Model.sameString((completedExercises[i] as Dictionary)["entryId"], entryId)) {
+            completedExercise = completedExercises[i] as Dictionary;
+            break;
+        }
+    }
+    var lap = SessionLogic.lapPayload(completedExercise as Dictionary, 0) as Dictionary;
+    return check(logger, SessionLogic.timedElapsedSec(run, 100 + target) == target &&
+            Model.validStoredSession(started, false),
+            "timed set timer uses a validated per-slot plan target") &&
+        check(logger, lap["durationSec"] == target && lap["weightKg"] == 0.0 &&
+            !lap.hasKey("garminCategory") && !lap.hasKey("garminCode"),
+            "FIT fallback keeps measured set data without exercise catalog mappings");
+}
+
+(:test)
+function testV4ConfigAndCommittedSyncReplay(logger as Test.Logger) as Boolean {
+    var store = new UploadMemoryStore();
+    var reply = workoutFixtureReply(1) as Dictionary;
+    var routine = Catalog.parseRoutine(reply, 5, 1) as Dictionary;
+    var routineId = routine["id"] as String;
+    var storedRoutine = store.commitPair("routine." + routineId, routine);
+    var config = {"schemaVersion" => 4, "nextSessionSeq" => 1,
+        "settings" => {"defaultRestSec" => 90, "vibrationEnabled" => true},
+        "templateOverrides" => {}, "incrementOverrides" => {},
+        "routineIds" => [routineId], "routineSyncSeq" => 5,
+        "programId" => routine["programId"], "programName" => "Test Program",
+        "nextRoutineId" => routineId};
+    var storedConfig = store.commitPair("config", config);
+    var replayJournal = {"sequence" => 5, "phase" => "days", "index" => 1,
+        "days" => [{"week" => 1, "dayInWeek" => 1, "name" => "DayAx"}],
+        "routineIds" => [routineId], "programId" => routine["programId"],
+        "programName" => "Test Program", "nextWeek" => 1, "nextDay" => 1};
+    var storedJournal = store.commitPair("rsync", replayJournal);
     var controller = new SessionController(store);
-    var before = controller.routineTemplates().size();
-    var id = controller.createRoutine("Cache test");
-    var afterCreate = controller.routineTemplates().size();
-    var duplicate = controller.createRoutine("Cache test");
-    var afterRejected = controller.routineTemplates().size();
-    var saved = controller.updateNumericConfig("setting", "", "", "defaultRestSec", 45);
-    var rest = controller.defaultRestSec();
-    var rejected = controller.updateNumericConfig("setting", "", "", "defaultRestSec", 99999);
-    var restAfterRejected = controller.defaultRestSec();
-    var reloaded = new SessionController(new Store());
-    var persisted = reloaded.routineTemplates().size() == before + 1 &&
-        reloaded.defaultRestSec() == 45;
-    var deleted = id != null && controller.deleteRoutine(id as String);
-    var afterDelete = controller.routineTemplates().size();
-    clearConfigKeys();
-    return check(logger, id != null && afterCreate == before + 1,
-            "created routine must be visible on the next read") &&
-        check(logger, duplicate == null && afterRejected == before + 1,
-            "a rejected create must not alter later reads") &&
-        check(logger, saved && rest == 45, "saved setting must be visible on the next read") &&
-        check(logger, !rejected && restAfterRejected == 45,
-            "a rejected edit must not alter later reads") &&
-        check(logger, persisted, "a new controller must read the committed config") &&
-        check(logger, deleted && afterDelete == before, "delete must be visible on the next read");
+    controller.retryUploads();
+    var remainingJournal = store.loadRoutineSync();
+    var visibleRoutines = controller.routineTemplates();
+    return check(logger, storedRoutine && storedConfig && storedJournal &&
+            SessionLogic.routineSyncAlreadyCommitted(5, 5) &&
+            SessionLogic.routineSyncAlreadyCommitted(5, 6) &&
+            !SessionLogic.routineSyncAlreadyCommitted(6, 5),
+            "a durable config pivot is distinguishable from a partial routine stage") &&
+        check(logger, remainingJournal == null && visibleRoutines.size() == 1 &&
+            Model.sameString((visibleRoutines[0] as Dictionary)["id"], routineId),
+            "restart drops a stale post-pivot journal without overwriting active routine domains");
 }
 
 (:test)
-function testCommitPairEnvelopeOnlyRevision(logger as Test.Logger) as Boolean {
+function testUploadResponseCallbacks(logger as Test.Logger) as Boolean {
+    var takenStore = new UploadMemoryStore();
+    var takenJob = uploadStoreTestJob("taken-session");
+    var takenSaved = fixtureQueueUpload(takenStore, takenJob);
+    var takenController = new SessionController(takenStore);
+    takenController.handleApiResponse("upload_start", "taken-session", 409,
+        {"error" => {"code" => "workout_start_time_taken"}});
+    var takenAfter = takenStore.loadUpload("taken-session") as Dictionary;
+    var takenQueue = takenStore.loadUploadQueue() as Array;
+
+    var activeStore = new UploadMemoryStore();
+    var activeJob = uploadStoreTestJob("active-session");
+    var activeSaved = fixtureQueueUpload(activeStore, activeJob);
+    var activeController = new SessionController(activeStore);
+    activeController.handleApiResponse("upload_start", "active-session", 409,
+        {"error" => {"code" => "workout_already_active"}});
+    var activeAfter = activeStore.loadUpload("active-session") as Dictionary;
+    var activeQueue = activeStore.loadUploadQueue() as Array;
+
+    var setsStore = new UploadMemoryStore();
+    var setsJob = uploadStoreTestJob("sets-session");
+    setsJob["state"] = "sets";
+    setsJob["setsBody"] = {"sets" => [{"entryId" => "exercise-1", "setId" => "set-1",
+        "completed" => {"reps" => 8, "weight" => "55.5kg"}}]};
+    var setsSaved = fixtureQueueUpload(setsStore, setsJob);
+    var setsController = new SessionController(setsStore);
+    setsController.handleApiResponse("upload_sets", "sets-session", 200, null);
+    var setsAfter = setsStore.loadUpload("sets-session") as Dictionary;
+    var setsQueue = setsStore.loadUploadQueue() as Array;
+
+    var finishStore = new UploadMemoryStore();
+    var finishJob = uploadStoreTestJob("finish-session");
+    finishJob["state"] = "finish";
+    finishJob["setsBody"] = {"sets" => [{"entryId" => "exercise-1", "setId" => "set-1",
+        "completed" => {"reps" => 8, "weight" => "55.5kg"}}]};
+    var finishSaved = fixtureQueueUpload(finishStore, finishJob);
+    var finishController = new SessionController(finishStore);
+    finishController.handleApiResponse("upload_finish", "finish-session", 200, null);
+    var finishAfter = finishStore.loadUpload("finish-session");
+    var finishQueue = finishStore.loadUploadQueue() as Array;
+
+    var unauthorizedStore = new UploadMemoryStore();
+    var unauthorizedJob = uploadStoreTestJob("unauthorized-session");
+    var unauthorizedSaved = fixtureQueueUpload(unauthorizedStore, unauthorizedJob);
+    var unauthorizedController = new SessionController(unauthorizedStore);
+    unauthorizedController.handleApiResponse("upload_start", "unauthorized-session", 401, null);
+    var unauthorizedAfter = unauthorizedStore.loadUpload("unauthorized-session") as Dictionary;
+    var unauthorizedQueue = unauthorizedStore.loadUploadQueue() as Array;
+
+    var programStore = new UploadMemoryStore();
+    var programJob = uploadStoreTestJob("program-session");
+    var programSaved = fixtureQueueUpload(programStore, programJob);
+    var programController = new SessionController(programStore);
+    programController.handleApiResponse("upload_start", "program-session", 422,
+        {"error" => {"code" => "program_error"}});
+    var programAfter = programStore.loadUpload("program-session") as Dictionary;
+    var programQueue = programStore.loadUploadQueue() as Array;
+
+    var resumeStore = new UploadMemoryStore();
+    var resumeJob = uploadStoreTestJob("resume-session");
+    resumeJob["state"] = "sets";
+    resumeJob["setsBody"] = {"sets" => [{"entryId" => "exercise-1", "setId" => "durable-id",
+        "completed" => {"reps" => 8, "weight" => "55.5kg"}}]};
+    resumeJob["state"] = "blocked";
+    resumeJob["lastError"] = "workout_already_active";
+    var resumeSaved = fixtureQueueUpload(resumeStore, resumeJob);
+    var resumeController = new SessionController(resumeStore);
+    resumeController.retryUploads();
+    var resumeAfter = resumeStore.loadUpload("resume-session") as Dictionary;
+    var resumedBody = resumeAfter["setsBody"] as Dictionary;
+    var resumedRows = resumedBody["sets"] as Array;
+    var resumedSet = resumedRows[0] as Dictionary;
+    var resumeQueue = resumeStore.loadUploadQueue() as Array;
+
+    var result = true;
+    result = check(logger, takenSaved && Model.sameString(takenAfter["state"], "done") &&
+        takenQueue.size() == 0,
+        "409 start-time duplicate is durably acknowledged without reuploading") && result;
+    result = check(logger, activeSaved && Model.sameString(activeAfter["state"], "blocked") &&
+        activeQueue.size() == 1 &&
+        Model.sameString(activeAfter["lastError"], "workout_already_active"),
+        "409 already-active keeps the upload queued and blocked") && result;
+    result = check(logger, setsSaved && Model.sameString(setsAfter["state"], "finish") &&
+        setsQueue.size() == 1 && setsAfter["setsBody"] != null,
+        "sets success persists the finish stage before any acknowledgement") && result;
+    // The done record may already be retired (deleted) once the queue commit no longer references it.
+    result = check(logger, finishSaved && (finishAfter == null ||
+        Model.sameString((finishAfter as Dictionary)["state"], "done")) && finishQueue.size() == 0,
+        "finish success persists acknowledgement and removes the queued item") && result;
+    result = check(logger, unauthorizedSaved && unauthorizedQueue.size() == 1 &&
+        Model.sameString(unauthorizedAfter["lastError"], "http-401") &&
+        unauthorizedController.errorCode() == Err.LIFTOSAUR_UNAUTHORIZED,
+        "authorization failures retain the queue with bounded restart-visible error data") && result;
+    result = check(logger, programSaved && programQueue.size() == 1 &&
+        Model.sameString(programAfter["lastError"], "program_error") &&
+        programController.errorCode() == Err.WORKOUT_UPLOAD_PROGRAM_ERROR,
+        "program validation failures retain the queue and show the Liftosaur repair error") && result;
+    result = check(logger, resumeSaved && Model.sameString(resumeAfter["state"], "sets") &&
+        Model.sameString(resumedSet["setId"], "durable-id") && resumeQueue.size() == 1,
+        "retrying a blocked mapped workout resumes the persisted sets body after start handshake") && result;
+    return result;
+}
+
+(:test)
+function testStoreEnvelopeRevisionAndHistoryPeek(logger as Test.Logger) as Boolean {
     var store = new Store();
-    var payload = {"schemaVersion" => 2, "nextSessionSeq" => 1,
-        "routines" => Catalog.routineTemplates(null)};
-    clearConfigKeys();
-    // Valid envelope, invalid payload: still counts as a generation for rev/target choice.
+    Application.Storage.deleteValue("config.a");
+    Application.Storage.deleteValue("config.b");
+    var config = {"schemaVersion" => 4, "nextSessionSeq" => 1,
+        "settings" => {"defaultRestSec" => 90, "vibrationEnabled" => true},
+        "templateOverrides" => {}, "incrementOverrides" => {}, "routineIds" => [],
+        "routineSyncSeq" => 0, "programId" => null, "programName" => null,
+        "nextRoutineId" => null};
     Application.Storage.setValue("config.a", {"v" => 1, "rev" => 5, "payload" => {}});
     Application.Storage.setValue("config.b", {"v" => 1, "rev" => 3, "payload" => {}});
-    var committed = store.commitPair("config", payload);
-    var b = Application.Storage.getValue("config.b") as Dictionary;
+    var committed = store.commitPair("config", config);
     var a = Application.Storage.getValue("config.a") as Dictionary;
-    var olderTargeted = committed && b["rev"] == 6 && a["rev"] == 5;
+    var b = Application.Storage.getValue("config.b") as Dictionary;
+    var wroteOlder = committed && a["rev"] == 5 && b["rev"] == 6;
     Application.Storage.setValue("config.a", {"v" => 2, "rev" => 9, "payload" => {}});
-    var refused = !store.commitPair("config", payload);
-    var untouched = (Application.Storage.getValue("config.b") as Dictionary)["rev"] == 6;
-    clearConfigKeys();
-    return check(logger, olderTargeted, "commit must overwrite the older generation with rev max+1") &&
-        check(logger, refused && untouched, "a future-version record must refuse the commit");
-}
+    var futureRefused = !store.commitPair("config", config);
+    var oldGenerationKept = (Application.Storage.getValue("config.b") as Dictionary)["rev"] == 6;
+    Application.Storage.deleteValue("config.a");
+    Application.Storage.deleteValue("config.b");
 
-(:test)
-function testValidRoutineMaxConfigAndRejections(logger as Test.Logger) as Boolean {
-    var seedEntries = (Catalog.routineTemplates(null)[0] as Dictionary)["entries"] as Array;
-    var routines = [];
-    for (var r = 0; r < Model.MAX_TEMPLATES; r++) {
-        var entries = [];
-        for (var e = 0; e < Model.MAX_ENTRIES; e++) {
-            var entry = null;
-            if (e % 2 == 0) {
-                entry = SessionLogic.copyDictionary(seedEntries[e % seedEntries.size()] as Dictionary);
-                entry["entryId"] = "r" + r.toString() + "-e" + e.toString();
-                // Seed entries may leave fields null; the seed supplies them.
-                entry["name"] = null;
-            } else {
-                entry = {"entryId" => "r" + r.toString() + "-e" + e.toString(),
-                    "exerciseId" => "g-" + e.toString(), "name" => "Custom " + e.toString(),
-                    "loadType" => "bodyweight", "workingSetCount" => 1, "targetRepsMin" => 8,
-                    "targetRepsMax" => 10, "restSec" => 60};
-            }
-            entries.add(entry);
-        }
-        routines.add({"id" => "r" + r.toString(), "name" => "R" + r.toString(),
-            "revision" => 1, "entries" => entries});
-    }
-    var allValid = true;
-    var first = routines.size() > 0 ? routines[0 * routines.size()] as Dictionary : {};
-    for (var r = 0; r < routines.size(); r++) {
-        allValid = allValid && Catalog.validRoutine(routines[r] as Dictionary);
-    }
-    var badLoad = SessionLogic.copyDictionary((first["entries"] as Array)[1] as Dictionary);
-    badLoad["loadType"] = "bogus";
-    var badEntries = [badLoad];
-    var badRoutine = {"id" => "bad", "name" => "Bad", "revision" => 1, "entries" => badEntries};
-    var noName = SessionLogic.copyDictionary((first["entries"] as Array)[1] as Dictionary);
-    noName["name"] = null;
-    var noNameRoutine = {"id" => "bad2", "name" => "Bad", "revision" => 1, "entries" => [noName]};
-    var noReps = SessionLogic.copyDictionary((first["entries"] as Array)[1] as Dictionary);
-    noReps["targetRepsMin"] = null;
-    var noRepsRoutine = {"id" => "bad3", "name" => "Bad", "revision" => 1, "entries" => [noReps]};
-    var badIncrement = SessionLogic.copyDictionary((first["entries"] as Array)[0] as Dictionary);
-    badIncrement["increment100"] = 30;
-    var badIncrementRoutine = {"id" => "bad4", "name" => "Bad", "revision" => 1,
-        "entries" => [badIncrement]};
-    return check(logger, allValid, "a full 8x12 seed and Garmin routine set must validate") &&
-        check(logger, !Catalog.validRoutine(badRoutine), "an invalid load type must be rejected") &&
-        check(logger, !Catalog.validRoutine(noNameRoutine),
-            "a custom entry without a name must be rejected") &&
-        check(logger, !Catalog.validRoutine(noRepsRoutine),
-            "a non-timed entry without reps must be rejected") &&
-        check(logger, !Catalog.validRoutine(badIncrementRoutine),
-            "an increment that is not a multiple of 25 must be rejected") &&
-        check(logger, Catalog.exercise("no-such-exercise") == null &&
-            Catalog.exercise(seedEntries[0]["exerciseId"] as String) != null,
-            "exercise lookup by id must find seeds only");
-}
-
-(:test)
-function testDiscardingFitStateIsValid(logger as Test.Logger) as Boolean {
-    var session = Catalog.createSession("upper", "disc-1", 1, 100, null, null) as Dictionary;
-    session["status"] = "finalizing";
-    session["finishOutcome"] = "aborted";
-    session["endedAt"] = 200;
-    session["fitState"] = "discarding";
-    var valid = Model.validStoredSession(session, false);
-    session["fitState"] = "bogus";
-    return check(logger, valid, "discarding must be a valid fitState") &&
-        check(logger, !Model.validStoredSession(session, false), "unknown fitState must be rejected");
-}
-
-(:test)
-function testPeekSessionEnvelopeOnly(logger as Test.Logger) as Boolean {
-    var store = new Store();
     Application.Storage.deleteValue("history0.a");
     Application.Storage.deleteValue("history0.b");
     var empty = store.peekSession("history0") == null;
@@ -422,593 +512,86 @@ function testPeekSessionEnvelopeOnly(logger as Test.Logger) as Boolean {
     Application.Storage.setValue("history0.b", {"v" => 1, "rev" => 2,
         "payload" => {"id" => "s-2", "sessionSeq" => 2}});
     var newest = store.peekSession("history0");
-    var picked = newest != null && newest["id"].equals("s-2") && newest["sessionSeq"] == 2;
+    var selectedNewest = newest != null && Model.sameString(newest["id"], "s-2") &&
+        newest["sessionSeq"] == 2;
     Application.Storage.setValue("history0.b", {"v" => 2, "rev" => 3, "payload" => {}});
     store.peekSession("history0");
-    var future = store.hasUnsupportedRecord();
+    var futureHistoryFlagged = store.hasUnsupportedRecord();
     Application.Storage.deleteValue("history0.a");
     Application.Storage.deleteValue("history0.b");
-    return check(logger, empty, "missing history slot must read as empty") &&
-        check(logger, picked, "peek must return the newest generation without payload validation") &&
-        check(logger, future, "a future-version history record must be flagged unsupported");
+    return check(logger, wroteOlder && futureRefused && oldGenerationKept,
+            "store writes over the older envelope generation and refuses unknown newer versions") &&
+        check(logger, empty && selectedNewest && futureHistoryFlagged,
+            "history peek selects newest envelope without loading full session data");
 }
 
 (:test)
-function testRenameRoutineAndRepsRange(logger as Test.Logger) as Boolean {
-    var store = new Store();
-    clearConfigKeys();
+function testV3ConfigResetsToV4Defaults(logger as Test.Logger) as Boolean {
+    var store = new UploadMemoryStore();
+    var stored = store.commitPair("config", {"schemaVersion" => 3,
+        "nextSessionSeq" => 5, "settings" => {"defaultRestSec" => 30,
+            "vibrationEnabled" => false}, "templateOverrides" => {},
+        "incrementOverrides" => {}, "routines" => [{"id" => "old-local-routine"}],
+        "routineNextEntrySeq" => 99});
     var controller = new SessionController(store);
-    var first = controller.createRoutine("Rename A");
-    var second = controller.createRoutine("Rename B");
-    var okRename = second != null && controller.renameRoutine(second as String, "Rename C");
-    var duplicate = second != null && controller.renameRoutine(second as String, "Rename A");
-    var blank = second != null && controller.renameRoutine(second as String, "   ");
-    var missing = controller.renameRoutine("no-such-routine", "Rename D");
-    var names = "";
     var routines = controller.routineTemplates();
-    for (var i = 0; i < routines.size(); i++) {
-        names += routines[i]["name"] as String + "|";
-    }
-    var renamedVisible = names.find("Rename C|") != null && names.find("Rename B|") == null;
-    var entry = ((controller.routineTemplates()[0] as Dictionary)["entries"] as Array)[0] as Dictionary;
-    var entryId = entry["entryId"] as String;
-    var raised = controller.updateNumericConfig("template", "upper", entryId, "targetRepsMin", 40);
-    var after = controller.templateEntry("upper", entryId) as Dictionary;
-    var raisedBoth = raised && after["targetRepsMin"] == 40 && after["targetRepsMax"] == 40;
-    var lowered = controller.updateNumericConfig("template", "upper", entryId, "targetRepsMax", 30);
-    clearConfigKeys();
-    return check(logger, first != null && okRename && renamedVisible, "rename must be visible") &&
-        check(logger, !duplicate && !blank && !missing,
-            "duplicate, blank and unknown-routine renames must be rejected") &&
-        check(logger, raisedBoth, "raising min reps above max must raise max with it") &&
-        check(logger, !lowered, "max reps below min must still be rejected");
-}
-
-(:test)
-function testDeleteAnyRoutineAndDefaultRestForNewExercise(logger as Test.Logger) as Boolean {
-    var store = new Store();
-    clearConfigKeys();
-    var controller = new SessionController(store);
-    var restSaved = controller.updateNumericConfig("setting", "", "", "defaultRestSec", 45);
-    var definition = {"id" => "g-test-lift", "name" => "Test Lift", "category" => "CURL",
-        "code" => "BARBELL_BICEPS_CURL", "isBodyWeight" => false};
-    var entryId = controller.addRoutineExercise("upper", definition, "weight");
-    var entry = entryId == null ? null : controller.templateEntry("upper", entryId as String);
-    var restOk = restSaved && entry != null && entry["restSec"] == 45 && entry["defaultRestSec"] == 45;
-    var deletedUpper = controller.deleteRoutine("upper");
-    var deletedLower = controller.deleteRoutine("lower");
-    var remaining = controller.routineTemplates().size();
-    clearConfigKeys();
-    return check(logger, restOk, "a new exercise must use the configured default rest") &&
-        check(logger, deletedUpper, "the built-in Upper routine must be deletable") &&
-        check(logger, !deletedLower && remaining == 1, "the last routine must be kept");
-}
-
-function repeatText(unit as String, count as Number) as String {
-    // Doubling then one substring keeps allocation low; linear concatenation exhausts the heap.
-    var text = unit;
-    while (text.length() < count) {
-        text += text;
-    }
-    text = text.substring(0, count) as String;
-    return text;
-}
-
-// Worst-case routine: 12 entries x 5 sets = 60 sets, 64-byte names, 160-byte notes, max values.
-function worstCaseRoutine(routineId as String, index as Number) as Dictionary {
-    return sizedRoutine(routineId, index, 64, 48, 64, 160);
-}
-
-// Same shape with configurable string lengths (name, Garmin category, Garmin code, notes).
-function sizedRoutine(routineId as String, index as Number, nameLength as Number,
-                      categoryLength as Number, codeLength as Number,
-                      notesLength as Number) as Dictionary {
-    var entries = [];
-    for (var e = 0; e < Model.MAX_ENTRIES; e++) {
-        var tag = index.toString() + "-" + e.toString();
-        entries.add({
-            "entryId" => "r" + tag,
-            "exerciseId" => "g-" + tag,
-            "name" => repeatText("n", nameLength),
-            "garminCategory" => repeatText("C", categoryLength),
-            "garminCode" => repeatText("K", codeLength),
-            "isBodyWeight" => false,
-            "loadType" => "weight",
-            "unit" => "kg",
-            "increment100" => 10000,
-            "defaultRestSec" => Model.MAX_REST_SEC,
-            "workingSetCount" => 5,
-            "targetRepsMin" => Model.MAX_REPS,
-            "targetRepsMax" => Model.MAX_REPS,
-            "targetDurationSec" => null,
-            "startingLoad100" => Model.MAX_LOAD100,
-            "restSec" => Model.MAX_REST_SEC,
-            "notes" => notesLength > 0 ? repeatText("t", notesLength) : null
-        });
-    }
-    return {"id" => routineId, "name" => repeatText("R", 63) + index.toString(),
-        "revision" => 1000000, "entries" => entries};
-}
-
-function completeEverySet(session as Dictionary, now as Number) as Dictionary {
-    var exercises = session["exercises"] as Array;
-    var current = session;
-    for (var i = 0; i < exercises.size(); i++) {
-        var entryId = exercises[i]["entryId"] as String;
-        var planned = exercises[i]["plannedSetCount"] as Number;
-        for (var j = 0; j < planned; j++) {
-            var next = SessionLogic.completeSet(current, entryId, j,
-                {"load100" => Model.MAX_LOAD100, "reps" => Model.MAX_REPS}, now + 1000 + i * 10 + j);
-            current = next as Dictionary;
-        }
-    }
-    return current;
-}
-
-// Rough serialized size (type byte + length header + payload), for comparison with the 32 KB limit.
-function estimateBytes(value as Object?) as Number {
-    if (value == null) {
-        return 1;
-    }
-    if (value instanceof String) {
-        return 3 + value.toUtf8Array().size();
-    }
-    if (value instanceof Array) {
-        var total = 3;
-        for (var i = 0; i < value.size(); i++) {
-            total += estimateBytes(value[i]);
-        }
-        return total;
-    }
-    if (value instanceof Dictionary) {
-        var total = 3;
-        var keys = value.keys();
-        for (var i = 0; i < keys.size(); i++) {
-            total += estimateBytes(keys[i]) + estimateBytes(value[keys[i]]);
-        }
-        return total;
-    }
-    return value instanceof Boolean ? 2 : 5;
-}
-
-function commitAndReload(logger as Test.Logger, store as Store, domain as String,
-                         payload as Dictionary, enforceSize as Boolean) as Boolean {
-    var committed = store.commitPair(domain, payload);
-    var loaded = committed ? store.loadPair(domain) : null;
-    var bytes = estimateBytes(payload);
-    logger.debug(domain + " commit=" + committed + " reload=" + (loaded != null) +
-        " estimatedBytes=" + bytes.toString() + " of 32768");
-    // The simulator does not enforce the 32 KB value limit, so check the estimate explicitly.
-    return committed && loaded != null && (!enforceSize || bytes < 32768);
-}
-
-(:test)
-function testWorstCaseStorageCommits(logger as Test.Logger) as Boolean {
-    var store = new Store();
-    var domains = ["active", "history0", "last"];
-    for (var d = 0; d < domains.size(); d++) {
-        Application.Storage.deleteValue((domains[d] as String) + ".a");
-        Application.Storage.deleteValue((domains[d] as String) + ".b");
-    }
-    clearConfigKeys();
-    var now = Time.now().value();
-    var routine = worstCaseRoutine("worst", 0);
-    var config = {"schemaVersion" => 2, "nextSessionSeq" => 2147483647,
-        "settings" => {"defaultRestSec" => 1800, "vibrationEnabled" => true},
-        "templateOverrides" => {}, "incrementOverrides" => {},
-        "routines" => [routine], "routineNextEntrySeq" => 2147483647};
-
-    // First workout builds the previous-performance cache that the second one prefills from.
-    var first = completeEverySet(Catalog.createSession("worst", "session-1", 1, now, null,
-        config) as Dictionary, now);
-    first["status"] = "completed";
-    first["endedAt"] = now + 5000;
-    var archive = SessionLogic.archivedSession(first);
-    var cache = LastPerformance.merge(null, archive);
-    var session = Catalog.createSession("worst", "session-2", 2, now, cache, config) as Dictionary;
-    var clock = WorkoutClock.start(now);
-    var clockKeys = clock.keys();
-    for (var i = 0; i < clockKeys.size(); i++) {
-        session[clockKeys[i]] = clock[clockKeys[i]];
-    }
-    session = completeEverySet(session, now);
-    session["status"] = "finalizing";
-    session["finishOutcome"] = "completed";
-    session["endedAt"] = now + 86000;
-    session["completionKind"] = "full";
-    session["elapsedSec"] = 86000;
-    session["activeSec"] = 86000;
-    session["fitState"] = "saving";
-    session["fitSegments"] = 999;
-    session["fitUnknownSegments"] = 999;
-    session["lastCheckpointAt"] = now + 86000;
-    var ended = SessionLogic.copyDictionary(session);
-    ended["status"] = "completed";
-
-    // Config v3 holds only settings and 8 routine ids of the maximum length; each routine has its own key.
-    var ids = [];
-    for (var r = 0; r < Model.MAX_TEMPLATES; r++) {
-        ids.add(repeatText("i", 39) + r.toString());
-    }
-    var configV3 = {"schemaVersion" => 3, "nextSessionSeq" => 2147483647,
-        "settings" => {"defaultRestSec" => 1800, "vibrationEnabled" => true},
-        "templateOverrides" => {}, "incrementOverrides" => {},
-        "routineIds" => ids, "routineNextEntrySeq" => 2147483647};
-
-    var results = [
-        commitAndReload(logger, store, "active", session, true),
-        commitAndReload(logger, store, "history0", SessionLogic.archivedSession(ended), true),
-        commitAndReload(logger, store, "last", cache, true),
-        commitAndReload(logger, store, "routine.worst", routine, true),
-        commitAndReload(logger, store, "config", configV3, true)
-    ];
-    var configSmall = estimateBytes(configV3) < 4096;
-    for (var d = 0; d < domains.size(); d++) {
-        Application.Storage.deleteValue((domains[d] as String) + ".a");
-        Application.Storage.deleteValue((domains[d] as String) + ".b");
-    }
-    clearConfigKeys();
-    return check(logger, results[0], "worst-case active session must commit and reload") &&
-        check(logger, results[1], "worst-case archived history must commit and reload") &&
-        check(logger, results[2], "worst-case last-performance cache must commit and reload") &&
-        check(logger, results[3], "a worst-case 12-entry routine must commit under 32 KB") &&
-        check(logger, results[4] && configSmall, "config v3 must commit and stay small");
-}
-
-// Diagnostic: does the simulator enforce the 32 KB per-value limit? Logs only; asserts nothing.
-(:test)
-function testStorageValueLimitProbe(logger as Test.Logger) as Boolean {
-    // One 8000-char string referenced k times: small heap, k * 8000 bytes when serialized.
-    var chunk = repeatText("x", 8000);
-    var counts = [3, 4, 5, 9, 25, 125];
-    for (var i = 0; i < counts.size(); i++) {
-        var count = counts[i] as Number;
-        var rows = [];
-        for (var j = 0; j < count; j++) {
-            rows.add(chunk);
-        }
-        var outcome = "stored";
-        try {
-            Application.Storage.setValue("probe.value", {"rows" => rows});
-            var back = Application.Storage.getValue("probe.value");
-            outcome = back instanceof Dictionary && back["rows"].size() == count ?
-                "stored and readable" : "stored but not readable";
-        } catch (error) {
-            outcome = "threw " + error.getErrorMessage();
-        }
-        logger.debug("probe ~" + (count * 8).toString() + " KB: " + outcome);
-    }
-    Application.Storage.deleteValue("probe.value");
-    return true;
-}
-
-(:test)
-function testOldConfigSchemaStartsFromDefaults(logger as Test.Logger) as Boolean {
-    var store = new Store();
-    clearConfigKeys();
-    var routines = Catalog.routineTemplates(null);
-    var stored = store.commitPair("config", {"schemaVersion" => 2, "nextSessionSeq" => 5,
-        "settings" => {"defaultRestSec" => 75, "vibrationEnabled" => false},
-        "templateOverrides" => {}, "incrementOverrides" => {},
-        "routines" => routines, "routineNextEntrySeq" => 1});
-    var controller = new SessionController(new Store());
-    var count = controller.routineTemplates().size();
     var rest = controller.defaultRestSec();
-    var error = controller.errorCode();
-    var saved = controller.setVibrationEnabled(true);
-    var config = new Store().loadPair("config");
-    var v3 = config != null && config["schemaVersion"] == 3 && config["nextSessionSeq"] == 5;
-    clearConfigKeys();
-    return check(logger, stored, "the v2 fixture must be a valid stored record") &&
-        check(logger, count == Catalog.routineTemplates(null).size() && rest == 90 &&
-            error == Err.NONE, "an old schema must give default routines and settings, no error") &&
-        check(logger, saved && v3, "the next save must write a v3 config keeping nextSessionSeq");
+    var vibration = controller.vibrationEnabled();
+    var resetSaved = controller.setVibrationEnabled(false);
+    var current = store.loadPair("config");
+    var schemaFour = current != null && current["schemaVersion"] == 4 &&
+        current["nextSessionSeq"] == 5 && current["routineSyncSeq"] == 0 &&
+        (current["routineIds"] as Array).size() == 0;
+    return check(logger, stored && routines.size() == 0 && rest == 90 && vibration &&
+            controller.errorCode() == Err.NONE,
+            "v3 Liftosaur-bound config is discarded in favor of empty v4/default settings") &&
+        check(logger, resetSaved && schemaFour,
+            "the first v4 save preserves nextSessionSeq while resetting sync metadata");
 }
 
 (:test)
-function testRoutineRoundTripThroughFreshController(logger as Test.Logger) as Boolean {
-    clearConfigKeys();
-    var first = new SessionController(new Store());
-    var created = first.createRoutine("Trip A");
-    var renamed = created != null && first.renameRoutine(created as String, "Trip B");
-    var entryId = ((first.routineTemplates()[0] as Dictionary)["entries"] as Array)[0]["entryId"] as String;
-    var edited = first.updateNumericConfig("template", "upper", entryId, "restSec", 33);
-    var second = new SessionController(new Store());
-    var names = "";
-    var routines = second.routineTemplates();
-    for (var i = 0; i < routines.size(); i++) {
-        names += (routines[i] as Dictionary)["name"] as String + "|";
+function testWorstCaseV4StorageCommits(logger as Test.Logger) as Boolean {
+    var store = new UploadMemoryStore();
+    var routine = fixtureWorstRoutine();
+    var routineValid = Catalog.validRoutine(routine);
+    var configForSession = {"routines" => [routine],
+        "settings" => {"defaultRestSec" => Model.MAX_REST_SEC},
+        "templateOverrides" => {}, "incrementOverrides" => {}};
+    var start = 1790752141;
+    var initial = Catalog.createSession(routine["id"] as String,
+        "worst-session", 2147483647, start, null, configForSession);
+    var allDone = initial == null ? null : fixtureCompleteAll(initial as Dictionary, start);
+    if (allDone == null) {
+        return check(logger, false, "maximum v4 routine creates and completes a 60-set workout");
     }
-    var seen = renamed && edited && routines.size() == 3 && names.find("Trip B|") != null &&
-        (second.templateEntry("upper", entryId) as Dictionary)["restSec"] == 33;
-    var deleted = second.deleteRoutine("upper");
-    var third = new SessionController(new Store());
-    var gone = deleted && third.routineTemplates().size() == 2 &&
-        Application.Storage.getValue("routine.upper.a") == null &&
-        Application.Storage.getValue("routine.upper.b") == null;
-    var lower = third.routineTemplates().size() == 2 &&
-        Application.Storage.getValue("routine.lower.a") != null;
-    clearConfigKeys();
-    return check(logger, created != null && seen, "create, rename and edit must persist across controllers") &&
-        check(logger, gone, "delete must persist and remove the routine keys") &&
-        check(logger, lower, "other routine keys must stay");
-}
-
-(:test)
-function testMissingRoutineKeyIsDroppedWithError(logger as Test.Logger) as Boolean {
-    clearConfigKeys();
-    var first = new SessionController(new Store());
-    var saved = first.updateNumericConfig("setting", "", "", "defaultRestSec", 61);
-    Application.Storage.deleteValue("routine.lower.a");
-    Application.Storage.deleteValue("routine.lower.b");
-    var second = new SessionController(new Store());
-    var remaining = second.routineTemplates();
-    var damaged = second.errorCode() == Err.SAVED_SETTINGS_ARE_DAMAGED;
-    var others = remaining.size() == 1 && remaining[0]["id"].equals("upper") &&
-        second.defaultRestSec() == 61;
-    Application.Storage.deleteValue("routine.upper.a");
-    Application.Storage.deleteValue("routine.upper.b");
-    var third = new SessionController(new Store());
-    var none = third.routineTemplates().size() == 0;
-    clearConfigKeys();
-    return check(logger, saved, "the first save must write config and routines") &&
-        check(logger, damaged && others, "a missing routine is dropped, the rest stay usable, error is reported") &&
-        check(logger, none, "with every routine missing the settings are unusable");
-}
-
-function completedExercise(name as String, type as String, load100 as Number?, reps as Number?,
-                           durationSec as Number?) as Dictionary {
-    return {"name" => name, "loadType" => type, "plannedSetCount" => 2, "closedEarly" => false,
-        "slots" => [
-            {"completed" => {"load100" => load100, "reps" => reps, "durationSec" => durationSec}},
-            {"completed" => null}]};
-}
-
-(:test)
-function testFitLapPayloadFromCompletedSet(logger as Test.Logger) as Boolean {
-    var weight = SessionLogic.lapPayload(completedExercise("Row", "weight", 6250, 10, null), 0) as Dictionary;
-    var assist = SessionLogic.lapPayload(completedExercise("Pull-up", "assistance", 2500, 8, null), 0) as Dictionary;
-    var body = SessionLogic.lapPayload(completedExercise("Push-up", "bodyweight", null, 15, null), 0) as Dictionary;
-    var timed = SessionLogic.lapPayload(completedExercise("Plank", "timed", null, null, 45), 0) as Dictionary;
-    var open = SessionLogic.lapPayload(completedExercise("Row", "weight", 6250, 10, null), 1);
-    var long = SessionLogic.truncateBytes(repeatText("é", 40), 64);
-    return check(logger, weight["void"] == 0, "lap payload is not void by default") &&
-        check(logger, weight["weightKg"] == 62.5 && weight["reps"] == 10 && weight["set"] == 1 &&
-            weight["durationSec"] == 0 && weight["name"].equals("Row"),
-            "weight set: kg, reps, 1-based set number") &&
-        check(logger, assist["weightKg"] == -25.0, "assistance is a negative kg offset") &&
-        check(logger, body["weightKg"] == 0.0 && body["reps"] == 15, "bodyweight has 0 kg") &&
-        check(logger, timed["reps"] == 0 && timed["durationSec"] == 45 && timed["weightKg"] == 0.0,
-            "timed set has duration and no reps") &&
-        check(logger, open == null, "an open slot has no lap payload") &&
-        check(logger, Model.byteLength(long) <= 64 && long.length() == 32,
-            "names are truncated to whole characters within 64 bytes");
-}
-
-(:test)
-function testFitLapPayloadGarminCodes(logger as Test.Logger) as Boolean {
-    var session = Catalog.createSession("upper", "garmin-1", 1, 100, null, null) as Dictionary;
-    var row = {"load100" => 5500, "reps" => 9};
-    var done = SessionLogic.completeSet(session, "upper-row", 0, row, 1000) as Dictionary;
-    done = SessionLogic.completeSet(done, "upper-chest", 0, row, 1001) as Dictionary;
-    var rowLap = SessionLogic.lapPayload(
-        (done["exercises"] as Array)[SessionLogic.exerciseIndex(done, "upper-row")] as Dictionary, 0) as Dictionary;
-    var chestLap = SessionLogic.lapPayload(
-        (done["exercises"] as Array)[SessionLogic.exerciseIndex(done, "upper-chest")] as Dictionary, 0) as Dictionary;
-    var plain = SessionLogic.lapPayload(completedExercise("Row", "weight", 6250, 10, null), 0) as Dictionary;
-    return check(logger, rowLap["garminCategory"].equals("ROW") &&
-            rowLap["garminCode"].equals("SEATED_CABLE_ROW") && Model.validStoredSession(done, false),
-            "seed exercise carries its Garmin category and code") &&
-        check(logger, chestLap["garminCategory"].equals("BENCH_PRESS") && chestLap["garminCode"].equals(""),
-            "group-only exercise has an empty code") &&
-        check(logger, plain["garminCategory"].equals("") && plain["garminCode"].equals(""),
-            "exercise without a Garmin mapping has empty category and code");
-}
-
-(:test)
-function testFitSummaryVolume(logger as Test.Logger) as Boolean {
-    var session = {"exercises" => [
-        completedExercise("Row", "weight", 6250, 10, null),
-        completedExercise("Pull-up", "assistance", 2500, 8, null),
-        completedExercise("Plank", "timed", null, null, 45),
-        {"name" => "Skipped", "loadType" => "weight", "plannedSetCount" => 1, "closedEarly" => false,
-            "slots" => [{"completed" => null}]}]};
-    var summary = SessionLogic.fitSummary(session);
-    return check(logger, summary["sets"] == 3, "completed sets are counted") &&
-        check(logger, summary["exercises"] == 3, "exercises without a completed set are not counted") &&
-        check(logger, summary["volumeKg"] == 625.0,
-            "volume is weight x reps for weight exercises only (62.5 x 10)");
-}
-
-(:test)
-function testSetStartAndLog(logger as Test.Logger) as Boolean {
-    var session = Catalog.createSession("upper", "setrun-1", 1, 100, null, null) as Dictionary;
-    var row = {"load100" => 5500, "reps" => 9};
-    var started = SessionLogic.startSet(session, "upper-row", 0, 1000) as Dictionary;
-    var run = started["setRun"] as Dictionary;
-    var doubleStart = SessionLogic.startSet(started, "upper-row", 0, 1001);
-    var logged = SessionLogic.completeSet(started, "upper-row", 0, row, 1042) as Dictionary;
-    var exercise = (logged["exercises"] as Array)[SessionLogic.exerciseIndex(logged, "upper-row")] as Dictionary;
-    var completed = ((exercise["slots"] as Array)[0] as Dictionary)["completed"] as Dictionary;
-    var payload = SessionLogic.lapPayload(exercise, 0) as Dictionary;
-    var plain = SessionLogic.completeSet(session, "upper-row", 0, row, 1042) as Dictionary;
-    var plainExercise = (plain["exercises"] as Array)[SessionLogic.exerciseIndex(plain, "upper-row")] as Dictionary;
-    var otherSlot = SessionLogic.completeSet(started, "upper-row", 1, row, 1042) as Dictionary;
-    var replaced = SessionLogic.startSet(started, "upper-chest", 0, 1010) as Dictionary;
-    return check(logger, run["entryId"].equals("upper-row") && run["slot"] == 0 &&
-            run["startedAt"] == 1000 && session["setRun"] == null && Model.validStoredSession(started, false),
-            "start records the set run and leaves the input untouched") &&
-        check(logger, doubleStart != null && doubleStart["setRun"]["startedAt"] == 1001,
-            "starting again replaces the running set") &&
-        check(logger, replaced["setRun"]["entryId"].equals("upper-chest") &&
-            Model.validStoredSession(replaced, false),
-            "a set on another exercise replaces the running set") &&
-        check(logger, completed["activeSec"] == 42 && payload["activeSec"] == 42 &&
-            logged["setRun"] == null && Model.validStoredSession(logged, false),
-            "logging a started set stores activeSec and clears the run") &&
-        check(logger, SessionLogic.lapPayload(plainExercise, 0)["activeSec"] == 0,
-            "logging without a start has unknown (0) activeSec") &&
-        check(logger, otherSlot["setRun"] != null && otherSlot["setRun"]["slot"] == 0 &&
-            Model.validStoredSession(otherSlot, false) &&
-            ((((otherSlot["exercises"] as Array)[SessionLogic.exerciseIndex(otherSlot, "upper-row")]
-                as Dictionary)["slots"] as Array)[1]["completed"]["activeSec"]) == null,
-            "logging another slot keeps the running set and does not use its start time");
-}
-
-(:test)
-function testSetStartEndsRestAndRejectsInvalid(logger as Test.Logger) as Boolean {
-    var session = Catalog.createSession("upper", "setrun-2", 1, 100, null, null) as Dictionary;
-    var row = {"load100" => 5500, "reps" => 9};
-    var resting = SessionLogic.completeSet(session, "upper-row", 0, row, 1000) as Dictionary;
-    var started = SessionLogic.startSet(resting, "upper-row", 1, 1005) as Dictionary;
-    var timedStart = SessionLogic.startSet(session, "lower-dead-bug", 0, 1000);
-    var timedSession = Catalog.createSession("lower", "setrun-3", 1, 100, null, null) as Dictionary;
-    var timedRejected = SessionLogic.startSet(timedSession, "lower-dead-bug", 0, 1000) == null;
-    return check(logger, Model.sameString(resting["rest"]["state"], "running") &&
-            Model.sameString(started["rest"]["state"], "dismissed"),
-            "starting a set dismisses the running rest") &&
-        check(logger, SessionLogic.startSet(session, "nope", 0, 1000) == null &&
-            SessionLogic.startSet(session, "upper-row", 99, 1000) == null &&
-            SessionLogic.startSet(resting, "upper-row", 0, 1005) == null &&
-            SessionLogic.startSet(session, "upper-row", 0, -1) == null,
-            "unknown exercise, bad slot, completed slot and bad time are rejected") &&
-        check(logger, timedStart == null && timedRejected, "timed exercises keep their own timer flow");
-}
-
-(:test)
-function testStoredSetRunValidation(logger as Test.Logger) as Boolean {
-    var session = Catalog.createSession("lower", "setrun-4", 1, 100, null, null) as Dictionary;
-    var good = SessionLogic.copyDictionary(session);
-    good["setRun"] = {"entryId" => "lower-leg-press", "slot" => 0, "startedAt" => 5};
-    var bad = [
-        {"entryId" => "lower-leg-press", "slot" => 99, "startedAt" => 5},
-        {"entryId" => "missing", "slot" => 0, "startedAt" => 5},
-        {"entryId" => "lower-dead-bug", "slot" => 0, "startedAt" => 5},
-        {"entryId" => "lower-leg-press", "slot" => 0, "startedAt" => -5},
-        "junk"];
-    var ok = true;
-    for (var i = 0; i < bad.size(); i++) {
-        var candidate = SessionLogic.copyDictionary(session);
-        candidate["setRun"] = bad[i];
-        ok = ok && !Model.validStoredSession(candidate, false);
+    var active = allDone as Dictionary;
+    var validActive = Model.validStoredSession(active, false);
+    var ended = SessionLogic.copyDictionary(active);
+    ended["status"] = "completed";
+    ended["endedAt"] = start + 100;
+    ended["elapsedSec"] = 100;
+    ended["activeSec"] = 100;
+    ended["completionKind"] = "full";
+    var archive = SessionLogic.archivedSession(ended);
+    var cache = LastPerformance.merge(null, archive);
+    var ids = [] as Array<String>;
+    for (var i = 0; i < Model.MAX_TEMPLATES; i++) {
+        ids.add("r" + fixtureRepeat("i", 37) + i.toString());
     }
-    return check(logger, Model.validStoredSession(session, false) && Model.validStoredSession(good, false),
-            "sessions without or with a valid setRun are valid") &&
-        check(logger, ok, "malformed or mismatched setRun is rejected");
-}
-
-(:test)
-function testUndoClearsSetRun(logger as Test.Logger) as Boolean {
-    var session = Catalog.createSession("upper", "setrun-4", 1, 100, null, null) as Dictionary;
-    var row = {"load100" => 5500, "reps" => 9};
-    var done = SessionLogic.completeSet(session, "upper-row", 0, row, 1000) as Dictionary;
-    var started = SessionLogic.startSet(done, "upper-row", 1, 1005) as Dictionary;
-    var undone = SessionLogic.undoSet(started, "upper-row", 0) as Dictionary;
-    var redone = SessionLogic.completeSet(undone, "upper-row", 0, row, 1100) as Dictionary;
-    var next = SessionLogic.nextSlot(
-        (started["exercises"] as Array)[SessionLogic.exerciseIndex(started, "upper-row")] as Dictionary);
-    var nextAfterUndo = SessionLogic.nextSlot(
-        (undone["exercises"] as Array)[SessionLogic.exerciseIndex(undone, "upper-row")] as Dictionary);
-    return check(logger, started["setRun"] != null && undone["setRun"] == null &&
-            Model.validStoredSession(undone, false), "undo clears the running set") &&
-        check(logger, SessionLogic.setRunMatches(started, "upper-row", next) &&
-            !SessionLogic.setRunMatches(started, "upper-row", nextAfterUndo) &&
-            redone["setRun"] == null, "a stale set run never matches the next slot");
-}
-
-(:test)
-function testStartTimedReplacesSetRunAndEndsRest(logger as Test.Logger) as Boolean {
-    var session = Catalog.createSession("lower", "timed-2", 1, 100, null, null) as Dictionary;
-    var row = {"load100" => 5500, "reps" => 9};
-    var resting = SessionLogic.completeSet(session, "lower-leg-press", 0, row, 1000) as Dictionary;
-    var started = SessionLogic.startSet(resting, "lower-leg-press", 1, 1002) as Dictionary;
-    var timed = SessionLogic.startTimed(started, "lower-dead-bug", 0, 1005) as Dictionary;
-    var timedWhileResting = SessionLogic.startTimed(resting, "lower-dead-bug", 0, 1005) as Dictionary;
-    var rejected = SessionLogic.startSet(timed, "lower-leg-press", 1, 1010);
-    return check(logger, started["setRun"] != null && timed["setRun"] == null &&
-            timed["timedRun"] != null && Model.validStoredSession(timed, false),
-            "starting a timed set clears a started plain set") &&
-        check(logger, Model.sameString(resting["rest"]["state"], "running") &&
-            Model.sameString(timedWhileResting["rest"]["state"], "dismissed"),
-            "starting a timed set ends a running rest") &&
-        check(logger, rejected == null, "a plain set cannot start while a timed set runs");
-}
-
-(:test)
-function testExerciseForEntryCurrentDefinitionWins(logger as Test.Logger) as Boolean {
-    var seedEntry = {"exerciseId" => "machine-chest-press", "name" => "Machine Chest Press",
-        "loadType" => "weight", "unit" => "kg", "garminCategory" => "BENCH_PRESS",
-        "garminCode" => "BENCH_PRESS"};
-    var seedDefinition = Catalog.exerciseForEntry(seedEntry) as Dictionary;
-    var catalogEntry = {"exerciseId" => "g04-3-way-calf-raise", "name" => "3 Way Calf Raise",
-        "loadType" => "weight", "unit" => "kg", "garminCategory" => "CALF_RAISE",
-        "garminCode" => "_3_WAY_CALF_RAISE"};
-    var oldStyle = {"exerciseId" => "g-22f9fcbbd5af", "name" => "3 Way Calf Raise",
-        "loadType" => "weight", "unit" => "kg", "garminCategory" => "CALF_RAISE",
-        "garminCode" => "_3_WAY_CALF_RAISE"};
-    var catalogDefinition = Catalog.exerciseForEntry(catalogEntry) as Dictionary;
-    var unknown = {"exerciseId" => "g-000000000000", "name" => "Gone", "loadType" => "weight",
-        "unit" => "kg", "garminCategory" => "CALF_RAISE", "garminCode" => "KEPT"};
-    var custom = {"exerciseId" => "custom-1", "name" => "Mine", "loadType" => "weight",
-        "unit" => "kg", "garminCategory" => "CALF_RAISE", "garminCode" => "KEPT"};
-    return check(logger, seedDefinition["garminCategory"].equals("BENCH_PRESS") &&
-            seedDefinition["garminCode"] == null, "seed mapping wins over a stored code") &&
-        check(logger, catalogDefinition["garminCode"].equals("3_WAY_CALF_RAISE") &&
-            catalogDefinition["garminCategory"].equals("CALF_RAISE"),
-            "catalog entry uses the current catalog code") &&
-        check(logger, Catalog.exerciseForEntry(oldStyle)["garminCode"].equals("_3_WAY_CALF_RAISE") &&
-            Catalog.exerciseForEntry(oldStyle)["name"].equals("3 Way Calf Raise"),
-            "an old g-<hex> id keeps its stored name and code") &&
-        check(logger, Catalog.exerciseForEntry(unknown)["garminCode"].equals("KEPT") &&
-            Catalog.exerciseForEntry(custom)["garminCode"].equals("KEPT"),
-            "entries missing from the catalog keep their stored code");
-}
-
-(:test)
-function testGarminEntryParsing(logger as Test.Logger) as Boolean {
-    var parts = Catalog.splitList("A_B,CD*,EF!,GH*!");
-    var digits = Catalog.garminExercise(Catalog.garminCategoryIndex("CALF_RAISE"), "g04-3-way-calf-raise");
-    var index = Catalog.garminCategoryIndex("BENCH_PRESS");
-    var groupOnly = Catalog.garminExercise(index, Catalog.garminId(index, "BENCH_PRESS"));
-    return check(logger, parts.size() == 4 && parts[3].equals("GH*!") &&
-            Catalog.entryCode("GH*!").equals("GH") && Catalog.entryFlag("CD*", "*") &&
-            !Catalog.entryFlag("CD*", "!"), "list split and suffix flags") &&
-        check(logger, Catalog.titleCase("3_WAY_CALF_RAISE").equals("3 Way Calf Raise") &&
-            Catalog.titleCase("_45_DEGREE_PLANK").equals("45 Degree Plank") &&
-            Catalog.garminCategoryName(Catalog.garminCategoryIndex("BENCH_PRESS")).equals("Bench Press"),
-            "names are title case with leading underscores dropped") &&
-        check(logger, Catalog.garminId(4, "3_WAY_CALF_RAISE").equals("g04-3-way-calf-raise") &&
-            Catalog.garminId(15, "WEIGHTED_SINGLE_LEG_HIP_RAISE_WITH_FEET_ON_A_SWISS_BALL").length() == 40,
-            "id scheme") &&
-        check(logger, digits != null && digits["name"].equals("3 Way Calf Raise") && digits["code"].equals("3_WAY_CALF_RAISE"),
-            "leading-digit FIT code without its Connect underscore") &&
-        check(logger, groupOnly != null && groupOnly["code"] == null &&
-            groupOnly["category"].equals("BENCH_PRESS") && groupOnly["name"].equals("Bench Press"),
-            "a ! entry is group-only (code null) but keeps its name and id") &&
-        check(logger, Catalog.garminName("BENCH_PRESS", "BARBELL_BENCH_PRESS").equals("Barbell Bench Press"),
-            "garminName derives the name from the code");
-}
-
-(:test)
-function testGarminIdsUniqueAndValid(logger as Test.Logger) as Boolean {
-    var seen = {};
-    var total = 0;
-    var bodyWeight = 0;
-    var categories = Catalog.garminCategories();
-    for (var c = 0; c < categories.size(); c++) {
-        var count = Catalog.garminEntries(c).size();
-        for (var i = 0; i < count; i++) {
-            var row = Catalog.garminRow(c, i);
-            var id = row["id"] as String;
-            if (!check(logger, Model.validId(id) && seen[id] == null && row["name"].length() > 0,
-                "catalog id must be valid and unique: " + id)) {
-                return false;
-            }
-            seen[id] = true;
-            total++;
-            bodyWeight += row["isBodyWeight"] == true ? 1 : 0;
-        }
-    }
-    return check(logger, categories.size() == 47 && total == 1531 && bodyWeight == 378,
-        "catalog size " + total.toString() + " bodyweight " + bodyWeight.toString());
+    var config = {"schemaVersion" => 4, "nextSessionSeq" => 2147483647,
+        "settings" => {"defaultRestSec" => Model.MAX_REST_SEC, "vibrationEnabled" => true},
+        "templateOverrides" => {}, "incrementOverrides" => {}, "routineIds" => ids,
+        "routineSyncSeq" => 2147483647, "programId" => fixtureRepeat("P", 64),
+        "programName" => fixtureRepeat("G", 64), "nextRoutineId" => ids[0]};
+    var routineStored = fixtureCommitSize(logger, store, "routine." + routine["id"], routine);
+    var configStored = fixtureCommitSize(logger, store, "config", config);
+    var activeStored = fixtureCommitSize(logger, store, "active", active);
+    var historyStored = fixtureCommitSize(logger, store, "history0", archive);
+    var cacheStored = fixtureCommitSize(logger, store, "last", cache);
+    return check(logger, routineValid && routineStored,
+            "a 12-entry routine with 60 targets and maximum field lengths fits one Store domain") &&
+        check(logger, configStored && fixtureEstimateBytes(config) < 4096,
+            "the v4 config with eight maximum-length routine IDs remains small") &&
+        check(logger, validActive && activeStored && historyStored && cacheStored,
+            "worst-case 60-set active, archived, and last-performance records commit and reload");
 }

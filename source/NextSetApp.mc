@@ -15,6 +15,8 @@ class NextSetApp extends Application.AppBase {
     private var _finishPending as Boolean = false;
     private var _startRoutineId as String? = null;
     private var _suppressFirstAlert as Boolean = false;
+    // In-memory time of the last START-logged set; shared so the 800 ms guard survives view switches.
+    public var lastSetSavedAt as Number? = null;
     private var _afterEntryTemplateId as String? = null;
     private var _afterEntryMessage as String? = null;
 
@@ -27,6 +29,7 @@ class NextSetApp extends Application.AppBase {
 
     public function onStart(state as Dictionary?) as Void {
         AppBase.onStart(state);
+        _controller.retryUploads();
         if (_controller.hasPendingFinalization()) {
             retryPendingFinalization();
         } else if (_controller.isWorkoutRunning()) {
@@ -171,6 +174,7 @@ class NextSetApp extends Application.AppBase {
         if (_controller.advanceFinalization()) {
             var session = _controller.session() as Dictionary;
             Navigator.finalized(session["status"] as String);
+            _controller.retryUploads();
         } else if (_controller.errorMessage() == null) {
             retryPendingFinalization();
         } else {
@@ -189,11 +193,7 @@ class NextSetApp extends Application.AppBase {
         }
         _controller.cancelWorkoutStart();
         var code = _controller.errorCode();
-        if (templateId != null && code == Err.ROUTINE_HAS_NO_EXERCISES) {
-            Navigator.editTemplate(templateId as String);
-        } else {
-            Navigator.home();
-        }
+        Navigator.home();
     }
 
     public function onTick() as Void {
@@ -202,7 +202,14 @@ class NextSetApp extends Application.AppBase {
             return;
         }
         var vibrate = _controller.onTick(Time.now().value(), !_suppressFirstAlert);
+        var preAlert = _controller.takePreRestAlert(Time.now().value(), !_suppressFirstAlert);
         _suppressFirstAlert = false;
+        if (preAlert && _controller.vibrationEnabled() && Attention has :vibrate) {
+            try {
+                Attention.vibrate([new Attention.VibeProfile(100, 250)]);
+            } catch (error) {
+            }
+        }
         if (vibrate && _controller.vibrationEnabled() && Attention has :vibrate) {
             try {
                 Attention.vibrate([new Attention.VibeProfile(100, 1000)]);

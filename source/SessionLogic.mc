@@ -1,6 +1,11 @@
 import Toybox.Lang;
 
 module SessionLogic {
+    function routineSyncAlreadyCommitted(syncSequence as Number,
+                                         configSequence as Number) as Boolean {
+        return configSequence >= syncSequence;
+    }
+
     function copyDictionary(source as Dictionary) as Dictionary {
         var copy = {};
         var keys = source.keys();
@@ -331,7 +336,13 @@ module SessionLogic {
             session["restGeneration"] as Number : 0;
         var restGeneration = currentRestGeneration + 1;
         candidate["restGeneration"] = restGeneration;
-        candidate["rest"] = nextSlot(changedExercise) >= 0 ? RestClock.create(
+        var wantRest = nextSlot(changedExercise) >= 0;
+        if (inSuperset(changedExercise)) {
+            // Superset: rest only when the round ends (next member wraps) or the group is done.
+            var following = supersetNext(candidate, entryId);
+            wantRest = following != null && supersetWraps(candidate, entryId, following as String);
+        }
+        candidate["rest"] = wantRest ? RestClock.create(
             restGeneration,
             entryId,
             slotIndex,
@@ -348,8 +359,16 @@ module SessionLogic {
     function updateFollowingLoads(exercise as Dictionary, slotIndex as Number,
                                   load100 as Number) as Void {
         var slots = exercise["slots"] as Array;
+        var targets = exercise["planTargets"];
+        var sourceTarget = targets instanceof Array && slotIndex < (targets as Array).size() ?
+            (targets as Array)[slotIndex] as Dictionary : null;
         for (var i = slotIndex + 1; i < slots.size(); i++) {
             if (slots[i]["completed"] != null) {
+                continue;
+            }
+            if (sourceTarget != null && targets instanceof Array &&
+                i < (targets as Array).size() &&
+                (targets as Array)[i]["load100"] != sourceTarget["load100"]) {
                 continue;
             }
             var following = copyDictionary(slots[i] as Dictionary);
@@ -542,6 +561,99 @@ module SessionLogic {
         return candidate;
     }
 
+    function inSuperset(exercise as Dictionary) as Boolean {
+        var label = exercise["superset"];
+        return label instanceof String && (label as String).length() > 0;
+    }
+
+    function sameGroup(first as Dictionary, second as Dictionary) as Boolean {
+        return inSuperset(first) && Model.sameString(first["superset"], second["superset"]);
+    }
+
+    // Round-robin: the next group member (routine order, wrapping, the exercise itself last)
+    // that still has an open set; null when the exercise is ungrouped or the group is done.
+    function supersetNext(session as Dictionary, entryId as String) as String? {
+        var index = exerciseIndex(session, entryId);
+        if (index < 0) {
+            return null;
+        }
+        var exercises = session["exercises"] as Array;
+        var current = exercises[index] as Dictionary;
+        if (!inSuperset(current)) {
+            return null;
+        }
+        for (var offset = 1; offset <= exercises.size(); offset++) {
+            var item = exercises[(index + offset) % exercises.size()] as Dictionary;
+            if (sameGroup(current, item) && nextSlot(item) >= 0) {
+                return item["entryId"] as String;
+            }
+        }
+        return null;
+    }
+
+    function supersetWraps(session as Dictionary, entryId as String, nextId as String) as Boolean {
+        return exerciseIndex(session, nextId) <= exerciseIndex(session, entryId);
+    }
+
+    // "A1" for the first member of group A, "A2" for the second...; null when ungrouped.
+    function supersetLabel(session as Dictionary, index as Number) as String? {
+        var exercises = session["exercises"] as Array;
+        var current = exercises[index] as Dictionary;
+        if (!inSuperset(current)) {
+            return null;
+        }
+        var position = 1;
+        for (var i = 0; i < index; i++) {
+            if (sameGroup(current, exercises[i] as Dictionary)) {
+                position++;
+            }
+        }
+        return (current["superset"] as String) + position.toString();
+    }
+
+    // The exercise whose last logged set "Edit last set" should change: the session's latest set
+    // when it belongs to this exercise's superset, else this exercise's own last set.
+    function lastEditEntryId(session as Dictionary, entryId as String) as String? {
+        var pointer = session["lastCompleted"];
+        var own = exerciseIndex(session, entryId);
+        if (own < 0) {
+            return null;
+        }
+        var exercises = session["exercises"] as Array;
+        if (pointer instanceof Dictionary && !Model.sameString(pointer["entryId"], entryId)) {
+            var other = exerciseIndex(session, pointer["entryId"] as String);
+            if (other >= 0 && sameGroup(exercises[own] as Dictionary, exercises[other] as Dictionary) &&
+                completedCount(exercises[other] as Dictionary) > 0) {
+                return pointer["entryId"] as String;
+            }
+        }
+        return completedCount(exercises[own] as Dictionary) > 0 ? entryId : null;
+    }
+
+    // Where the lifter goes after the rest that follows entryId: the next open set, or null.
+    function nextUp(session as Dictionary, entryId as String) as Dictionary? {
+        var index = exerciseIndex(session, entryId);
+        if (index < 0) {
+            return null;
+        }
+        var exercises = session["exercises"] as Array;
+        var targetId = supersetNext(session, entryId);
+        if (targetId == null && nextSlot(exercises[index] as Dictionary) >= 0) {
+            targetId = entryId;
+        }
+        for (var offset = 1; targetId == null && offset < exercises.size(); offset++) {
+            var item = exercises[(index + offset) % exercises.size()] as Dictionary;
+            if (nextSlot(item) >= 0) {
+                targetId = item["entryId"] as String;
+            }
+        }
+        if (targetId == null) {
+            return null;
+        }
+        var target = exercises[exerciseIndex(session, targetId as String)] as Dictionary;
+        return {"entryId" => targetId, "slot" => nextSlot(target)};
+    }
+
     function completedCount(exercise as Dictionary) as Number {
         var count = 0;
         var slots = exercise["slots"] as Array;
@@ -640,7 +752,6 @@ module SessionLogic {
     // 0 when they do not apply. activeSec is the set time: the measured duration for timed sets,
     // else the start-to-log time (0 when the set was not started explicitly, i.e. unknown).
     // "void" is 1 only for the lap that retracts an undone set (set by the controller).
-    // garminCategory/garminCode identify the exercise for Garmin Connect ("" when unmapped or group-only).
     function lapPayload(exercise as Dictionary, slotIndex as Number) as Dictionary? {
         var completed = ((exercise["slots"] as Array)[slotIndex] as Dictionary)["completed"];
         if (!(completed instanceof Dictionary)) {
@@ -654,12 +765,8 @@ module SessionLogic {
         } else if (!Model.sameString(type, "weight")) {
             kg = 0.0;
         }
-        var category = exercise["garminCategory"];
-        var code = exercise["garminCode"];
         return {
             "name" => truncateBytes(exercise["name"] as String, 64),
-            "garminCategory" => category instanceof String ? truncateBytes(category as String, 23) : "",
-            "garminCode" => code instanceof String ? truncateBytes(code as String, 64) : "",
             "set" => slotIndex + 1,
             "void" => 0,
             "reps" => completed["reps"] instanceof Number ? completed["reps"] as Number : 0,

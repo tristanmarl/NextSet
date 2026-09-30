@@ -76,10 +76,14 @@ class ExerciseView extends WatchUi.View {
         if (restStatus == null && slot >= 0) {
             restStatus = UiFormat.restStatus(session as Dictionary);
         }
+        var nextUp = restStatus == null || UiFormat.setStatus(session as Dictionary, _entryId) != null ?
+            null : UiFormat.nextUpLine(session as Dictionary);
         var last = slot < 0 || restStatus != null ? null : UiFormat.lastLine(current, slot);
+        var warmups = slot < 0 || restStatus != null ? null : UiFormat.warmupsLine(current);
         // Target is lowest priority: only shown when notes and messages leave room.
         var target = slot < 0 || restStatus != null || _message != null ||
-            current["notes"] instanceof String ? null : UiFormat.targetLine(current, slot);
+            current["notes"] instanceof String || warmups != null ? null :
+            UiFormat.targetLine(current, slot);
         if (slot < 0) {
             mainHeight = titleLines.size() * titleHeight + 8 + dc.getFontHeight(Graphics.FONT_SMALL) +
                 4 + dc.getFontHeight(Graphics.FONT_SMALL);
@@ -87,6 +91,9 @@ class ExerciseView extends WatchUi.View {
             mainHeight += 8 + dc.getFontHeight(caption);
             if (restStatus != null) {
                 mainHeight += dc.getFontHeight(Graphics.FONT_SMALL) + 3;
+                if (nextUp != null) {
+                    mainHeight += dc.getFontHeight(caption) + 2;
+                }
             } else {
                 if (last != null) {
                     mainHeight += dc.getFontHeight(caption) + 2;
@@ -95,6 +102,8 @@ class ExerciseView extends WatchUi.View {
                     mainHeight += dc.getFontHeight(caption) + 2;
                 }
                 if (current["notes"] instanceof String) {
+                    mainHeight += dc.getFontHeight(caption) + 2;
+                } else if (warmups != null) {
                     mainHeight += dc.getFontHeight(caption) + 2;
                 }
                 if (_message != null) {
@@ -115,8 +124,9 @@ class ExerciseView extends WatchUi.View {
         }
 
         y += 4;
+        var range = UiFormat.repRange(current, slot);
         y = UiFormat.drawLine(dc, "Set " + (slot + 1).toString() + "/" +
-            planned.toString(), y, setFont) + 7;
+            planned.toString() + (range == null ? "" : " · " + range), y, setFont) + 7;
         var value = exerciseLine(session as Dictionary, current, slot);
         var valueY = y;
         var visibleValue = UiFormat.safeText(dc, value, valueY, valueFont);
@@ -152,6 +162,9 @@ class ExerciseView extends WatchUi.View {
             dc.setColor(Graphics.COLOR_YELLOW, Graphics.COLOR_BLACK);
             y = UiFormat.drawLine(dc, restStatus as String, y, Graphics.FONT_SMALL) + 3;
             dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+            if (nextUp != null) {
+                y = UiFormat.drawLine(dc, nextUp as String, y, caption) + 2;
+            }
         }
         if (last != null) {
             y = UiFormat.drawLine(dc, last as String, y, caption) + 2;
@@ -161,6 +174,8 @@ class ExerciseView extends WatchUi.View {
         }
         if (restStatus == null && current["notes"] instanceof String) {
             y = UiFormat.drawLine(dc, current["notes"] as String, y, caption) + 2;
+        } else if (restStatus == null && warmups != null) {
+            y = UiFormat.drawLine(dc, warmups as String, y, caption) + 2;
         }
         if (restStatus == null && _message != null) {
             y = UiFormat.drawLine(dc, _message as String, y, caption) + 2;
@@ -214,18 +229,29 @@ class ExerciseView extends WatchUi.View {
             run["slot"] == slotIndex) {
             var elapsed = getApp().controller().timedElapsed(Time.now().value());
             return "RUN  " + elapsed.toString() + "/" +
-                exercise["targetDurationSec"].toString() + " sec";
+                targetDurationSec(exercise, slotIndex).toString() + " sec";
         }
         var draft = (exercise["slots"] as Array)[slotIndex]["draft"] as Dictionary;
         if (draft["measuredSec"] instanceof Number && draft["measuredSec"] > 0) {
             return "PAUSED  " + draft["measuredSec"].toString() + "/" +
-                exercise["targetDurationSec"].toString() + " sec";
+                targetDurationSec(exercise, slotIndex).toString() + " sec";
         }
         if (draft["durationEdited"] == true) {
             return "MANUAL  " + draft["durationSec"].toString() + "/" +
-                exercise["targetDurationSec"].toString() + " sec";
+                targetDurationSec(exercise, slotIndex).toString() + " sec";
         }
-        return "TARGET  " + exercise["targetDurationSec"].toString() + " sec";
+        return "TARGET  " + targetDurationSec(exercise, slotIndex).toString() + " sec";
+    }
+
+    private function targetDurationSec(exercise as Dictionary, slotIndex as Number) as Number {
+        var targets = exercise["planTargets"];
+        if (targets instanceof Array && slotIndex >= 0 && slotIndex < (targets as Array).size()) {
+            var value = (targets as Array)[slotIndex]["durationSec"];
+            if (value instanceof Number) {
+                return value as Number;
+            }
+        }
+        return exercise["targetDurationSec"] as Number;
     }
 
     public function adjustDraft(direction as Number) as Void {
@@ -360,6 +386,12 @@ class ExerciseView extends WatchUi.View {
             return;
         }
         var exercise = UiFormat.exercise(session as Dictionary, _entryId);
+        var following = SessionLogic.supersetNext(session as Dictionary, _entryId);
+        if (following != null && !Model.sameString(following, _entryId)) {
+            // Superset: replace this view with the next member; BACK still returns to Overview.
+            Navigator.switchToExercise(following as String);
+            return;
+        }
         if (exercise == null || SessionLogic.nextSlot(exercise as Dictionary) >= 0) {
             WatchUi.requestUpdate();
             return;
@@ -376,7 +408,6 @@ class ExerciseView extends WatchUi.View {
 class ExerciseDelegate extends WatchUi.BehaviorDelegate {
     private var _view as ExerciseView;
     private var _armed as Boolean = true;
-    private var _lastSavedAt as Number? = null;
 
     public function initialize(view as ExerciseView) {
         _view = view;
@@ -387,10 +418,11 @@ class ExerciseDelegate extends WatchUi.BehaviorDelegate {
         var key = event.getKey();
         if (key == KEY_ENTER) {
             var now = System.getTimer();
-            var tooSoon = _lastSavedAt != null && now >= (_lastSavedAt as Number) &&
-                now - (_lastSavedAt as Number) < 800;
+            var lastSavedAt = getApp().lastSetSavedAt;
+            var tooSoon = lastSavedAt != null && now >= (lastSavedAt as Number) &&
+                now - (lastSavedAt as Number) < 800;
             if (_armed && !tooSoon && _view.completeDraft(true)) {
-                _lastSavedAt = now;
+                getApp().lastSetSavedAt = now;
             }
             _armed = false;
             return true;

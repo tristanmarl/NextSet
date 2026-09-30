@@ -56,6 +56,10 @@ class OverviewView extends WatchUi.View {
         }
         var focused = exercises[_selectedIndex] as Dictionary;
         var focusTitle = focused["name"] as String;
+        var groupLabel = SessionLogic.supersetLabel(current, _selectedIndex);
+        if (groupLabel != null) {
+            focusTitle = (groupLabel as String) + " " + focusTitle;
+        }
         var titleFont = Graphics.FONT_SMALL;
         var countFont = Graphics.FONT_LARGE;
         var gap = 8;
@@ -80,8 +84,9 @@ class OverviewView extends WatchUi.View {
         UiFormat.drawLine(dc, count, countY, countFont);
         var y = countY + dc.getFontHeight(countFont) + 3;
         if (nextSlot >= 0) {
-            y = UiFormat.drawLine(dc, "Next: " + UiFormat.draftLine(focused, nextSlot), y,
-                footerFont) + 2;
+            var range = UiFormat.repRange(focused, nextSlot);
+            y = UiFormat.drawLine(dc, "Next: " + UiFormat.draftLine(focused, nextSlot) +
+                (range == null ? "" : " (" + range + ")"), y, footerFont) + 2;
         }
         var totals = SessionLogic.totals(current);
         y = UiFormat.drawLine(dc, totals["done"].toString() + "/" + totals["planned"].toString() +

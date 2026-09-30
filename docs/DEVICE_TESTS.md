@@ -1,16 +1,27 @@
 # Device and simulator evidence
 
-Status reflects evidence actually recorded in this thread. Simulator checks do not count as FR965 hardware acceptance.
+Status reflects evidence actually recorded in this thread. Simulator checks do not count as FR965 hardware acceptance. The catalog, seeded routines, Garmin exercise picker, and NAS write-back described in older entries are pre-0.2.8 behavior; they are retired and those results do not validate direct Liftosaur sync.
 
 ## Implementation status
 
-The app keeps NextSet workout state and set details in local app storage. The working tree includes editable Upper/Lower routines, the bundled 47-category/1,531-exercise Garmin catalog, seeded mappings, set logging and correction, rest and timed-set clocks, workout pause/resume and checkpoint recovery, overview navigation, a bounded read-only history, and last-performance prefill.
+The working tree now syncs routines from Liftosaur, caches per-set targets, and queues finalized workouts for direct upload. The API key is entered as a Connect IQ app setting. Upload work is persisted and capped at four pending jobs. Config schema v4 resets older routine/config data; sync the active Liftosaur program after upgrading. See [README.md](../README.md) for the user flow and [PHASE2_HANDOVER.md](PHASE2_HANDOVER.md) for the architecture.
 
-Routine management now lists saved routines, creates blank routines through Garmin's native TextPicker, opens the empty routine editor, and permits confirmed deletion of custom routines while retaining Upper and Lower. Editor lists use one saved-config snapshot; starting an empty routine is rejected before the session sequence is reserved or recording begins.
+NextSet still records a Garmin FIT activity using sport `TRAINING` and sub-sport `GENERIC`. Local completed set details remain in watch history. Earlier physical checks of FIT activity recording and the Generic sub-sport are retained below, but the current-version FIT output, direct sync, upload queue, and Liftosaur progression have not yet been accepted on a watch.
 
-The production code creates a `Toybox.ActivityRecording.Session` using sport `TRAINING` and sub-sport `GENERIC` (changed from `STRENGTH_TRAINING` on 2026-09-30, see below); a completed routine calls `save()`. Explicit pause/resume stops and restarts the same session handle, then completion saves it once. A controlled app stop saves the current segment because the SDK handle cannot be restored after process loss; a later resume may create another activity. A crash or ambiguous save cannot be reliably queried, so the app marks that result unknown and does not retry it automatically. NextSet's detailed completed sets remain in its local history. A short physical-watch activity was inspected on 2026-09-29; Garmin Connect presentation and native per-exercise set rendering remain unverified.
+## Direct Liftosaur integration — PENDING (2026-09-30)
 
-Workout finalization now persists a `finalizing` boundary, then advances one durable step per timer callback: resolve the FIT save marker, archive history, update prefill cache, and write an active-session tombstone. The compact history keeps the fields used by History and cache reconstruction, plus completed set actuals; it drops drafts and unused exercise snapshot fields. Store validates saved payload structure before recovery and preserves a valid older generation when the newer one is invalid. Failed settings migration, recorder state, history, cache, and tombstone writes leave the in-memory session at the last successfully committed state and expose a retryable error. The last-performance cache is capped at 32 entries; malformed entries are omitted individually when loading.
+No physical FR965 acceptance result is recorded yet (simulator unit tests: see the 2026-09-30 entry at the end). No real Liftosaur workout POST has been made, this work has not been merged to `main`, and no acceptance check should make a live write before explicit user approval.
+
+- [ ] **PENDING** Enter the key in Connect IQ app settings; confirm it is masked, omitted from watch UI/logs, and accepted by a routine sync on a paired phone.
+- [ ] **PENDING** Sync a multi-day active program; check the day names, per-set reps/load, warmups, cached routines after relaunch, and whether Home's selected day matches Liftosaur's next-day pointer. Repeat a sync to confirm it replaces the routine snapshot cleanly.
+- [ ] **PENDING** After syncing, log with the phone disconnected; confirm the watch uses cached targets and local history/FIT finalization still succeeds.
+- [ ] **PENDING** With explicit approval for a real write, finish one controlled workout and verify Liftosaur history, progression, and substitution notes, including skipped sets, assistance, timed sets, and unilateral exercises. Confirm one upload only.
+- [ ] **PENDING** Finish offline, relaunch, reconnect and retry; verify the durable queue uploads exactly once. Repeat with app exit between start, sets, and finish.
+- [ ] **PENDING** Verify Settings shows pending upload count and retry; fill the four-job queue and confirm a new workout cannot start until it clears.
+- [ ] **PENDING** Measure full-program response memory on the FR965 and check oversized/error responses leave the watch usable. Record peak memory separately from response parsing estimates.
+- [ ] **PENDING** Inspect a current FIT after workout completion and after app stop/relaunch; check activity type, duration/HR, lap fields, and whether Connect displays custom fields. Do not claim native per-exercise strength rows.
+
+Historical test and device entries below describe earlier builds. Items specifically about the retired Garmin picker, category codes, old seed routines, or NAS-to-Liftosaur write-back are retained as history and are not current acceptance checks.
 
 ## Evidence recorded
 
@@ -155,3 +166,16 @@ A short start/log/save path and saved Strength FIT were recorded on the FR965. T
 - **Simulator (2026-09-30):** unit tests cover the entry parser, catalog id uniqueness over all 47 categories, old-style id fallback and old-schema-to-defaults.
 - **Physical FR965, store beta 0.2.6 (2026-09-30, user report):** upgrade from 0.2.5 kept the Upper/Lower routines; the Garmin picker browsed several categories including large ones with correct names, "Category only" markers and no noticeable delay; a catalog exercise was added to a routine and logged in a workout; the NAS job wrote it to Garmin Connect. A catalog exercise is not in `exercises.json`, so that write implies the lap `garmin_category`/`garmin_code` fields reached the FIT (not inspected directly).
 - [ ] **PENDING** Browse all 47 categories and the largest (131 entries) end to end; recent and "Used in routines" lists with old `g-<hex>` ids.
+
+## Phase 2 direct Liftosaur sync (simulator unit tests, 2026-09-30)
+
+- **Simulator only, not a device result:** signed production and unit-test builds succeeded for FR965 (SDK 9.2.0); `monkeydo bin/NextSet-tests.prg fr965 -t` reported `PASSED (passed=32, failed=0, errors=0)` (after the UX/stability fixes: upload pre-check, skip/clear queue, week-only sync, implicit week, program-changed notice). Covers Liftoscript day-header parsing, sanitized `/workout/next` fixture to v4 routine conversion, v4 Model validation and v3 reset, upload-queue state machine (409 start-time-taken done, already-active blocked, retry, four-workout bound) and set-to-setId mapping (extra/append, missing, timed, unilateral, assistance). No live Liftosaur request was made; a real sync, memory peak with the user's program and upload are not verified.
+- [ ] **PENDING** Enter the key in the phone app, sync routines on a physical FR965 (acceptance 1).
+- [ ] **PENDING** Real workout of 5+ min uploads; Liftosaur history and progression reflect it (acceptance 2).
+- [ ] **PENDING** Airplane mode at finish uploads later exactly once (acceptance 3).
+- [ ] **PENDING** App exit mid-upload resumes without duplicates (acceptance 4).
+- [ ] **PENDING** Device: Sync/Retry show "Syncing…"/"Uploading…" and the menu closes; "Skip this upload" and "Clear upload queue" confirmations; last-day sync pivot does not trip the watchdog; crash-resume with `workout_already_active` adopts our workout via `/workout/current` (endpoint behavior unverified).
+- [ ] **PENDING** Superset flow on the watch (Pull Up + Triceps Dip "A"): the view alternates after each logged set, BACK returns to Overview once, no rest between members and rest after the round, finishing or skipping one member lets the other continue with its own rest, "Edit last set" edits the set just logged on the other member, the "Next:" line fits the round screen.
+- [ ] **PENDING** 10 s pre-rest vibration fires once per rest of 20 s or more (not after resume, not with vibration off) and the end-of-rest alert is unchanged.
+- [ ] **PENDING** Menu → Weight step changes the +/- step of the next load edit and is still applied after a routine re-sync; "Liftosaur ✓" glyph renders in History (fallback: plain text).
+- [ ] **PENDING** Rep ranges: the fixture's sets have `minReps: null`, so a range is unverified against real Liftosaur data.
