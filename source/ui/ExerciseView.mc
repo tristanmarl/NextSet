@@ -442,6 +442,9 @@ class ExerciseDelegate extends WatchUi.BehaviorDelegate {
     }
 
     public function onKey(event as KeyEvent) as Boolean {
+        if (Navigator.staleWorkoutView()) {
+            return true;
+        }
         var key = event.getKey();
         if (key == KEY_ENTER) {
             var now = System.getTimer();
@@ -484,12 +487,18 @@ class ExerciseDelegate extends WatchUi.BehaviorDelegate {
     }
 
     public function onMenu() as Boolean {
+        if (Navigator.staleWorkoutView()) {
+            return true;
+        }
         Navigator.exerciseMenu(_view.entryId(), _view);
         return true;
     }
 
     // BACK returns to Overview; a running timed set on this exercise is paused first.
     public function onBack() as Boolean {
+        if (Navigator.staleWorkoutView()) {
+            return true;
+        }
         var controller = getApp().controller();
         var session = controller.session();
         if (session != null) {

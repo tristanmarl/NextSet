@@ -1599,8 +1599,11 @@ class SessionController {
             _errorCode = Err.WORKOUT_IS_ALREADY_FINISHING;
             return false;
         }
-        if (!hasActiveSession() ||
-            (!Model.sameString(outcome, "completed") && !Model.sameString(outcome, "aborted"))) {
+        if (!hasActiveSession()) {
+            _errorCode = Err.NO_ACTIVE_WORKOUT;
+            return false;
+        }
+        if (!Model.sameString(outcome, "completed") && !Model.sameString(outcome, "aborted")) {
             return false;
         }
         if (!persistPendingRecorderState()) {

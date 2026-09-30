@@ -1,6 +1,6 @@
 # NextSet
 
-NextSet is a button-operated strength workout app for the Garmin Forerunner 965 (version 0.3.3). [Liftosaur](https://www.liftosaur.com) is the source of routines and progression: the watch downloads the current week of your program, you log sets on the watch, and the finished workout is uploaded to Liftosaur directly over the phone connection. Garmin Connect still gets an activity with duration and heart rate.
+NextSet is a button-operated strength workout app for the Garmin Forerunner 965 (version 0.3.4). [Liftosaur](https://www.liftosaur.com) is the source of routines and progression: the watch downloads the current week of your program, you log sets on the watch, and the finished workout is uploaded to Liftosaur directly over the phone connection. Garmin Connect still gets an activity with duration and heart rate.
 
 ## Install
 

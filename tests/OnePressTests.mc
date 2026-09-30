@@ -117,3 +117,12 @@ function testCancelRunsOnlyDiscardSteps(logger as Test.Logger) as Boolean {
         check(logger, controller.pendingUploadCount() == 0 && store.peekSession("history0") == null,
             "a cancelled workout leaves no history entry or queued upload");
 }
+
+(:test)
+function testFinishWithoutActiveWorkoutSetsARealError(logger as Test.Logger) as Boolean {
+    var controller = new SessionController(new UploadMemoryStore());
+    var finished = controller.finish("aborted", 1790752300);
+    return check(logger, !finished && controller.errorCode() == Err.NO_ACTIVE_WORKOUT &&
+        Model.sameString(controller.errorMessage(), "No active workout"),
+        "finishing without an active workout reports a specific error, not a generic one");
+}

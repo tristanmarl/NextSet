@@ -145,6 +145,9 @@ class OverviewDelegate extends WatchUi.BehaviorDelegate {
     }
 
     public function onKey(event as KeyEvent) as Boolean {
+        if (Navigator.staleWorkoutView()) {
+            return true;
+        }
         var key = event.getKey();
         if (key == KEY_UP) {
             _view.moveSelection(-1);
@@ -162,11 +165,17 @@ class OverviewDelegate extends WatchUi.BehaviorDelegate {
     }
 
     public function onSelect() as Boolean {
+        if (Navigator.staleWorkoutView()) {
+            return true;
+        }
         _view.openSelection();
         return true;
     }
 
     public function onMenu() as Boolean {
+        if (Navigator.staleWorkoutView()) {
+            return true;
+        }
         Navigator.actions();
         return true;
     }

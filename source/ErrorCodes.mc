@@ -50,6 +50,7 @@ module Err {
     const WORKOUT_UPLOAD_MAPPING = 50;
     const PHONE_NOT_CONNECTED = 51;
     const NO_RESPONSE_WILL_RETRY = 52;
+    const NO_ACTIVE_WORKOUT = 53;
 
     function message(code as Number) as String? {
         switch (code) {
@@ -145,6 +146,8 @@ module Err {
                 return "Phone not connected";
             case NO_RESPONSE_WILL_RETRY:
                 return "No response · will retry";
+            case NO_ACTIVE_WORKOUT:
+                return "No active workout";
         }
         return null;
     }

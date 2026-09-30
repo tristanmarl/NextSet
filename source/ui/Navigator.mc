@@ -5,6 +5,17 @@ import Toybox.Time;
 import Toybox.WatchUi;
 
 module Navigator {
+    // A workout view (Overview, Exercise, workout menus) that is still on the stack after the
+    // workout ended must not act: show a clean Home instead. Returns true when it redirected.
+    function staleWorkoutView() as Boolean {
+        var controller = getApp().controller();
+        if (controller.hasActiveSession() || controller.hasPendingFinalization()) {
+            return false;
+        }
+        home();
+        return true;
+    }
+
     function home() as Void {
         var view = new HomeView();
         WatchUi.switchToView(view, new HomeDelegate(view), WatchUi.SLIDE_DOWN);
@@ -538,6 +549,11 @@ class HomeDelegate extends WatchUi.BehaviorDelegate {
             Navigator.actions();
             return true;
         }
+        if (!getApp().controller().hasPendingFinalization()) {
+            // Idle Home leaves the app; stale workout views below it are never reached.
+            Navigator.exitApp();
+            return true;
+        }
         return false;
     }
 }
@@ -798,6 +814,9 @@ class ConfirmMenuDelegate extends WatchUi.Menu2InputDelegate {
     }
 
     public function onSelect(item as MenuItem) as Void {
+        if (Navigator.staleWorkoutView()) {
+            return;
+        }
         var id = item.getId() as String;
         if (Model.sameString(id, "cancel")) {
             WatchUi.popView(WatchUi.SLIDE_DOWN);

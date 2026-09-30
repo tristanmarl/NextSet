@@ -13,6 +13,9 @@ class ActionsMenuDelegate extends WatchUi.Menu2InputDelegate {
     }
 
     public function onSelect(item as MenuItem) as Void {
+        if (Navigator.staleWorkoutView()) {
+            return;
+        }
         var id = item.getId() as String;
         if (Model.sameString(id, "finish")) {
             getApp().requestWorkoutFinish("completed");
@@ -32,6 +35,9 @@ class WorkoutCompleteDelegate extends WatchUi.Menu2InputDelegate {
     }
 
     public function onSelect(item as MenuItem) as Void {
+        if (Navigator.staleWorkoutView()) {
+            return;
+        }
         var id = item.getId() as String;
         if (Model.sameString(id, "keep")) {
             WatchUi.popView(WatchUi.SLIDE_DOWN);
@@ -58,6 +64,9 @@ class ExerciseMenuDelegate extends WatchUi.Menu2InputDelegate {
     }
 
     public function onSelect(item as MenuItem) as Void {
+        if (Navigator.staleWorkoutView()) {
+            return;
+        }
         var id = item.getId() as String;
         var controller = getApp().controller();
         if (Model.sameString(id, "add_set")) {

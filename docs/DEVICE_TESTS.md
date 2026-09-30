@@ -4,7 +4,7 @@ Status reflects evidence actually recorded. Simulator checks are not hardware ac
 
 ## Current state
 
-NextSet 0.3.3 syncs routines from Liftosaur, caches per-set targets and uploads finished workouts directly. The API key is entered on the watch (Settings → Liftosaur key) and stored only in watch app storage. The app also records a Garmin FIT activity (sport `TRAINING`, sub-sport `GENERIC`). The unit tests pass in the simulator (`PASSED (passed=50, failed=0, errors=0)`, 2026-09-30); that is build evidence only.
+NextSet 0.3.4 syncs routines from Liftosaur, caches per-set targets and uploads finished workouts directly. The API key is entered on the watch (Settings → Liftosaur key) and stored only in watch app storage. The app also records a Garmin FIT activity (sport `TRAINING`, sub-sport `GENERIC`). The unit tests pass in the simulator (`PASSED (passed=51, failed=0, errors=0)`, 2026-09-30); that is build evidence only.
 
 **Earlier device evidence that still applies:** a saved FIT activity was inspected from the watch (File Id type Activity, sport Training); with sub-sport `GENERIC` the firmware's native "Set 1" screen does not appear and Garmin Connect lists the activity as Strength Training. Garmin Connect showed heart rate and duration for a 0.3.0 activity.
 
@@ -58,3 +58,4 @@ NextSet 0.3.3 syncs routines from Liftosaur, caches per-set targets and uploads 
 - [ ] **PENDING** Measure storage, peak memory, write latency and a 90-minute / 60-set session with repeated navigation and corrections; no watchdog error.
 - [ ] **PENDING** Record ten minutes with HR, pause/resume, complete, sync, and inspect the activity type and FIT duration/HR; check calories, training effect and training load (report absent metrics as absent); watch activity history label for a Generic recording.
 - [ ] **PENDING** Inspect a current FIT for one lap per logged set and the developer fields (exercise, set, reps, weight, duration, active_s, void); garmin Connect does not render sideloaded developer fields, so this is a file check, not a Connect display test. Do not claim native per-exercise strength rows.
+- [ ] **PENDING** (0.3.4) Cancel workout → Home with "Workout cancelled" → BACK exits the app (no "Workout could not be finished", no way back into the cancelled workout's menus); finish → summary → START/BACK exits; after a relaunch with an active workout, resume → finish/cancel behaves the same.

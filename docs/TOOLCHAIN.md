@@ -16,4 +16,4 @@ monkeyc --unit-test -f tests.jungle -d fr965 -o bin/NextSet-tests.prg -y "$KEY"
 monkeydo bin/NextSet-tests.prg fr965 -t
 ```
 
-`scripts/test.sh` does the test build, restarts the simulator, runs the tests with a timeout and exits 0 only on `PASSED (passed=N, failed=0, errors=0)`. 50 tests pass in the simulator (version 0.3.3). `monkeydo` may exit 1 after a passing summary and a stale simulator can hang it, so read the summary line, not the exit code. `bin/` is ignored by git. Simulator results are not device results; device evidence is recorded in [DEVICE_TESTS.md](DEVICE_TESTS.md).
+`scripts/test.sh` does the test build, restarts the simulator, runs the tests with a timeout and exits 0 only on `PASSED (passed=N, failed=0, errors=0)`. 51 tests pass in the simulator (version 0.3.4). `monkeydo` may exit 1 after a passing summary and a stale simulator can hang it, so read the summary line, not the exit code. `bin/` is ignored by git. Simulator results are not device results; device evidence is recorded in [DEVICE_TESTS.md](DEVICE_TESTS.md).
