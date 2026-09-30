@@ -150,10 +150,8 @@ A short start/log/save path and saved Strength FIT were recorded on the FR965. T
 - [ ] **PENDING** Watch activity history label for a Generic recording.
 - [ ] **PENDING** Training load / recovery effect for a Generic recording.
 
-## 0.2.6 compact catalog — PENDING
+## 0.2.6 compact catalog
 
-- **Simulator (2026-09-30):** unit tests cover the entry parser, catalog id uniqueness over all 47 categories, old-style id fallback and old-schema-to-defaults; nothing below is verified on a watch.
-- [ ] **PENDING** Garmin picker: browse all 47 categories and page through the largest (131 entries) with no watchdog trip or slow page; names look right (title case, "3 Way Calf Raise").
-- [ ] **PENDING** Pick a catalog exercise (including a "Category only" one), add it to a routine, run a workout with it and check the FIT lap `garmin_category`/`garmin_code`.
-- [ ] **PENDING** Recent and "Used in routines" lists still work; routines made in 0.2.5 (old `g-<hex>` ids) still open and start.
-- [ ] **PENDING** Upgrade 0.2.5 -> 0.2.6 keeps v3 routines and settings (config v3 is unchanged); only a pre-0.2.0 (v1/v2) config would reset to defaults, without a "settings damaged" message.
+- **Simulator (2026-09-30):** unit tests cover the entry parser, catalog id uniqueness over all 47 categories, old-style id fallback and old-schema-to-defaults.
+- **Physical FR965, store beta 0.2.6 (2026-09-30, user report):** upgrade from 0.2.5 kept the Upper/Lower routines; the Garmin picker browsed several categories including large ones with correct names, "Category only" markers and no noticeable delay; a catalog exercise was added to a routine and logged in a workout; the NAS job wrote it to Garmin Connect. A catalog exercise is not in `exercises.json`, so that write implies the lap `garmin_category`/`garmin_code` fields reached the FIT (not inspected directly).
+- [ ] **PENDING** Browse all 47 categories and the largest (131 entries) end to end; recent and "Used in routines" lists with old `g-<hex>` ids.
