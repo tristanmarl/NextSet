@@ -45,6 +45,17 @@ Before a pull request:
 - The app builds for `fr965` and for `fr255s` (a small MIP watch without vector fonts, which catches API gaps).
 - UI changes are checked in the simulator on a large and a small screen, for example `fr965` (454 px) and `fenix7s` (240 px). Add screenshots to the pull request.
 
+## Screenshots
+
+`monkey.demo.jungle` builds a demo app (separate app id, `manifest.demo.xml`, never shipped) that fills the simulator with a made-up program from `demo/resources/data/demo.xml`, starts a workout with two logged sets and switches between the set screen, the load selection, the Overview, the set editor and Home every 8 s, so screens can be captured without button input:
+
+```sh
+monkeyc -f monkey.demo.jungle -d fr965 -o bin/NextSet-demo.prg -y "$KEY"
+monkeydo bin/NextSet-demo.prg fr965
+```
+
+The demo clears the simulator's app storage on every start. README images are in `docs/screenshots/`.
+
 ## Code conventions
 
 [AGENTS.md](AGENTS.md) holds the repository rules and [CLAUDE.md](CLAUDE.md) the architecture notes. In short:

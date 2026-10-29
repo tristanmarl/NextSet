@@ -8,7 +8,13 @@ No phone in your hand at the gym, no second app, no server in between.
 
 > NextSet is an independent hobby project. It is not affiliated with or endorsed by Liftosaur or Garmin.
 
-<!-- Screenshots: docs/screenshots/*.png, taken in the Connect IQ simulator (Forerunner 965). -->
+<p align="center">
+  <img src="docs/screenshots/set-rest.png" width="200" alt="Set screen: Seated Row, set 3 of 3, 55 kg × 9, rest timer">
+  <img src="docs/screenshots/change-load.png" width="200" alt="Load selected in yellow on the set screen">
+  <img src="docs/screenshots/overview.png" width="200" alt="Overview: exercise progress, total sets and elapsed time">
+  <img src="docs/screenshots/edit-set.png" width="200" alt="Editing the last logged set">
+</p>
+<p align="center"><sub>Forerunner 965 simulator with a made-up program (<code>monkey.demo.jungle</code>).</sub></p>
 
 ## Features
 
