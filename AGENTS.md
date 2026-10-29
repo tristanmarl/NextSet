@@ -2,7 +2,7 @@
 
 ## Project Structure
 
-NextSet is a Monkey C Connect IQ watch app targeting the Garmin Forerunner 965. Workout, Liftosaur API projection, upload, storage, and clock logic lives in `source/`; watch screens and navigation are in `source/ui/`. Automated tests are in `tests/` and are included through `tests.jungle`; sanitized API fixtures are under `tests/resources/`. App metadata is in `manifest.xml` and `resources/`; the Liftosaur key is entered on the watch, not in app settings. Build and device evidence belongs in `docs/`.
+NextSet is a Monkey C Connect IQ watch app for five-button Garmin watches on Connect IQ 5+ (products in `manifest.xml`), developed on the Garmin Forerunner 965. Workout, Liftosaur API projection, upload, storage, and clock logic lives in `source/`; watch screens and navigation are in `source/ui/`. Automated tests are in `tests/` and are included through `tests.jungle`; sanitized API fixtures are under `tests/resources/`. App metadata is in `manifest.xml` and `resources/`; the Liftosaur key is entered on the watch, not in app settings. Build and device evidence belongs in `docs/`.
 
 Liftosaur owns the synced routine and progression. The watch calls Liftosaur directly over HTTPS. The former NAS tool, Garmin exercise catalog, seed routines and manual routine editor are removed.
 

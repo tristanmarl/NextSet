@@ -134,6 +134,12 @@ module Navigator {
         WatchUi.pushView(view, new NumberEditDelegate(view), WatchUi.SLIDE_UP);
     }
 
+    function setEdit(entryId as String, slot as Number, correcting as Boolean,
+                     focusLoad as Boolean) as Void {
+        var view = new SetEditView(entryId, slot, correcting, focusLoad);
+        WatchUi.pushView(view, new SetEditDelegate(view), WatchUi.SLIDE_UP);
+    }
+
     function configNumberEdit(kind as String, parentId as String, id as String,
                               field as String, title as String) as Void {
         var view = new NumberEditView(id, 0, field, false, kind, parentId, title);
@@ -292,24 +298,6 @@ module Navigator {
             new ProgramExerciseDelegate(entryId, mode, view, fromOverview), WatchUi.SLIDE_UP);
     }
 
-    function correctionMenu(entryId as String, view as ExerciseView, fromOverview as Boolean) as Void {
-        var session = getApp().controller().session() as Dictionary;
-        var exercise = UiFormat.exercise(session, entryId) as Dictionary;
-        var menu = new WatchUi.Menu2({:title=>"Edit last set"});
-        if (Model.sameString(exercise["loadType"], "weight") ||
-            Model.sameString(exercise["loadType"], "assistance")) {
-            menu.addItem(new WatchUi.MenuItem("Edit load", null, "corr_load", null));
-            menu.addItem(new WatchUi.MenuItem("Edit reps", null, "corr_reps", null));
-        } else if (Model.sameString(exercise["loadType"], "timed")) {
-            menu.addItem(new WatchUi.MenuItem("Edit duration", null, "corr_duration", null));
-        } else {
-            menu.addItem(new WatchUi.MenuItem("Edit reps", null, "corr_reps", null));
-        }
-        menu.addItem(new WatchUi.MenuItem("Delete set " + UiFormat.slotLabel(UiFormat.lastSlot(exercise)),
-            null, "corr_delete", null));
-        WatchUi.pushView(menu, new CorrectionMenuDelegate(entryId, view, fromOverview), WatchUi.SLIDE_UP);
-    }
-
     function actions() as Void {
         var menu = new WatchUi.Menu2({:title=>"Workout"});
         var session = getApp().controller().session();
@@ -385,7 +373,6 @@ module Navigator {
         var menu = new WatchUi.Menu2({:title=>title.length() > 18 ? title.substring(0, 16) + ".." : title});
         var next = SessionLogic.activeSlot(exercise);
         var lastEntry = SessionLogic.lastEditEntryId(session, entryId);
-        var last = lastEntry == null ? -1 : 0;
         if (Model.sameString(exercise["loadType"], "weight") ||
             Model.sameString(exercise["loadType"], "assistance")) {
             if (next >= 0) {
@@ -394,13 +381,25 @@ module Navigator {
                     (Model.sameString(exercise["loadType"], "assistance") ? " kg assist" : " kg");
                 var action = Model.sameString(exercise["loadType"], "assistance") ?
                     "Change assistance" : "Change load";
-                menu.addItem(new WatchUi.MenuItem(action, loadLabel, "edit_next", null));
+                // From the set screen this switches UP/DOWN in place; it comes first.
+                if (!fromOverview && view.loadFocused()) {
+                    menu.addItem(new WatchUi.MenuItem("Change reps",
+                        (draft["reps"] as Number).toString() + " reps", "edit_next", null));
+                } else {
+                    menu.addItem(new WatchUi.MenuItem(action, loadLabel, "edit_next", null));
+                }
             }
         } else if (next >= 0 && Model.sameString(exercise["loadType"], "timed")) {
             menu.addItem(new WatchUi.MenuItem("Edit duration", null, "edit_next", null));
         }
-        if (last >= 0) {
-            menu.addItem(new WatchUi.MenuItem("Edit last set", null, "edit_last", null));
+        // Then the set logged last, with its values (in a superset possibly the other member's).
+        if (lastEntry != null) {
+            var lastExercise = UiFormat.exercise(session, lastEntry as String) as Dictionary;
+            var lastSlot = UiFormat.lastSlot(lastExercise);
+            var lastText = UiFormat.confirmText(lastExercise, lastSlot);
+            menu.addItem(new WatchUi.MenuItem("Edit last set", lastText, "edit_last", null));
+            menu.addItem(new WatchUi.MenuItem("Delete set " + UiFormat.slotLabel(lastSlot), null,
+                "delete_last", null));
         }
         if (SessionLogic.nextWarmupSlot(exercise) >= 0) {
             menu.addItem(new WatchUi.MenuItem("Skip warmups", null, "skip_warmups", null));

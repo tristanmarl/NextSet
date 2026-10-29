@@ -105,7 +105,7 @@ class StrengthRecorder {
                                   weightKg as Float, durationSec as Number,
                                   activeSec as Number, voided as Number) as Void {
         if (_nameField != null) {
-            (_nameField as FitContributor.Field).setData(name);
+            (_nameField as FitContributor.Field).setData(fitText(name, 64));
         }
         if (_setField != null) {
             (_setField as FitContributor.Field).setData(setNumber);
@@ -125,6 +125,16 @@ class StrengthRecorder {
         if (_activeField != null) {
             (_activeField as FitContributor.Field).setData(activeSec);
         }
+    }
+
+    // FIT string fields are sized in bytes (64 + terminator here), names in characters: a 64-character
+    // name with accents can exceed the field, so whole characters are dropped until it fits.
+    static function fitText(text as String, maxBytes as Number) as String {
+        var result = text;
+        while (result.length() > 0 && result.toUtf8Array().size() > maxBytes) {
+            result = result.substring(0, result.length() - 1) as String;
+        }
+        return result;
     }
 
     // One lap per logged set. The firmware writes at most one lap per second, so a set logged in

@@ -296,7 +296,7 @@ function testUploadJobAndDurableSetMapping(logger as Test.Logger) as Boolean {
             "extra completed set gets a stable six-letter append ID and live Liftosaur entry ID") &&
         check(logger, Model.sameString(saved["state"], "sets") &&
             Model.sameString(UploadLogic.setsDone(saved)["state"], "finish") &&
-            Model.sameString(finish["notes"], "NextSet session session-1; Row -> Cable Row") &&
+            Model.sameString(finish["notes"], "Row -> Cable Row") &&
             Model.validUpload(done),
             "sets success advances to finish; finish notes include substitutions; done is valid") &&
         check(logger, retried == null,

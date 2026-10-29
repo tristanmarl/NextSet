@@ -25,6 +25,14 @@ class OverviewView extends WatchUi.View {
         }
     }
 
+    public function onShow() as Void {
+        getApp().overviewShown = true;
+    }
+
+    public function onHide() as Void {
+        getApp().overviewShown = false;
+    }
+
     public function onUpdate(dc as Dc) as Void {
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
         dc.clear();

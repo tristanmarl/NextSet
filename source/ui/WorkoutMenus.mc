@@ -87,12 +87,26 @@ class ExerciseMenuDelegate extends WatchUi.Menu2InputDelegate {
             }
             return;
         }
-        if (Model.sameString(id, "edit_last")) {
-            WatchUi.popView(WatchUi.SLIDE_DOWN);
+        if (Model.sameString(id, "edit_last") || Model.sameString(id, "delete_last")) {
             // In a superset the set just logged may belong to another member.
-            var target = SessionLogic.lastEditEntryId(controller.session() as Dictionary, _entryId);
-            if (target != null) {
-                Navigator.correctionMenu(target as String, _view, _fromOverview);
+            var session = controller.session() as Dictionary;
+            var target = SessionLogic.lastEditEntryId(session, _entryId);
+            var lastExercise = target == null ? null : UiFormat.exercise(session, target as String);
+            if (lastExercise == null) {
+                WatchUi.popView(WatchUi.SLIDE_DOWN);
+                return;
+            }
+            var lastSlot = UiFormat.lastSlot(lastExercise as Dictionary);
+            if (Model.sameString(id, "delete_last")) {
+                // The confirmation pops itself and this menu.
+                Navigator.confirmUndo(target as String, lastSlot, _view, _fromOverview);
+                return;
+            }
+            WatchUi.popView(WatchUi.SLIDE_DOWN);
+            if (Model.sameString((lastExercise as Dictionary)["loadType"], "timed")) {
+                Navigator.numberEdit(target as String, lastSlot, "durationSec", true);
+            } else {
+                Navigator.setEdit(target as String, lastSlot, true, false);
             }
             return;
         }
@@ -128,7 +142,11 @@ class ExerciseMenuDelegate extends WatchUi.Menu2InputDelegate {
                 Navigator.numberEdit(_entryId, slot, "durationSec", false);
             } else {
                 WatchUi.popView(WatchUi.SLIDE_DOWN);
-                Navigator.numberEdit(_entryId, slot, "load100", false);
+                if (_fromOverview) {
+                    Navigator.setEdit(_entryId, slot, false, true);
+                } else {
+                    _view.toggleFocus();
+                }
             }
             return;
         }
@@ -288,38 +306,6 @@ class UndoConfirmMenuDelegate extends WatchUi.Menu2InputDelegate {
         } else {
             WatchUi.requestUpdate();
         }
-    }
-
-    public function onBack() as Void {
-        WatchUi.popView(WatchUi.SLIDE_DOWN);
-    }
-}
-
-class CorrectionMenuDelegate extends WatchUi.Menu2InputDelegate {
-    private var _entryId as String;
-    private var _view as ExerciseView;
-    private var _fromOverview as Boolean;
-
-    public function initialize(entryId as String, view as ExerciseView, fromOverview as Boolean) {
-        _entryId = entryId;
-        _view = view;
-        _fromOverview = fromOverview;
-        Menu2InputDelegate.initialize();
-    }
-
-    public function onSelect(item as MenuItem) as Void {
-        var session = getApp().controller().session() as Dictionary;
-        var exercise = UiFormat.exercise(session, _entryId) as Dictionary;
-        var slot = UiFormat.lastSlot(exercise);
-        var id = item.getId() as String;
-        if (Model.sameString(id, "corr_delete")) {
-            Navigator.confirmUndo(_entryId, slot, _view, _fromOverview);
-            return;
-        }
-        var field = Model.sameString(id, "corr_load") ? "load100" :
-            (Model.sameString(id, "corr_reps") ? "reps" : "durationSec");
-        WatchUi.popView(WatchUi.SLIDE_DOWN);
-        Navigator.numberEdit(_entryId, slot, field, true);
     }
 
     public function onBack() as Void {

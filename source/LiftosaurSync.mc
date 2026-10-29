@@ -187,10 +187,6 @@ class LiftosaurSync {
         resumeWork();
     }
 
-    private function transientFailure(code as Number) as Boolean {
-        return code == Err.PHONE_NOT_CONNECTED || code == Err.NO_RESPONSE_WILL_RETRY;
-    }
-
     private function makeApiRequest(path as String,
                                     httpMethod as Communications.HttpRequestMethod,
                                     params as Dictionary?, write as Boolean,

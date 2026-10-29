@@ -21,6 +21,14 @@ NextSet 0.3.4 syncs routines from Liftosaur, caches per-set targets and uploads 
 - [ ] **PENDING** Measure full-program response memory on the FR965 and check oversized/error responses leave the watch usable. Record peak memory separately from response parsing estimates.
 - [ ] **PENDING** Inspect a current FIT after workout completion and after app stop/relaunch; check activity type, duration/HR, lap fields, and whether Connect displays custom fields. Do not claim native per-exercise strength rows.
 
+## Firmware crash during a workout — INFO (2026-10-29)
+
+**Physical FR965, firmware 29.05, NextSet 0.3.4, "Full Body A".** The watch rebooted mid-workout. Evidence pulled over MTP: `/GARMIN/DEBUG/err_log.bak`, `/GARMIN/DEBUG/dump/RAM.zip` and the two FITs `2026-10-29-07-01-37.fit` and `2026-10-29-07-16-05.fit` (kept locally, not committed).
+
+- Firmware fault: `err_log.bak` reports `error_cause` "RTL Trap", RTL error `0x035`, at 07:14:19 local (06:14:19 UTC), pageStack `1857,1674,1860`, uptime about 13.4 days. No `CIQ_LOG.YML` was written (only `CIQ_LOG.BAK` from 2026-10-07), so the Connect IQ VM recorded no NextSet error. `RAM.zip` is an encrypted Garmin dump (`dump2(kfp=…)` header, 8.0 bits/byte), so only Garmin can read it. The backtrace cannot be symbolized here.
+- Timing: Chest Press set 2 was logged at about 07:12:49–50 and started a rest; the crash came 89–90 s later, in the same second a 90 s rest would expire. At expiry `NextSetApp.onTick` commits the session, vibrates for 1 s and redraws. The exact rest length for that exercise was not checked. The same expiry path ran about 18 more times in the resumed workout without a fault. Working conclusion: a firmware fault, possibly triggered by NextSet's storage/vibration/redraw at rest expiry, not a NextSet code error. If a second crash also lands on a rest expiry, report it to Garmin with `err_log.bak` and `RAM.zip` and consider spacing the commit and the vibration apart.
+- [x] **CONFIRMED** (2026-10-29) Crash-resume after a watch reboot: the firmware recovered the open activity (power-up event 07:14:42, closed 07:15:47; 6 set laps with developer fields, no NextSet session fields). NextSet relaunched and resumed at Chest Press set 3 with set 2 kept, recording a new activity at 07:16:05 that finished normally at 07:49:17 (session fields: 20 sets, 8 exercises, version 0.3.4). The workout appears as two Garmin activities. Upload of the resumed workout to Liftosaur was not checked.
+
 
 ## Pending device checks by version
 
@@ -44,6 +52,14 @@ NextSet 0.3.4 syncs routines from Liftosaur, caches per-set targets and uploads 
 - [ ] **PENDING** (0.3.3) Summary shows the Liftosaur status live (Uploading… / Uploaded / Pending · next launch / error) and "Upload resumes next launch" while uploading; Cancel returns to Home with "Workout cancelled".
 - [ ] **PENDING** (0.3.3) UP/DOWN edits feel instant and survive a set log, a menu and leaving the app (an edit made within 2 s of a crash may be lost).
 - [ ] **PENDING** (0.3.3) After a long workout read Settings → Diagnostics (max commit ms, last sync parse ms, free KB) and record the numbers here.
+
+- [ ] **PENDING** (unreleased, after 0.3.4) Resilience changes: the rest-end vibration still fires once when a rest runs out, and the expired rest survives leaving the app 3 s later; a crash or app exit within ~2 s of a rest ending repeats the alert on resume at most once. Elapsed workout time after a forced app exit excludes only the time since the last 30 s checkpoint. Settings → Diagnostics max commit ms is not higher than in 0.3.4.
+- [ ] **PENDING** (unreleased, after 0.3.4; needs the next real workout upload) Liftosaur history shows the real duration (not `duration: 2s`) and no `// NextSet session …` line; liftosaur2garmin without the NAS parser patch processes the workout. Until a real write confirms it, the API acceptance of `intervals` from NextSet is unverified.
+
+- [ ] **PENDING** (unreleased) Other watches: 53 five-button Connect IQ 5+ products build (2026-10-29), and the Home screen starts without a crash in the simulator on fr255s, fenix7s, fr255, fenix7x, fr265s, instinct3amoled45mm, descentg2, epix2, fr965, fenix9pro51mm and fr170. Before that fix, fr255s crashed on Home (`Graphics.getVectorFont` missing on MIP watches). Not checked: layouts beyond Home on small screens (218-280 px), and any physical watch other than the FR965.
+
+- [ ] **PENDING** (0.3.6) Load/reps editing on the FR965: hold UP → first item "Change load · 65 kg" turns the load yellow on the set screen; UP/DOWN change it by the weight step and fast presses speed up (x2, x4); the item then reads "Change reps" and switches back; logging a set returns to reps; START, UP and DOWN act on press as in 0.3.4. Menu: "Edit last set · Set N · …" opens the editor (hold UP switches load/reps, START saves, BACK cancels); "Delete set N" asks before deleting. Check whether opening the menu with hold UP adds one rep first. Simulator: builds and Home starts; key handling not exercised here.
+- [x] **FAILED** (0.3.5, 2026-10-29, user on FR965) Holds other than UP do not reach the app: hold DOWN opened the music controls and hold START did nothing. Only hold UP (menu) works. 0.3.6 drops all holds and puts the reps/load switch in the menu.
 
 ## General device checks (still open)
 

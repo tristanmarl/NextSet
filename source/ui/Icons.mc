@@ -123,6 +123,24 @@ module Icons {
         edge(dc, "down", ANGLE_DOWN);
     }
 
+    // UP/DOWN chevrons, yellow while they change the load (matching the highlighted value).
+    function focusMarkers(dc as Dc, loadFocused as Boolean) as Void {
+        if (!loadFocused) {
+            browseMarkers(dc);
+            return;
+        }
+        var s = unit(dc);
+        var radius = (dc.getWidth() < dc.getHeight() ? dc.getWidth() : dc.getHeight()) / 2 - s * 2;
+        var angles = [ANGLE_UP, ANGLE_DOWN];
+        for (var i = 0; i < 2; i++) {
+            var radians = (angles[i] as Number) * Math.PI / 180.0;
+            var x = dc.getWidth() / 2 + (radius * Math.cos(radians)).toNumber();
+            var y = dc.getHeight() / 2 - (radius * Math.sin(radians)).toNumber();
+            chevron(dc, x, y, s, i, Graphics.COLOR_YELLOW);
+        }
+        dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+    }
+
     function menuMarker(dc as Dc) as Void {
         edge(dc, "menu", ANGLE_MENU);
     }

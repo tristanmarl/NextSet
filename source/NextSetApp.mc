@@ -15,10 +15,14 @@ class NextSetApp extends Application.AppBase {
     private var _finishPending as Boolean = false;
     private var _startRoutineId as String? = null;
     private var _suppressFirstAlert as Boolean = false;
-    // In-memory time of the last START-logged set; shared so the 800 ms guard survives view switches.
     private var _pendingKeyText as String? = null;
     private var _pendingKeySync as Boolean = false;
+    // In-memory time of the last START-logged set; shared so the 800 ms guard survives view switches.
     public var lastSetSavedAt as Number? = null;
+    // Set by OverviewView.onShow/onHide: the Overview's elapsed time needs a periodic redraw.
+    public var overviewShown as Boolean = false;
+    // The set screen shows "MENU: change load" until the lifter has switched once.
+    public var focusHintSeen as Boolean = false;
     // Transient "Set 2 · 65 kg × 8" confirmation (in memory, ~2 s).
     public var confirmText as String? = null;
     private var _confirmUntil as Number = 0;
@@ -197,7 +201,6 @@ class NextSetApp extends Application.AppBase {
             return;
         }
         _controller.cancelWorkoutStart();
-        var code = _controller.errorCode();
         Navigator.home();
     }
 
@@ -250,7 +253,7 @@ class NextSetApp extends Application.AppBase {
         }
         // The Overview shows elapsed workout time; redraw it every few seconds.
         if (_controller.hasRestShown() || _controller.hasRunningTimed() || vibrate || confirming ||
-            (_tickCount % 5 == 0 && WatchUi.getCurrentView()[0] instanceof OverviewView)) {
+            (_tickCount % 5 == 0 && overviewShown)) {
             WatchUi.requestUpdate();
         }
     }

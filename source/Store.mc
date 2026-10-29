@@ -203,6 +203,10 @@ class Store {
     // Records validated since launch: "domain.generation" -> rev. A commit or delete drops the
     // entry, so an unchanged generation is validated once per launch.
     private var _validated as Dictionary = {};
+    // Revisions of both "active" generations after a commit ("active.a" -> rev, 0 = none), so the
+    // frequent workout commits do not read both stored sessions back first. Dropped on delete or
+    // a failed write.
+    private var _activeRevs as Dictionary = {};
 
     private function readGeneration(domain as String, generation as String) as Dictionary? {
         var record = readEnvelope(domain, generation);
@@ -541,6 +545,9 @@ class Store {
 
     // Removes both generations of a domain (a leftover key is harmless, so failures are ignored).
     public function deletePair(domain as String) as Void {
+        if (Model.sameString(domain, "active")) {
+            _activeRevs = {};
+        }
         var generations = ["a", "b"];
         for (var i = 0; i < generations.size(); i++) {
             _validated.remove(domain + "." + generations[i]);
@@ -558,8 +565,10 @@ class Store {
         if (!validPayload(domain, payload)) {
             return false;
         }
-        var a = readRevision(domain, "a");
-        var b = readRevision(domain, "b");
+        var cached = Model.sameString(domain, "active") &&
+            _activeRevs["active.a"] instanceof Number && _activeRevs["active.b"] instanceof Number;
+        var a = cached ? _activeRevs["active.a"] as Number : readRevision(domain, "a");
+        var b = cached ? _activeRevs["active.b"] as Number : readRevision(domain, "b");
         if (_futureRecord || (_badRecord && a == 0 && b == 0)) {
             return false;
         }
@@ -582,11 +591,40 @@ class Store {
         try {
             writeKey(domain + "." + target, envelope);
         } catch (error) {
+            _activeRevs = {};
             return false;
         }
         if (!Model.sameString(domain, "last")) {
             _validated[domain + "." + target] = currentRevision + 1;
         }
+        if (Model.sameString(domain, "active")) {
+            _activeRevs = {"active.a" => a, "active.b" => b};
+            _activeRevs["active." + target] = currentRevision + 1;
+        }
         return true;
+    }
+
+    // Workout clock checkpoint: [sessionId, time] in one small key, written every 30 s instead of
+    // the whole session. Failures are ignored; recovery then uses the session's own checkpoint.
+    public function saveCheckpoint(sessionId as String, at as Number) as Void {
+        try {
+            writeKey("ckpt", [sessionId, at]);
+        } catch (error) {
+        }
+    }
+
+    public function loadCheckpoint(sessionId as String) as Number? {
+        var raw = null;
+        try {
+            raw = readKey("ckpt");
+        } catch (error) {
+            return null;
+        }
+        if (!(raw instanceof Array) || (raw as Array).size() != 2 ||
+            !Model.sameString((raw as Array)[0], sessionId) ||
+            !Model.inRange((raw as Array)[1], 0, 2147483647, false)) {
+            return null;
+        }
+        return (raw as Array)[1] as Number;
     }
 }

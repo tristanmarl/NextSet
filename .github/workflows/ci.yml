@@ -8,7 +8,7 @@ on:
   pull_request:
 
 permissions:
-  contents: write  # reads the draft "ci-devices" release that holds the FR965 device files
+  contents: write  # reads the draft "ci-devices" release that holds the device files
 
 jobs:
   compile:
@@ -19,7 +19,10 @@ jobs:
         with:
           dev-key: ${{ secrets.NEXTSET_DEV_KEY }}
           token: ${{ github.token }}
-      - run: monkeyc -f monkey.jungle -d fr965 -o NextSet.prg -y "$CIQ_KEY"
+      # fr965 is the reference watch; fr255s is a small MIP watch without vector fonts.
+      - run: |
+          monkeyc -f monkey.jungle -d fr965 -o NextSet.prg -y "$CIQ_KEY"
+          monkeyc -f monkey.jungle -d fr255s -o NextSet-fr255s.prg -y "$CIQ_KEY"
       - name: Remove key
         if: always()
         run: rm -f "$RUNNER_TEMP/key.der"

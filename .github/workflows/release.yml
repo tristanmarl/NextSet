@@ -48,12 +48,19 @@ jobs:
           v="${{ steps.ver.outputs.version }}"
           mkdir -p dist
           monkeyc -e -r -f monkey.beta.jungle -o "dist/NextSet-$v-private-beta.iq" -y "$CIQ_KEY"
-          monkeyc -r -f monkey.local.jungle -d fr965 -o "dist/NextSet-$v.prg" -y "$CIQ_KEY"
+          monkeyc -e -r -f monkey.jungle -o "dist/NextSet-$v.iq" -y "$CIQ_KEY"
+          # One sideload .prg per watch, zipped; the FR965 one is also attached on its own.
+          mkdir -p "$RUNNER_TEMP/prg"
+          for d in $(grep -o '<iq:product id="[^"]*"' manifest.xml | sed -E 's/.*id="([^"]*)"/\1/'); do
+            monkeyc -r -f monkey.jungle -d "$d" -o "$RUNNER_TEMP/prg/NextSet-$v-$d.prg" -y "$CIQ_KEY"
+          done
+          cp "$RUNNER_TEMP/prg/NextSet-$v-fr965.prg" "dist/NextSet-$v.prg"
+          (cd "$RUNNER_TEMP/prg" && zip -q "$GITHUB_WORKSPACE/dist/NextSet-$v-sideload.zip" NextSet-*.prg)
           ls -l dist
       - name: Scan for API keys
         run: |
           mkdir -p "$RUNNER_TEMP/scan"
-          cp dist/*.prg "$RUNNER_TEMP/scan/"
+          cp dist/*.prg "$RUNNER_TEMP"/prg/*.prg "$RUNNER_TEMP/scan/"
           # .iq packages are 7z archives, not zip.
           for f in dist/*.iq; do 7z x -y -bd -o"$RUNNER_TEMP/scan/$(basename "$f")" "$f" > /dev/null; done
           if grep -rqa 'lftsk_' "$RUNNER_TEMP/scan"; then
@@ -85,6 +92,6 @@ jobs:
           TAG: ${{ needs.build.outputs.tag }}
         run: |
           notes="$(git tag -l --format='%(contents)' "$TAG" 2>/dev/null || true)"
-          [ -n "$notes" ] || notes="NextSet ${TAG#v}: private beta .iq and sideload .prg for the Forerunner 965."
-          gh release create "$TAG" dist/*.iq dist/*.prg --prerelease --title "NextSet ${TAG#v}" --notes "$notes" \
+          [ -n "$notes" ] || notes="NextSet ${TAG#v}: .iq packages, NextSet-${TAG#v}.prg for the Forerunner 965 and NextSet-${TAG#v}-sideload.zip with one .prg per supported watch."
+          gh release create "$TAG" dist/*.iq dist/*.prg dist/*.zip --prerelease --title "NextSet ${TAG#v}" --notes "$notes" \
             --target "$GITHUB_SHA"

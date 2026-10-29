@@ -5,8 +5,10 @@ class UploadMemoryStore extends Store {
     private var _values as Dictionary = {};
     private var _failNextKey as String? = null;
     public var writes as Array = [];
+    public var reads as Array = [];
 
     public function readKey(key as String) as Object? {
+        reads.add(key);
         return _values[key];
     }
 

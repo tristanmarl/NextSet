@@ -5,3 +5,4 @@
 *.pem
 /local/
 /memtest/
+.DS_Store

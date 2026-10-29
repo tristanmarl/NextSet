@@ -738,8 +738,12 @@ class SessionController {
         if (last instanceof Number && now >= last && now - last < 30) {
             return true;
         }
+        // Only the small checkpoint key is written here; the next commit saves the time with the
+        // session, and recovery reads the key back (see recoverRunningSession).
         var candidate = WorkoutClock.checkpoint(_session as Dictionary, now);
-        return candidate != null && commit(candidate as Dictionary);
+        _store.saveCheckpoint(_session["id"] as String, candidate["lastCheckpointAt"] as Number);
+        _session = candidate;
+        return true;
     }
 
     public function startTimed(entryId as String, slot as Number, now as Number) as Boolean {
@@ -806,11 +810,6 @@ class SessionController {
         return true;
     }
 
-    public function hasRunningRest() as Boolean {
-        return isWorkoutRunning() && _session["rest"] instanceof Dictionary &&
-            Model.sameString(_session["rest"]["state"], "running");
-    }
-
     // A running or overtime (expired, waiting for the next set) rest is on screen.
     public function hasRestShown() as Boolean {
         return isWorkoutRunning() && _session["rest"] instanceof Dictionary &&
@@ -866,7 +865,12 @@ class SessionController {
             }
         }
         if (candidate != null) {
-            return commit(candidate as Dictionary) && (restAlert || (timedAlert && canVibrate));
+            // The alert state is saved about 2 s later by the draft timer, so the storage write
+            // does not run in the same tick as the vibration and redraw. After a crash in between,
+            // the rest or timed target simply expires again on resume.
+            _session = candidate;
+            scheduleDraftFlush();
+            return restAlert || (timedAlert && canVibrate);
         }
         checkpoint(now);
         return false;
@@ -990,6 +994,11 @@ class SessionController {
     private function recoverRunningSession(now as Number) as Void {
         var source = _session as Dictionary;
         var candidate = SessionLogic.copyDictionary(source);
+        var saved = _store.loadCheckpoint(source["id"] as String);
+        if (saved != null && candidate["lastCheckpointAt"] instanceof Number &&
+            (saved as Number) > (candidate["lastCheckpointAt"] as Number) && (saved as Number) <= now) {
+            candidate["lastCheckpointAt"] = saved;
+        }
         var run = candidate["timedRun"];
         if (run instanceof Dictionary) {
             var savedAt = candidate["lastCheckpointAt"] instanceof Number ?
@@ -1310,10 +1319,14 @@ class SessionController {
         }
         // UP/DOWN edits stay in memory; any later commit includes them, else the timer saves them.
         _session = candidate;
+        scheduleDraftFlush();
+        return true;
+    }
+
+    private function scheduleDraftFlush() as Void {
         _draftDirty = true;
         _draftTimer.stop();
         _draftTimer.start(method(:flushDraft), 2000, false);
-        return true;
     }
 
     // Timer target and app-stop hook: persists pending draft edits once.
@@ -1384,7 +1397,7 @@ class SessionController {
         if (candidate == null || !commit(candidate as Dictionary)) {
             return false;
         }
-        recordSetLap(entryId, slot);  // corrected values; the NAS keeps the last lap per set
+        recordSetLap(entryId, slot);  // corrected values: a later lap for the same set supersedes the earlier one
         return true;
     }
 

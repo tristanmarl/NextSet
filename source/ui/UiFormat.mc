@@ -8,12 +8,43 @@ module UiFormat {
 
     function captionFont() as Graphics.FontType {
         if (_captionFont == null) {
-            _captionFont = Graphics.getVectorFont({:font => Graphics.FONT_XTINY, :scale => 0.75});
+            // Many MIP watches (e.g. fr255s) have no vector fonts: calling it there is a Symbol Not Found crash.
+            if (Graphics has :getVectorFont) {
+                _captionFont = Graphics.getVectorFont({:font => Graphics.FONT_XTINY, :scale => 0.75});
+            }
             if (_captionFont == null) {
                 _captionFont = Graphics.FONT_XTINY;
             }
         }
         return _captionFont as Graphics.FontType;
+    }
+
+    // "65 kg × 8" with the focused part yellow and underlined (reps when loadText is null).
+    // Returns the bottom of the line like drawLine.
+    function drawSetValue(dc as Dc, loadText as String?, repsText as String, loadFocused as Boolean,
+                          y as Number, font as Graphics.FontType) as Number {
+        var height = dc.getFontHeight(font);
+        var parts = loadText == null ? [repsText] : [loadText as String, " × ", repsText];
+        var focused = loadText == null ? 0 : (loadFocused ? 0 : 2);
+        var total = 0;
+        for (var i = 0; i < parts.size(); i++) {
+            total += dc.getTextWidthInPixels(parts[i] as String, font);
+        }
+        var x = (dc.getWidth() - total) / 2;
+        for (var i = 0; i < parts.size(); i++) {
+            var width = dc.getTextWidthInPixels(parts[i] as String, font);
+            var color = i == focused ? Graphics.COLOR_YELLOW : Graphics.COLOR_WHITE;
+            dc.setColor(color, Graphics.COLOR_BLACK);
+            dc.drawText(x, y, font, parts[i] as String, Graphics.TEXT_JUSTIFY_LEFT);
+            if (i == focused) {
+                dc.setPenWidth(2);
+                dc.drawLine(x, y + height - 2, x + width, y + height - 2);
+                dc.setPenWidth(1);
+            }
+            x += width;
+        }
+        dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+        return y + height;
     }
 
     // Return the bottom of the font box so the next row cannot erase this one.

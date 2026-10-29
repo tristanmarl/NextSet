@@ -1,5 +1,5 @@
 name: Set up Connect IQ
-description: Java 21, the pinned Linux Connect IQ SDK (cached), the FR965 device files and the signing key.
+description: Java 21, the pinned Linux Connect IQ SDK (cached), the device files for every manifest product and the signing key.
 inputs:
   dev-key:
     description: base64 of the developer key (.der)
@@ -37,22 +37,27 @@ runs:
         test -n "$monkeyc_path" || { echo "monkeyc not found in SDK"; exit 1; }
         chmod +x "$(dirname "$monkeyc_path")"/*
         echo "$(dirname "$monkeyc_path")" >> "$GITHUB_PATH"
-    - name: FR965 device files
+    - name: Device files
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.token }}
       run: |
         # Device definitions are not in the SDK zip: the user-uploaded "ci-devices" release asset
-        # (fr965-device.zip unzips to fr965/...) goes to the Linux Connect IQ device folder.
+        # ciq-devices.zip (made by scripts/pack-devices.sh, unzips to <device>/...) goes to the
+        # Linux Connect IQ device folder.
         mkdir -p ~/.Garmin/ConnectIQ/Devices "$RUNNER_TEMP/dev"
         # The release is a draft (no real tag), so find its asset through the releases API.
         asset=$(gh api "repos/$GITHUB_REPOSITORY/releases" --jq \
-          '[.[] | select(.draft and .tag_name == "ci-devices") | .assets[] | select(.name == "fr965-device.zip") | .id][0]')
+          '[.[] | select(.draft and .tag_name == "ci-devices") | .assets[] | select(.name == "ciq-devices.zip") | .id][0]')
         test -n "$asset" && test "$asset" != "null"
         gh api -H "Accept: application/octet-stream" "repos/$GITHUB_REPOSITORY/releases/assets/$asset" \
-          > "$RUNNER_TEMP/dev/fr965-device.zip"
-        unzip -q -o "$RUNNER_TEMP/dev/fr965-device.zip" -d ~/.Garmin/ConnectIQ/Devices
-        test -f ~/.Garmin/ConnectIQ/Devices/fr965/compiler.json
+          > "$RUNNER_TEMP/dev/ciq-devices.zip"
+        unzip -q -o "$RUNNER_TEMP/dev/ciq-devices.zip" -d ~/.Garmin/ConnectIQ/Devices
+        missing=""
+        for d in $(grep -o '<iq:product id="[^"]*"' manifest.xml manifest.beta.xml | sed -E 's/.*id="([^"]*)"/\1/' | sort -u); do
+          test -f ~/.Garmin/ConnectIQ/Devices/$d/compiler.json || missing="$missing $d"
+        done
+        test -z "$missing" || { echo "ciq-devices.zip lacks:$missing (re-run scripts/pack-devices.sh)"; exit 1; }
     - name: Signing key
       shell: bash
       env:

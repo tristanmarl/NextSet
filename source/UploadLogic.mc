@@ -206,20 +206,28 @@ module UploadLogic {
         return next;
     }
 
+    // intervals carries the real duration: with startTime/endTime alone Liftosaur recorded the
+    // seconds between the start and finish requests ("duration: 2s"). notes become a "//" line
+    // above the history record, so they are sent only when there is something to report.
     function finishBody(job as Dictionary) as Dictionary {
-        var notes = "NextSet session " + (job["sessionId"] as String);
+        var notes = "";
         var substitutions = job["substitutions"] as Array;
         for (var i = 0; i < substitutions.size(); i++) {
             var change = substitutions[i] as Dictionary;
-            notes += "; " + (change["from"] as String) + " -> " +
+            notes += (notes.length() > 0 ? "; " : "") + (change["from"] as String) + " -> " +
                 (change["to"] as String);
         }
         var extras = job["extraWarmups"];
         for (var i = 0; extras instanceof Array && i < (extras as Array).size(); i++) {
-            notes += "; extra warmups: " + ((extras as Array)[i] as String);
+            notes += (notes.length() > 0 ? "; " : "") + "extra warmups: " +
+                ((extras as Array)[i] as String);
         }
-        return {"startTime" => job["startTime"], "endTime" => job["endTime"],
-            "notes" => notes};
+        var body = {"startTime" => job["startTime"], "endTime" => job["endTime"],
+            "intervals" => [[job["startTime"], job["endTime"]]]};
+        if (notes.length() > 0) {
+            body["notes"] = notes;
+        }
+        return body;
     }
 
     function responseWorkout(reply as Object?) as Dictionary? {
