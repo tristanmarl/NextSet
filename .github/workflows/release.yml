@@ -1,6 +1,9 @@
-# Builds NextSet on GitHub's Linux runners and, for a version tag, publishes a public release with the
-# store .iq and the sideload .prg. The unit tests are not run here: they need the simulator GUI,
-# so run scripts/test.sh on the Mac before tagging.
+# Builds and checks NextSet on GitHub's Linux runners (store .iq and one .prg per watch, scanned for
+# API keys) and, for a version tag, publishes a GitHub release with notes only. No build files are
+# published or kept as artifacts (artifacts of a public repository can be downloaded by anyone):
+# NextSet is installed from the Connect IQ Store, and the store .iq is built locally with the key.
+# The unit tests are not run here: they need the simulator GUI, so run scripts/test.sh on the Mac
+# before tagging.
 name: release
 
 on:
@@ -9,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Tag to release (e.g. v0.3.5); leave empty to only build artifacts"
+        description: "Tag to release (e.g. v0.3.5); leave empty to only build and check"
         required: false
 
 permissions:
@@ -46,27 +49,21 @@ jobs:
           v="${{ steps.ver.outputs.version }}"
           mkdir -p dist
           monkeyc -e -r -f monkey.jungle -o "dist/NextSet-$v.iq" -y "$CIQ_KEY"
-          # One sideload .prg per watch, zipped; the FR965 one is also attached on its own.
+          # One .prg per watch: every product must build.
           mkdir -p "$RUNNER_TEMP/prg"
           for d in $(grep -o '<iq:product id="[^"]*"' manifest.xml | sed -E 's/.*id="([^"]*)"/\1/'); do
             monkeyc -r -f monkey.jungle -d "$d" -o "$RUNNER_TEMP/prg/NextSet-$v-$d.prg" -y "$CIQ_KEY"
           done
-          cp "$RUNNER_TEMP/prg/NextSet-$v-fr965.prg" "dist/NextSet-$v.prg"
-          (cd "$RUNNER_TEMP/prg" && zip -q "$GITHUB_WORKSPACE/dist/NextSet-$v-sideload.zip" NextSet-*.prg)
           ls -l dist
       - name: Scan for API keys
         run: |
           mkdir -p "$RUNNER_TEMP/scan"
-          cp dist/*.prg "$RUNNER_TEMP"/prg/*.prg "$RUNNER_TEMP/scan/"
+          cp "$RUNNER_TEMP"/prg/*.prg "$RUNNER_TEMP/scan/"
           # .iq packages are 7z archives, not zip.
           for f in dist/*.iq; do 7z x -y -bd -o"$RUNNER_TEMP/scan/$(basename "$f")" "$f" > /dev/null; done
           if grep -rqa 'lftsk_' "$RUNNER_TEMP/scan"; then
             echo "An artifact contains an API key prefix"; exit 1
           fi
-      - uses: actions/upload-artifact@v4
-        with:
-          name: NextSet-${{ steps.ver.outputs.version }}
-          path: dist/*
       - name: Remove key
         if: always()
         run: rm -f "$RUNNER_TEMP/key.der"
@@ -79,10 +76,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/download-artifact@v4
-        with:
-          name: NextSet-${{ needs.build.outputs.version }}
-          path: dist
       - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -96,6 +89,5 @@ jobs:
             git fetch --force origin "refs/tags/$TAG:refs/tags/$TAG" 2>/dev/null || true
             notes="$(git tag -l --format='%(contents)' "$TAG" 2>/dev/null || true)"
           fi
-          [ -n "$notes" ] || notes="NextSet ${TAG#v}: .iq packages, NextSet-${TAG#v}.prg for the Forerunner 965 and NextSet-${TAG#v}-sideload.zip with one .prg per supported watch."
-          gh release create "$TAG" dist/*.iq dist/*.prg dist/*.zip --latest --title "NextSet ${TAG#v}" --notes "$notes" \
-            --target "$GITHUB_SHA"
+          [ -n "$notes" ] || notes="NextSet ${TAG#v}. Install it from the Connect IQ Store."
+          gh release create "$TAG" --latest --title "NextSet ${TAG#v}" --notes "$notes" --target "$GITHUB_SHA"

@@ -53,18 +53,9 @@ Not supported: two-button touch watches (Venu, vívoactive), Connect IQ 3 watche
 
 ## Install
 
-Install NextSet from the **Connect IQ Store**: open the Connect IQ app on your phone, search for "NextSet" and install it on your watch. Store installs update automatically.
+Install NextSet from the **Connect IQ Store**: open the Connect IQ app on your phone, search for "NextSet" and install it on your watch. Store installs update automatically, and your workouts and settings are kept.
 
-### Sideloading (optional)
-
-Release builds are also on GitHub, for example to try a version before it reaches the store:
-
-1. Download `NextSet-X.Y.Z-sideload.zip` from the [latest release](https://github.com/tristanmarl/NextSet/releases).
-2. Unzip it and pick the file for your watch, for example `NextSet-X.Y.Z-fr965.prg` or `NextSet-X.Y.Z-fenix7.prg`. The device ids are listed in [`manifest.xml`](manifest.xml).
-3. Connect the watch by USB and copy the file into `GARMIN/APPS` on the watch. On Windows the watch appears as a drive; on macOS use an MTP tool such as [OpenMTP](https://openmtp.ganeshrvel.com).
-4. Disconnect the watch. NextSet appears in the app list.
-
-To update a sideloaded copy, copy the new `.prg` over the old one. Your workouts and settings are kept.
+The Connect IQ Store is the only way to install NextSet; GitHub releases carry the release notes, not build files. Developers can build and run it from source (see [CONTRIBUTING.md](CONTRIBUTING.md)).
 
 ## Set up
 

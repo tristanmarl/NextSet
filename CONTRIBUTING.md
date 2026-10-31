@@ -84,16 +84,15 @@ Simulator results are not device results. Record what was checked on a real watc
 
 ## Releases (maintainers)
 
-1. `scripts/bump-version.sh X.Y.Z` updates both manifests and `AppVersion`; run `scripts/test.sh`; commit.
-2. Push the tag `vX.Y.Z`, or run the **release** workflow with the tag as input; without a tag it only builds artifacts.
+1. `scripts/bump-version.sh X.Y.Z` updates both manifests and `AppVersion`; add the `CHANGELOG.md` entry and `docs/release-notes/X.Y.Z.md`; run `scripts/test.sh`; commit.
+2. Push the tag `vX.Y.Z`, or run the **release** workflow with the tag as input; without a tag it only builds and checks.
+3. Build the store package locally and upload it in the Connect IQ developer dashboard:
 
-The workflow checks that the tag matches the manifest version and builds:
+   ```sh
+   monkeyc -e -r -f monkey.jungle -o bin/NextSet-X.Y.Z.iq -y "$KEY"
+   ```
 
-- `NextSet-X.Y.Z.iq` (all watches, for the Connect IQ Store)
-- `NextSet-X.Y.Z.prg` (FR965)
-- `NextSet-X.Y.Z-sideload.zip` (one `.prg` per watch)
-
-It fails if any artifact contains `lftsk_`, then creates a public GitHub release. Its notes come from `docs/release-notes/X.Y.Z.md` (write it before tagging), else from the annotated tag message. The private-beta package (`monkey.beta.jungle`, separate app id) is built locally only when needed: `monkeyc -e -r -f monkey.beta.jungle -o bin/NextSet-X.Y.Z-private-beta.iq -y "$KEY"`. The **ci** workflow compiles `fr965` and `fr255s` on pushes to `main` and on pull requests; unit tests do not run in CI because the simulator needs a GUI.
+The workflow checks that the tag matches the manifest version, builds the store `.iq` and one `.prg` per watch, and fails if any of them contains `lftsk_`. It then creates a GitHub release with notes only (from `docs/release-notes/X.Y.Z.md`, else the annotated tag message). No build files are published or kept as workflow artifacts, because anyone can download the artifacts of a public repository: the Connect IQ Store is the only install channel. The private-beta package (`monkey.beta.jungle`, separate app id) is built locally only when needed: `monkeyc -e -r -f monkey.beta.jungle -o bin/NextSet-X.Y.Z-private-beta.iq -y "$KEY"`. The **ci** workflow compiles `fr965` and `fr255s` on pushes to `main` and on pull requests; unit tests do not run in CI because the simulator needs a GUI.
 
 CI needs two things that are not in the repository:
 
