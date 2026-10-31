@@ -36,6 +36,7 @@ Writes are idempotent by `startTime`, so a job interrupted at any step retries s
 ## Unverified
 
 - Unilateral `repsLeft` and timed-set progression have not been confirmed by a real workout write.
+- Sets that ask for a value (API "Sets that ask for a value"): `logRpe` sets send `completed.rpe`, entries with `promptedVars` send `completed.userVars` on every set, one-sided timed sets send `setTimerLeft` with `setTimer`. Values the lifter did not answer fall back to the program's own suggestion (the set's `rpe`, the advertised variable value, the right-side hold). Not yet confirmed by a real write.
+- Weights keep the account's unit: `"135lb"` syncs and uploads as lb; FIT weight fields are converted to kg. Not yet confirmed by a real write.
 - Assistance weights are negative in NextSet and sent as positive weights.
-- Prompted variables (`promptedVars`) are not collected; programs that need them are not supported.
 - Liftosaur's acceptance of `intervals` from NextSet awaits the next real upload (see `DEVICE_TESTS.md`).

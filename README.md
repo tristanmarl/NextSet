@@ -11,19 +11,22 @@ No phone in your hand at the gym, no second app, no server in between.
 > NextSet is an independent hobby project. It is not affiliated with or endorsed by Liftosaur or Garmin.
 
 <p align="center">
-  <img src="docs/screenshots/set-rest.png" width="200" alt="Set screen: Seated Row, set 3 of 3, 55 kg × 9, rest timer">
-  <img src="docs/screenshots/change-load.png" width="200" alt="Load selected in yellow on the set screen">
-  <img src="docs/screenshots/overview.png" width="200" alt="Overview: exercise progress, total sets and elapsed time">
-  <img src="docs/screenshots/edit-set.png" width="200" alt="Editing the last logged set">
+  <img src="docs/screenshots/set.png" width="200" alt="Set screen: Seated Row, set dots, 55 kg × 9 with the reps underlined, heart rate">
+  <img src="docs/screenshots/rest.png" width="200" alt="Rest: blue ring and 1:57 countdown, the next set 55 kg × 9">
+  <img src="docs/screenshots/change-load.png" width="200" alt="Warmup with the load selected in yellow">
+  <img src="docs/screenshots/finish.png" width="200" alt="Finish? 2 sets, 1 exercise, 0:40">
 </p>
 <p align="center"><sub>Forerunner 965 simulator with a made-up program (<code>monkey.demo.jungle</code>).</sub></p>
 
 ## Features
 
 - **Your Liftosaur program on the watch.** Sync downloads the days of the current week (up to eight) with per-set targets, warmups, rep ranges, rest timers, supersets and timed sets. After a sync you can train without the phone.
-- **One press per set.** UP/DOWN adjust the reps (or the load, switched from the menu), START logs the set and starts the rest timer. A short vibration warns 10 s before the rest ends, and an overtime clock counts up after it.
-- **Warmups, supersets, timed sets.** Warmups come from the program and upload as Liftosaur warmup sets. Supersets alternate automatically. Timed sets (planks, dead bugs) count down and log the held time.
-- **Change things on the fly.** Change the load, edit or delete the last set, add a set, skip warmups, skip or replace an exercise, or change the weight step (0.5 / 1 / 2.5 / 5 kg).
+- **One press per set.** UP/DOWN adjust the reps (or the load, switched from the menu), START logs the set and starts the rest. The rest is a blue ring around the screen with the time left, and the centre already shows the next set's weight, so you can load the bar or move the pin. A medium vibration comes 10 s before the rest ends, a long one when it is over, and the ring turns green while the overtime counts up.
+- **Heart rate.** The live heart rate sits at the bottom of the set and rest screens; the summary shows the workout's average and maximum.
+- **Kilograms or pounds.** Weights stay in the unit your Liftosaur account uses (`kg` or `lb`), on the watch and in the upload.
+- **Programs that ask for values.** Sets that log an RPE ask for it right after the set, and exercises with prompted variables (Liftoscript `state.name+`) ask for each value after the last set. Both start at the program's suggestion: START saves, BACK keeps the suggestion.
+- **Warmups, supersets, timed sets.** Warmups come from the program and upload as Liftosaur warmup sets. Supersets alternate automatically. Timed sets (planks, dead bugs) count down and log the held time; one-sided timed sets record the left and then the right side.
+- **Change things on the fly.** Change the load, edit or delete the last set, add a set, skip warmups, skip or replace an exercise, or change the weight step (0.5 / 1 / 2.5 / 5 kg, or 1 / 2.5 / 5 / 10 lb).
 - **Direct upload to Liftosaur.** Up to four finished workouts are queued and uploaded over the phone connection. An interrupted upload retries safely, and nothing is sent twice. If the program changed since you trained, the upload stops and tells you, instead of writing to the wrong day.
 - **Garmin activity.** Each workout is also a Training activity in Garmin Connect, with heart rate, duration and one lap per set.
 - **Crash safe.** The workout is saved after every set. If the watch or app restarts, you continue where you were.
@@ -69,23 +72,23 @@ To update a sideloaded copy, copy the new `.prg` over the old one. Your workouts
 2. **Sync.** With the phone nearby, choose **Menu → Settings → Sync routines**, or press START on Home when nothing is synced yet. Home shows "Synced N days" when done.
 3. **Train.** Choose the day with UP/DOWN on Home and press START.
 
-Hold UP to open the menu anywhere. The small icons at the screen edge show what each button does; the UP/DOWN arrows turn yellow while they change the load.
+Hold UP to open the menu anywhere. The small icons at the screen edge show what each button does. Every workout screen keeps the same places: the exercise at the top, set dots (or the rest time) below it, weight and reps in the middle, heart rate at the bottom. Yellow and underlined is what UP/DOWN change.
 
 ## Using NextSet
 
-- **Log a set:** UP/DOWN change the reps, START logs the set and starts the rest. A second press within 800 ms is ignored.
-- **Change the load:** hold UP and choose **Change load** (the first item). The weight turns yellow and UP/DOWN change it by your weight step; fast presses speed up (two, then four steps per press). **Change reps** in the same place switches back. Logging a set switches back to reps. A changed load carries over to the following sets unless the program gives them a different weight. On touch watches you can also tap the weight.
+- **Log a set:** UP/DOWN change the reps, START logs the set and starts the rest. A second press within 800 ms is ignored. If the program asks for an RPE or prompted values, a question screen follows (UP/DOWN change, START saves, BACK keeps the suggestion).
+- **Change the load:** hold UP and choose **Change load** (the first item). The weight turns yellow and underlined, and UP/DOWN change it by your weight step; fast presses speed up (two, then four steps per press). **Change reps** in the same place switches back. Logging a set switches back to reps. A changed load carries over to the following sets unless the program gives them a different weight. On touch watches you can also tap the weight.
 - **Fix the last set:** hold UP for the menu: **Edit last set** (showing its values) and **Delete set N** are at the top. The editor shows load and reps together (hold UP switches between them, START saves, BACK cancels).
-- **Timed sets:** START starts the countdown, START again logs the held time, BACK pauses.
-- **Overview:** BACK from an exercise shows all exercises with progress and the elapsed time. Pick any exercise to train out of order.
+- **Timed sets:** START starts the countdown, START again logs the held time, BACK pauses. A one-sided set shows "Left side", then "Right side": hold each side and press START after each.
+- **Overview:** BACK from an exercise shows the exercises one at a time with their set dots. UP/DOWN browse, START trains the shown exercise, so you can go out of order.
 - **Finish:** **Menu → Finish workout** (also offered after the last set) opens a review with the workout time, sets and exercises done. START saves; BACK opens a choice between **Keep working** (selected first) and **Discard workout** (UP/DOWN move, START confirms, BACK returns to the review). The summary then shows the upload status live. **Cancel workout** in the same menu goes straight to that choice; discarding throws the workout away: no history, no upload, and the Garmin activity is discarded. These screens, and the confirmations for deleting a set or clearing the upload queue, answer only to the buttons, never to taps.
-- **History:** the last four workouts, with the Liftosaur upload state of each.
+- **History:** the last four workouts, one per page, with a check for the Garmin activity and the Liftosaur upload. START shows the sets.
 - **When something goes wrong:** pending uploads retry after 2, 5 and 10 minutes while the app is open and at every launch. **Settings → Retry workout upload** retries now. **Skip this upload** and **Clear upload queue** remove stuck jobs; local history is kept.
 
 ## Limitations
 
-- Prompted variables in Liftosaur programs (`promptedVars`) are not asked on the watch, so programs that need them cannot be synced.
-- Unilateral rep counts (left/right) and timed-set progression have not been confirmed against Liftosaur on a real workout yet.
+- RPE, prompted variables, one-sided timed sets, pounds, unilateral rep counts and timed-set progression follow Liftosaur's API documentation but have not been confirmed with a real workout upload yet.
+- Heart rate on screen comes from the running Garmin activity; the summary's average and maximum are lost if the app restarts during the workout (the Garmin activity keeps them).
 - The Garmin activity is a Training activity with NextSet's own lap fields. It does not create Garmin's native strength sets, and Garmin Connect does not display the custom fields.
 - Only the Forerunner 965 has been tested on real hardware. Details are in [docs/DEVICE_TESTS.md](docs/DEVICE_TESTS.md).
 
