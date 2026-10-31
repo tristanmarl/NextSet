@@ -52,7 +52,7 @@ class DemoApp extends NextSetApp {
     }
 
     public function nextScreen() as Void {
-        _screen = (_screen + 1) % 14;
+        _screen = (_screen + 1) % 11;
         var view = null;
         var row = demoEntry("Seated Row");
         var press = demoEntry("Chest Press");
@@ -63,37 +63,32 @@ class DemoApp extends NextSetApp {
             controller().restAction("skip", Time.now().value());
             view = new ExerciseView(press);
         } else if (_screen == 2) {
-            view = new ExerciseView(row);
+            // "Change weight": the one-field editor, directly in EDIT.
+            var exercise = UiFormat.exercise(controller().session() as Dictionary, press) as Dictionary;
+            view = new SetEditView(press, SessionLogic.activeSlot(exercise), false, true);
         } else if (_screen == 3) {
-            view = new OverviewView();
+            // "Edit last set": the two-level editor.
+            var exercise = UiFormat.exercise(controller().session() as Dictionary, row) as Dictionary;
+            view = new SetEditView(row, UiFormat.lastSlot(exercise), true, false);
         } else if (_screen == 4) {
-            var exercise = UiFormat.exercise(controller().session() as Dictionary, press) as Dictionary;
-            view = new SetEditView(press, SessionLogic.activeSlot(exercise), false);
+            view = new ReviewView();
         } else if (_screen == 5) {
-            var exercise = UiFormat.exercise(controller().session() as Dictionary, press) as Dictionary;
-            var editor = new SetEditView(press, SessionLogic.activeSlot(exercise), false);
-            editor.startPressed();
-            view = editor;
+            view = new ConfirmView("Discard?", "Keep working", "Discard");
         } else if (_screen == 6) {
             var exercise = UiFormat.exercise(controller().session() as Dictionary, row) as Dictionary;
-            view = new SetEditView(row, UiFormat.lastSlot(exercise), true);
+            var editor = new SetEditView(row, UiFormat.lastSlot(exercise), true, false);
+            editor.startPressed();
+            view = editor;
         } else if (_screen == 7) {
-            view = new StartingWorkoutView();
+            view = new OverviewView();
         } else if (_screen == 8) {
-            view = new HomeView();
-        } else if (_screen == 9) {
-            view = new ReviewView();
-        } else if (_screen == 10) {
-            view = new ConfirmView("Discard?", "Keep working", "Discard");
-        } else if (_screen == 11) {
             view = new SummaryView("completed");
-        } else if (_screen == 12) {
+        } else if (_screen == 9) {
             var history = new HistoryView();
             history.select();
             view = history;
         } else {
-            view = new QuestionView([{"kind" => "rpe", "entryId" => row, "slot" => 1, "value" => 85},
-                {"kind" => "var", "entryId" => row, "name" => "target", "value" => "225lb"}]);
+            view = new HomeView();
         }
         WatchUi.switchToView(view, new WatchUi.BehaviorDelegate(), WatchUi.SLIDE_IMMEDIATE);
     }
