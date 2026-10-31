@@ -66,10 +66,8 @@ module Navigator {
     function confirmQueue(action as String) as Void {
         var title = Model.sameString(action, "clear_queue") ? "Clear queue" :
             (Model.sameString(action, "clear_key") ? "Clear key" : "Skip upload");
-        var menu = new WatchUi.Menu2({:title=>title + "?"});
-        menu.addItem(new WatchUi.MenuItem("Keep", null, "cancel", null));
-        menu.addItem(new WatchUi.MenuItem(title, null, action, null));
-        WatchUi.pushView(menu, new ConfirmQueueDelegate(), WatchUi.SLIDE_UP);
+        var view = new ConfirmView(title + "?", "Keep", title);
+        WatchUi.pushView(view, new ConfirmDelegate(view, new QueueAction(action)), WatchUi.SLIDE_UP);
     }
 
     function routineList() as Void {
@@ -335,30 +333,29 @@ module Navigator {
         WatchUi.pushView(new WatchUi.TextPicker(""), new KeyTextDelegate(autoSync), WatchUi.SLIDE_UP);
     }
 
-    function workoutComplete() as Void {
-        var menu = new WatchUi.Menu2({:title=>"Workout complete"});
-        menu.addItem(new WatchUi.MenuItem("Save workout", null, "finish", null));
-        menu.addItem(new WatchUi.MenuItem("Keep working", null, "keep", null));
-        WatchUi.pushView(menu, new WorkoutCompleteDelegate(), WatchUi.SLIDE_UP);
+    // Key-only review of the finished workout (START saves, BACK opens Keep/Discard).
+    function review() as Void {
+        var session = getApp().controller().session();
+        if (session == null || SessionLogic.totals(session as Dictionary)["done"] == 0) {
+            feedback(Err.message(Err.LOG_A_SET_BEFORE_SAVING) as String);
+            return;
+        }
+        WatchUi.pushView(new ReviewView(), new ReviewDelegate(), WatchUi.SLIDE_UP);
     }
 
-    function confirm(action as String) as Void {
-        var canceling = Model.sameString(action, "abort");
-        var title = canceling ? "Cancel workout?" : "Save workout?";
-        var menu = new WatchUi.Menu2({:title=>title});
-        menu.addItem(new WatchUi.MenuItem(canceling ? "Keep workout" : "Keep working",
-            null, "cancel", null));
-        menu.addItem(new WatchUi.MenuItem(canceling ? "Cancel workout" : "Save workout",
-            null, action, null));
-        WatchUi.pushView(menu, new ConfirmMenuDelegate(), WatchUi.SLIDE_UP);
+    // Key-only Keep/Discard choice for the workout; Keep is selected first.
+    function confirmDiscard(fromReview as Boolean) as Void {
+        var view = new ConfirmView("Discard?", "Keep working", "Discard");
+        WatchUi.pushView(view, new ConfirmDelegate(view, new DiscardWorkoutAction(fromReview)),
+            WatchUi.SLIDE_UP);
     }
 
     function confirmUndo(entryId as String, slot as Number, view as ExerciseView,
                          fromOverview as Boolean) as Void {
-        var menu = new WatchUi.Menu2({:title=>"Delete set " + UiFormat.slotLabel(slot) + "?"});
-        menu.addItem(new WatchUi.MenuItem("Cancel", null, "cancel", null));
-        menu.addItem(new WatchUi.MenuItem("Delete", null, "undo", null));
-        WatchUi.pushView(menu, new UndoConfirmMenuDelegate(entryId, slot, view, fromOverview), WatchUi.SLIDE_UP);
+        var confirmView = new ConfirmView("Delete set " + UiFormat.slotLabel(slot) + "?",
+            "Cancel", "Delete");
+        WatchUi.pushView(confirmView, new ConfirmDelegate(confirmView,
+            new DeleteSetAction(entryId, slot, view, fromOverview)), WatchUi.SLIDE_UP);
     }
 
     function exerciseMenu(entryId as String, view as ExerciseView) as Void {
@@ -470,7 +467,7 @@ module Navigator {
             }
         }
         if (SessionLogic.totals(session as Dictionary)["done"] > 0) {
-            workoutComplete();
+            review();
         }
     }
 
@@ -775,59 +772,3 @@ class KeyTextDelegate extends WatchUi.TextPickerDelegate {
     }
 }
 
-class ConfirmQueueDelegate extends WatchUi.Menu2InputDelegate {
-    public function initialize() {
-        Menu2InputDelegate.initialize();
-    }
-
-    public function onSelect(item as MenuItem) as Void {
-        var id = item.getId() as String;
-        WatchUi.popView(WatchUi.SLIDE_DOWN);
-        if (Model.sameString(id, "cancel")) {
-            return;
-        }
-        var controller = getApp().controller();
-        if (Model.sameString(id, "clear_key")) {
-            // Back to a refreshed Settings (the key label and key items change).
-            controller.clearKey();
-            Navigator.settings();
-            return;
-        }
-        var done = Model.sameString(id, "clear_queue") ? controller.clearUploadQueue() :
-            (Model.sameString(id, "clear_key") ? controller.clearKey() : controller.skipUpload());
-        // Also leave the parent menu so Home shows the result.
-        WatchUi.popView(WatchUi.SLIDE_DOWN);
-        if (!done) {
-            Navigator.feedback("Could not change the upload queue");
-        }
-    }
-
-    public function onBack() as Void {
-        WatchUi.popView(WatchUi.SLIDE_DOWN);
-    }
-}
-
-class ConfirmMenuDelegate extends WatchUi.Menu2InputDelegate {
-    public function initialize() {
-        Menu2InputDelegate.initialize();
-    }
-
-    public function onSelect(item as MenuItem) as Void {
-        if (Navigator.staleWorkoutView()) {
-            return;
-        }
-        var id = item.getId() as String;
-        if (Model.sameString(id, "cancel")) {
-            WatchUi.popView(WatchUi.SLIDE_DOWN);
-            return;
-        }
-        if (!Model.sameString(id, "abort")) {
-            return;
-        }
-        getApp().requestWorkoutFinish("aborted");
-    }
-
-    public function onBack() as Void {
-        WatchUi.popView(WatchUi.SLIDE_DOWN);
-    }
-}

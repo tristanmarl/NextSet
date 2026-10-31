@@ -18,31 +18,9 @@ class ActionsMenuDelegate extends WatchUi.Menu2InputDelegate {
         }
         var id = item.getId() as String;
         if (Model.sameString(id, "finish")) {
-            getApp().requestWorkoutFinish("completed");
+            Navigator.review();
         } else if (Model.sameString(id, "abort")) {
-            Navigator.confirm(id);
-        }
-    }
-
-    public function onBack() as Void {
-        WatchUi.popView(WatchUi.SLIDE_DOWN);
-    }
-}
-
-class WorkoutCompleteDelegate extends WatchUi.Menu2InputDelegate {
-    public function initialize() {
-        Menu2InputDelegate.initialize();
-    }
-
-    public function onSelect(item as MenuItem) as Void {
-        if (Navigator.staleWorkoutView()) {
-            return;
-        }
-        var id = item.getId() as String;
-        if (Model.sameString(id, "keep")) {
-            WatchUi.popView(WatchUi.SLIDE_DOWN);
-        } else if (Model.sameString(id, "finish")) {
-            getApp().requestWorkoutFinish("completed");
+            Navigator.confirmDiscard(false);
         }
     }
 
@@ -276,39 +254,3 @@ class ProgramExerciseDelegate extends WatchUi.Menu2InputDelegate {
     }
 }
 
-class UndoConfirmMenuDelegate extends WatchUi.Menu2InputDelegate {
-    private var _entryId as String;
-    private var _slot as Number;
-    private var _view as ExerciseView;
-    private var _fromOverview as Boolean;
-
-    public function initialize(entryId as String, slot as Number, view as ExerciseView,
-                               fromOverview as Boolean) {
-        _entryId = entryId;
-        _slot = slot;
-        _view = view;
-        _fromOverview = fromOverview;
-        Menu2InputDelegate.initialize();
-    }
-
-    public function onSelect(item as MenuItem) as Void {
-        if (Model.sameString(item.getId(), "cancel")) {
-            WatchUi.popView(WatchUi.SLIDE_DOWN);
-            return;
-        }
-        if (!getApp().controller().undoSet(_entryId, _slot)) {
-            _view.showMessage("Set not deleted");
-        }
-        WatchUi.popView(WatchUi.SLIDE_DOWN);
-        WatchUi.popView(WatchUi.SLIDE_DOWN);
-        if (_fromOverview && getApp().controller().errorMessage() != null) {
-            Navigator.home();
-        } else {
-            WatchUi.requestUpdate();
-        }
-    }
-
-    public function onBack() as Void {
-        WatchUi.popView(WatchUi.SLIDE_DOWN);
-    }
-}

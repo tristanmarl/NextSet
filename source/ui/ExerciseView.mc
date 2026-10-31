@@ -495,7 +495,7 @@ class ExerciseView extends WatchUi.View {
         WatchUi.popView(WatchUi.SLIDE_DOWN);
         WatchUi.requestUpdate();
         if (totals["planned"] > 0 && totals["done"] == totals["planned"]) {
-            Navigator.workoutComplete();
+            Navigator.review();
         }
     }
 }

@@ -78,7 +78,7 @@ Hold UP to open the menu anywhere. The small icons at the screen edge show what 
 - **Fix the last set:** hold UP for the menu: **Edit last set** (showing its values) and **Delete set N** are at the top. The editor shows load and reps together (hold UP switches between them, START saves, BACK cancels).
 - **Timed sets:** START starts the countdown, START again logs the held time, BACK pauses.
 - **Overview:** BACK from an exercise shows all exercises with progress and the elapsed time. Pick any exercise to train out of order.
-- **Finish:** **Menu → Finish workout**. The summary shows the upload status live. **Cancel workout** throws the workout away: no history, no upload, and the Garmin activity is discarded.
+- **Finish:** **Menu → Finish workout** (also offered after the last set) opens a review with the workout time, sets and exercises done. START saves; BACK opens a choice between **Keep working** (selected first) and **Discard workout** (UP/DOWN move, START confirms, BACK returns to the review). The summary then shows the upload status live. **Cancel workout** in the same menu goes straight to that choice; discarding throws the workout away: no history, no upload, and the Garmin activity is discarded. These screens, and the confirmations for deleting a set or clearing the upload queue, answer only to the buttons, never to taps.
 - **History:** the last four workouts, with the Liftosaur upload state of each.
 - **When something goes wrong:** pending uploads retry after 2, 5 and 10 minutes while the app is open and at every launch. **Settings → Retry workout upload** retries now. **Skip this upload** and **Clear upload queue** remove stuck jobs; local history is kept.
 

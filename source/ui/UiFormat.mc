@@ -135,6 +135,28 @@ module UiFormat {
         return done.toString() + "/" + planned.toString() + suffix;
     }
 
+    // "1 set", "12 sets".
+    function plural(count as Number, noun as String) as String {
+        return count.toString() + " " + noun + (count == 1 ? "" : "s");
+    }
+
+    // Numbers on the finish review screen: workout time so far, sets done and exercises with at
+    // least one set done.
+    function reviewStats(session as Dictionary, now as Number) as Dictionary {
+        var exercises = session["exercises"] as Array;
+        var worked = 0;
+        for (var i = 0; i < exercises.size(); i++) {
+            if (SessionLogic.completedCount(exercises[i] as Dictionary) > 0) {
+                worked++;
+            }
+        }
+        return {
+            "elapsedSec" => WorkoutClock.elapsed(session, now),
+            "sets" => SessionLogic.totals(session)["done"],
+            "exercises" => worked
+        };
+    }
+
     // "m:ss" (minutes capped at 99).
     function clockText(seconds as Number) as String {
         var total = seconds < 0 ? 0 : (seconds > 5999 ? 5999 : seconds);

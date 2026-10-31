@@ -68,3 +68,35 @@ function testSummaryUploadStatusMapping(logger as Test.Logger) as Boolean {
             LiftosaurLogic.summaryUpload(null, false, null) == null,
             "errors, waiting and non-Liftosaur workouts map correctly");
 }
+
+(:test)
+function testReviewStatsAndPlural(logger as Test.Logger) as Boolean {
+    var session = {
+        "startedAt" => 1000,
+        "exercises" => [
+            {"plannedSetCount" => 2, "closedEarly" => false,
+             "slots" => [{"completed" => {"reps" => 5}}, {"completed" => {"reps" => 5}}]},
+            {"plannedSetCount" => 3, "closedEarly" => true,
+             "slots" => [{"completed" => {"reps" => 8}}, {"completed" => null}, {"completed" => null}]},
+            {"plannedSetCount" => 3, "closedEarly" => false,
+             "slots" => [{"completed" => null}, {"completed" => null}, {"completed" => null}]}
+        ]
+    };
+    var stats = UiFormat.reviewStats(session, 1000 + 754);
+    var okStats = stats["elapsedSec"] == 754 && stats["sets"] == 3 && stats["exercises"] == 2;
+    var early = UiFormat.reviewStats(session, 900);
+    var okPlural = Model.sameString(UiFormat.plural(1, "set"), "1 set") &&
+        Model.sameString(UiFormat.plural(0, "set"), "0 sets") &&
+        Model.sameString(UiFormat.plural(12, "exercise"), "12 exercises");
+    return check(logger, okStats, "review stats must count elapsed time, sets and exercises") &&
+        check(logger, early["elapsedSec"] == 0 && okPlural, "review time clamps at 0; plurals");
+}
+
+(:test)
+function testFinishGuardIgnoresEarlyStart(logger as Test.Logger) as Boolean {
+    var early = FinishGuard.tooSoon(5000, 5400);
+    var later = FinishGuard.tooSoon(5000, 5800);
+    var clockWrap = FinishGuard.tooSoon(5000, 4000);
+    return check(logger, early && !later && !clockWrap,
+        "a START right after a screen opens is ignored, later ones are not");
+}
