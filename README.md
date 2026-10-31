@@ -13,7 +13,7 @@ No phone in your hand at the gym, no second app, no server in between.
 <p align="center">
   <img src="docs/screenshots/set.png" width="200" alt="Set screen: Seated Row, set dots, 55 kg × 9 with the reps underlined, heart rate">
   <img src="docs/screenshots/rest.png" width="200" alt="Rest: blue ring and 1:57 countdown, the next set 55 kg × 9">
-  <img src="docs/screenshots/change-load.png" width="200" alt="Warmup with the load selected in yellow">
+  <img src="docs/screenshots/edit-set.png" width="200" alt="Edit set: the weight selected in yellow, reps below">
   <img src="docs/screenshots/finish.png" width="200" alt="Finish? 2 sets, 1 exercise, 0:40">
 </p>
 <p align="center"><sub>Forerunner 965 simulator with a made-up program (<code>monkey.demo.jungle</code>).</sub></p>
