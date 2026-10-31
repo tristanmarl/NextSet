@@ -1,4 +1,5 @@
 import Toybox.Lang;
+import Toybox.Math;
 
 module SessionLogic {
     function routineSyncAlreadyCommitted(syncSequence as Number,
@@ -796,7 +797,7 @@ module SessionLogic {
         }
         var type = exercise["loadType"];
         var load100 = completed["load100"] instanceof Number ? completed["load100"] as Number : 0;
-        var kg = load100 / 100.0;
+        var kg = Model.toKg(load100 / 100.0, exercise["loadUnit"]);
         if (Model.sameString(type, "assistance")) {
             kg = -kg;
         } else if (!Model.sameString(type, "weight")) {
@@ -837,7 +838,10 @@ module SessionLogic {
                     var completed = slots[j]["completed"];
                     if (completed instanceof Dictionary && completed["load100"] instanceof Number &&
                         completed["reps"] instanceof Number) {
-                        volume100 += (completed["load100"] as Number) * (completed["reps"] as Number);
+                        var load = Model.sameString(exercise["loadUnit"], "lb") ?
+                            Math.round(Model.toKg((completed["load100"] as Number).toFloat(), "lb")).toNumber() :
+                            completed["load100"] as Number;
+                        volume100 += load * (completed["reps"] as Number);
                     }
                 }
             }

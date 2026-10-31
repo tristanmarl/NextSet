@@ -133,16 +133,33 @@ module Model {
             (set["durationSec"] == null || set["reps"] == 1);
     }
 
+    // Liftosaur weight strings: "100kg" or "225lb". The value stays in its own unit (load100 =
+    // hundredths of that unit); weightUnit tells which.
     function weightLoad100(weight as Object?) as Number? {
+        if (weightUnit(weight) == null) {
+            return null;
+        }
+        var value = weight as String;
+        var amount = value.substring(0, value.length() - 2).toDouble();
+        return validKg(amount) ? load100(amount) : null;
+    }
+
+    function weightUnit(weight as Object?) as String? {
         if (!(weight instanceof String) || (weight as String).length() < 3) {
             return null;
         }
         var value = weight as String;
-        if (!sameString(value.substring(value.length() - 2, value.length()), "kg")) {
-            return null;
-        }
-        var kilograms = value.substring(0, value.length() - 2).toDouble();
-        return validKg(kilograms) ? load100(kilograms) : null;
+        var suffix = value.substring(value.length() - 2, value.length());
+        return sameString(suffix, "kg") || sameString(suffix, "lb") ? suffix : null;
+    }
+
+    function validUnit(unit as Object?) as Boolean {
+        return sameString(unit, "kg") || sameString(unit, "lb");
+    }
+
+    // Kilograms for FIT fields, which are always kg.
+    function toKg(amount as Float, unit as Object?) as Float {
+        return sameString(unit, "lb") ? amount * 0.45359237 : amount;
     }
 
     function validLiftosaurSet(set as Object?) as Boolean {
@@ -290,7 +307,7 @@ module Model {
                 !(item["unilateral"] instanceof Boolean) ||
                 !(sameString(type, "weight") || sameString(type, "bodyweight") ||
                     sameString(type, "timed")) ||
-                !(sameString(type, "weight") ? sameString(item["unit"], "kg") &&
+                !(sameString(type, "weight") ? validUnit(item["unit"]) &&
                     inRange(item["increment100"], 25, 10000, false) &&
                     (item["increment100"] as Number) % 25 == 0 :
                     item["unit"] == null && item["increment100"] == null) ||
@@ -480,6 +497,7 @@ module Model {
                     sameString(type, "bodyweight") ||
                     sameString(type, "timed")) ||
                 !(exercise["unilateral"] instanceof Boolean) ||
+                (exercise["unit"] != null && !validUnit(exercise["unit"])) ||
                 (sameString(type, "timed") && exercise["unilateral"] == true) ||
                 !inRange(exercise["plannedSetCount"], 1, MAX_SETS, false) ||
                 !(sets instanceof Array) || (sets as Array).size() < 1 ||
@@ -683,7 +701,7 @@ module Model {
                     !validNonblankText(item["liftosaurEntryId"], 64)) ||
                 !validNonblankText(item["name"], 64) || !validLoadType(type) ||
                 !(sameString(type, "weight") || sameString(type, "assistance") ?
-                    sameString(item["loadUnit"], "kg") : item["loadUnit"] == null) ||
+                    validUnit(item["loadUnit"]) : item["loadUnit"] == null) ||
                 !validText(item["equipment"], 48, true) ||
                 !validText(item["superset"], 24, true) ||
                 (item["unilateral"] != null && !(item["unilateral"] instanceof Boolean)) ||

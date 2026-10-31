@@ -35,6 +35,7 @@ class SetEditView extends WatchUi.View {
     private var _correcting as Boolean;
     private var _hasLoad as Boolean = false;
     private var _assistance as Boolean = false;
+    private var _unit as String = "kg";
     private var _loadFocused as Boolean;
     private var _load100 as Number = 0;
     private var _reps as Number = 1;
@@ -63,7 +64,7 @@ class SetEditView extends WatchUi.View {
         UiFormat.drawTitle(dc, title, h * 25 / 100);
         var reps = [_reps.toString(), "num"];
         var parts = _hasLoad ?
-            [[UiFormat.load100(_load100), "num"], [_assistance ? "kg assist" : "kg", "unit"], ["×", "sep"], reps] :
+            [[UiFormat.load100(_load100), "num"], [_unit + (_assistance ? " assist" : ""), "unit"], ["×", "sep"], reps] :
             [reps, ["reps", "unit"]];
         UiFormat.drawBig(dc, parts, h * 57 / 100, _hasLoad && _loadFocused ? 0 : (_hasLoad ? 3 : 0),
             Graphics.COLOR_WHITE);
@@ -142,6 +143,7 @@ class SetEditView extends WatchUi.View {
         var exercise = data["exercise"] as Dictionary;
         var values = (_correcting ? data["completed"] : data["draft"]) as Dictionary;
         _assistance = Model.sameString(exercise["loadType"], "assistance");
+        _unit = UiFormat.unit(exercise);
         _hasLoad = _assistance || Model.sameString(exercise["loadType"], "weight");
         _loadFocused = _loadFocused && _hasLoad;
         if (values["reps"] instanceof Number) {

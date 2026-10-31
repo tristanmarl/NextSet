@@ -38,11 +38,14 @@ module Catalog {
             }
             var firstSet = sets[0] as Dictionary;
             var timed = firstSet["setTimer"] instanceof Number;
+            // kg or lb as Liftosaur sends it; one exercise never mixes units.
+            var unit = Model.weightUnit(firstSet["weight"]);
             var bodyweight = true;
             var isUnilateral = false;
             for (var s = 0; s < sets.size(); s++) {
                 var sourceSet = sets[s] as Dictionary;
-                if ((sourceSet["setTimer"] instanceof Number) != timed) {
+                if ((sourceSet["setTimer"] instanceof Number) != timed ||
+                    !Model.sameString(Model.weightUnit(sourceSet["weight"]), unit)) {
                     return null;
                 }
                 isUnilateral = isUnilateral || sourceSet["isUnilateral"] == true;
@@ -83,6 +86,10 @@ module Catalog {
             if (sourceWarmups instanceof Array) {
                 for (var w = 0; w < (sourceWarmups as Array).size(); w++) {
                     var warmup = (sourceWarmups as Array)[w] as Dictionary;
+                    if (!Model.sameString(Model.weightUnit(warmup["weight"]), unit) &&
+                        Model.weightLoad100(warmup["weight"]) != 0) {
+                        return null;
+                    }
                     var warmupReps = warmup["reps"] instanceof Number ?
                         warmup["reps"] : warmup["minReps"];
                     warmups.add({
@@ -107,8 +114,10 @@ module Catalog {
                 "superset" => source["superset"],
                 "unilateral" => isUnilateral,
                 "loadType" => type,
-                "unit" => Model.sameString(type, "weight") ? "kg" : null,
-                "increment100" => Model.sameString(type, "weight") ? 100 : null,
+                "unit" => Model.sameString(type, "weight") ? unit : null,
+                // Default step: 1 kg or 5 lb.
+                "increment100" => Model.sameString(type, "weight") ?
+                    (Model.sameString(unit, "lb") ? 500 : 100) : null,
                 "workingSetCount" => sets.size(),
                 "restSec" => restSec,
                 "defaultRestSec" => restSec,

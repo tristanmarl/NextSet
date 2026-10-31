@@ -161,6 +161,11 @@ module UiFormat {
         return hr instanceof Number && hr >= 30 && hr <= 250 ? hr as Number : 0;
     }
 
+    // "kg" or "lb": the unit Liftosaur sent for this exercise.
+    function unit(exercise as Dictionary) as String {
+        return Model.sameString(exercise["loadUnit"], "lb") ? "lb" : "kg";
+    }
+
     // Big-value parts for the draft of a set (see drawBig). Timed sets: running and paused show
     // the held seconds against the target.
     function valueParts(exercise as Dictionary, slot as Number, timedNow as Number?,
@@ -181,7 +186,7 @@ module UiFormat {
             return [["BW", "unit"], ["×", "sep"], reps];
         }
         return [[load100(draft["load100"] as Number), "num"],
-            [Model.sameString(type, "assistance") ? "kg assist" : "kg", "unit"], ["×", "sep"], reps];
+            [unit(exercise) + (Model.sameString(type, "assistance") ? " assist" : ""), "unit"], ["×", "sep"], reps];
     }
 
     // Return the bottom of the font box so the next row cannot erase this one.
@@ -341,7 +346,7 @@ module UiFormat {
         var type = exercise["loadType"];
         var value = Model.sameString(type, "timed") ? done["durationSec"].toString() + " s" :
             (Model.sameString(type, "bodyweight") ? "BW × " + done["reps"].toString() :
-                load100(done["load100"] as Number) + " kg × " + done["reps"].toString());
+                load100(done["load100"] as Number) + " " + unit(exercise) + " × " + done["reps"].toString());
         return label + " · " + value;
     }
 
@@ -364,10 +369,10 @@ module UiFormat {
         var draft = (Model.slotAt(exercise, slotIndex) as Dictionary)["draft"] as Dictionary;
         var type = exercise["loadType"];
         if (Model.sameString(type, "weight")) {
-            return load100(draft["load100"] as Number) + " kg × " + draft["reps"].toString();
+            return load100(draft["load100"] as Number) + " " + unit(exercise) + " × " + draft["reps"].toString();
         }
         if (Model.sameString(type, "assistance")) {
-            return load100(draft["load100"] as Number) + " kg assist × " + draft["reps"].toString();
+            return load100(draft["load100"] as Number) + " " + unit(exercise) + " assist × " + draft["reps"].toString();
         }
         if (Model.sameString(type, "bodyweight")) {
             return "Bodyweight × " + draft["reps"].toString();
@@ -421,10 +426,10 @@ module UiFormat {
                 return null;
             }
             if (Model.sameString(exercise["loadType"], "weight") && load instanceof Number) {
-                return "PLAN " + load100(load as Number) + " kg × " + reps.toString();
+                return "PLAN " + load100(load as Number) + " " + unit(exercise) + " × " + reps.toString();
             }
             if (Model.sameString(exercise["loadType"], "assistance") && load instanceof Number) {
-                return "PLAN " + load100(load as Number) + " kg assist × " + reps.toString();
+                return "PLAN " + load100(load as Number) + " " + unit(exercise) + " assist × " + reps.toString();
             }
             return "PLAN " + reps.toString() + " reps";
         }
@@ -464,10 +469,10 @@ module UiFormat {
         var values = selected as Array;
         var type = exercise["loadType"];
         if (Model.sameString(type, "weight")) {
-            return "LAST " + load100(values[1] as Number) + " kg × " + values[2].toString();
+            return "LAST " + load100(values[1] as Number) + " " + unit(exercise) + " × " + values[2].toString();
         }
         if (Model.sameString(type, "assistance")) {
-            return "LAST " + load100(values[1] as Number) + " kg assist × " + values[2].toString();
+            return "LAST " + load100(values[1] as Number) + " " + unit(exercise) + " assist × " + values[2].toString();
         }
         if (Model.sameString(type, "bodyweight")) {
             return "LAST bodyweight × " + values[2].toString();

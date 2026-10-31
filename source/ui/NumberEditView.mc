@@ -4,6 +4,7 @@ import Toybox.Time;
 import Toybox.WatchUi;
 
 class NumberEditView extends WatchUi.View {
+    private var _unit as String = "kg";
     private var _entryId as String;
     private var _slot as Number;
     private var _field as String;
@@ -130,6 +131,7 @@ class NumberEditView extends WatchUi.View {
         var exercise = data["exercise"] as Dictionary;
         var values = _correcting ? data["completed"] as Dictionary : data["draft"] as Dictionary;
         _loadType = exercise["loadType"] as String;
+        _unit = UiFormat.unit(exercise);
         if (!validField() || values[_field] == null || !(values[_field] instanceof Number)) {
             _error = "Field unavailable";
             return;
@@ -205,7 +207,7 @@ class NumberEditView extends WatchUi.View {
 
     private function stepLabel() as String {
         if (isLoadField()) {
-            return "Step " + UiFormat.load100(stepSize()) + " kg";
+            return "Step " + UiFormat.load100(stepSize()) + " " + _unit;
         }
         var step = stepModeValue();
         return "Step " + step.toString() +
@@ -233,7 +235,7 @@ class NumberEditView extends WatchUi.View {
 
     private function valueUnit() as String {
         if (isLoadField()) {
-            return "kg";
+            return _unit;
         }
         if (Model.sameString(_field, "reps") || Model.sameString(_field, "targetRepsMin") ||
             Model.sameString(_field, "targetRepsMax")) {

@@ -134,6 +134,7 @@ module UploadLogic {
                     "name" => exercise["name"],
                     "loadType" => type,
                     "unilateral" => exercise["unilateral"] == true,
+                    "unit" => Model.sameString(exercise["loadUnit"], "lb") ? "lb" : "kg",
                     "plannedSetCount" => planned,
                     "sets" => sets
                 };
@@ -272,17 +273,23 @@ module UploadLogic {
         return false;
     }
 
+    // "62.5kg" / "135lb": the weight in the unit Liftosaur sent (jobs without a unit are kg).
     function kgString(load100 as Number) as String {
+        return weightString(load100, "kg");
+    }
+
+    function weightString(load100 as Number, unit as Object?) as String {
+        var suffix = Model.sameString(unit, "lb") ? "lb" : "kg";
         var whole = load100 / 100;
         var fraction = load100 % 100;
         if (fraction == 0) {
-            return whole.toString() + "kg";
+            return whole.toString() + suffix;
         }
         if (fraction % 10 == 0) {
-            return whole.toString() + "." + (fraction / 10).toString() + "kg";
+            return whole.toString() + "." + (fraction / 10).toString() + suffix;
         }
         return whole.toString() + "." + (fraction < 10 ? "0" : "") +
-            fraction.toString() + "kg";
+            fraction.toString() + suffix;
     }
 
     function mappedCompleted(exercise as Dictionary, set as Dictionary,
@@ -303,7 +310,9 @@ module UploadLogic {
             }
         } else {
             result["reps"] = set["reps"];
-            result["weight"] = kgString(Math.round((set["kg"] as Numeric) * 100.0).toNumber());
+            // "kg" is the stored field name; the value is in the exercise's unit.
+            result["weight"] = weightString(Math.round((set["kg"] as Numeric) * 100.0).toNumber(),
+                exercise["unit"]);
             if (plan["isUnilateral"] == true || exercise["unilateral"] == true) {
                 result["repsLeft"] = set["reps"];
             }

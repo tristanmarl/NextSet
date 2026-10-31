@@ -56,7 +56,8 @@ module Navigator {
             if (next >= 0) {
                 var draft = (Model.slotAt(exercise, next) as Dictionary)["draft"] as Dictionary;
                 var loadLabel = UiFormat.load100(draft["load100"] as Number) +
-                    (Model.sameString(exercise["loadType"], "assistance") ? " kg assist" : " kg");
+                    " " + UiFormat.unit(exercise) +
+                    (Model.sameString(exercise["loadType"], "assistance") ? " assist" : "");
                 var action = Model.sameString(exercise["loadType"], "assistance") ?
                     "Change assistance" : "Change load";
                 // From the set screen this switches UP/DOWN in place; it comes first.
@@ -84,7 +85,8 @@ module Navigator {
         }
         if (Model.sameString(exercise["loadType"], "weight")) {
             menu.addItem(new WatchUi.MenuItem("Weight step",
-                UiFormat.load100(exercise["weightIncrement100"] as Number) + " kg", "weight_step", null));
+                UiFormat.load100(exercise["weightIncrement100"] as Number) + " " + UiFormat.unit(exercise),
+                "weight_step", null));
         }
         if ((exercise["slots"] as Array).size() < Model.MAX_SETS &&
             SessionLogic.totals(session)["planned"] < Model.MAX_SETS_PER_WORKOUT) {
@@ -118,9 +120,12 @@ module Navigator {
 
     function weightStepMenu(entryId as String) as Void {
         var menu = new WatchUi.Menu2({:title=>"Weight step"});
-        var steps = [50, 100, 250, 500];
+        var session = getApp().controller().session();
+        var exercise = session == null ? null : UiFormat.exercise(session as Dictionary, entryId);
+        var unit = exercise == null ? "kg" : UiFormat.unit(exercise as Dictionary);
+        var steps = Model.sameString(unit, "lb") ? [100, 250, 500, 1000] : [50, 100, 250, 500];
         for (var i = 0; i < steps.size(); i++) {
-            menu.addItem(new WatchUi.MenuItem(UiFormat.load100(steps[i]) + " kg", null,
+            menu.addItem(new WatchUi.MenuItem(UiFormat.load100(steps[i]) + " " + unit, null,
                 steps[i].toString(), null));
         }
         WatchUi.pushView(menu, new WeightStepDelegate(entryId), WatchUi.SLIDE_UP);

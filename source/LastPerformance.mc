@@ -51,7 +51,7 @@ module LastPerformance {
             return false;
         }
         if ((Model.sameString(type, "weight") || Model.sameString(type, "assistance")) ?
-            !Model.sameString(unit, "kg") : unit != null) {
+            !Model.validUnit(unit) : unit != null) {
             return false;
         }
         var exercise = {"exerciseId" => id, "loadType" => type};
