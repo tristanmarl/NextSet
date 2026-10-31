@@ -38,7 +38,7 @@ Garmin watches with five buttons and Connect IQ 5 or newer:
 | fēnix | 7 / 7 Pro (S, X, Solar), 8 (43 / 47 / 51 mm, Pro, Solar), 9 (all), E |
 | Other | epix (Gen 2) and epix Pro, Enduro 3, MARQ (Gen 2), Instinct 3 AMOLED, Instinct Crossover AMOLED, D2 Mach 1 / 2 / 2 Pro, Descent Mk3 and G2 |
 
-NextSet is developed and used daily on a **Forerunner 965**. All other models build, start in the simulator and have the same button layout, but have not been tested on a real watch yet. Reports are welcome (see [Contributing](#contributing)).
+NextSet is developed and used daily on a **Forerunner 965**. All other models build and have the same button layout, and the Home screen has been started in the simulator on a sample of them (including Forerunner 255S, fēnix 7S and Instinct 3 AMOLED), but none has been tested on a real watch yet. Reports are welcome (see [Contributing](#contributing)).
 
 Not supported: two-button touch watches (Venu, vívoactive), Connect IQ 3 watches (fēnix 6, Forerunner 245/745/945, MARQ Gen 1) and small-memory watches such as Instinct 2 / 3 Solar and Instinct E.
 
@@ -50,14 +50,18 @@ Not supported: two-button touch watches (Venu, vívoactive), Connect IQ 3 watche
 
 ## Install
 
-NextSet is not in the Connect IQ Store yet. Install it by sideloading:
+Install NextSet from the **Connect IQ Store**: open the Connect IQ app on your phone, search for "NextSet" and install it on your watch. Store installs update automatically.
+
+### Sideloading (optional)
+
+Release builds are also on GitHub, for example to try a version before it reaches the store:
 
 1. Download `NextSet-X.Y.Z-sideload.zip` from the [latest release](https://github.com/tristanmarl/NextSet/releases).
 2. Unzip it and pick the file for your watch, for example `NextSet-X.Y.Z-fr965.prg` or `NextSet-X.Y.Z-fenix7.prg`. The device ids are listed in [`manifest.xml`](manifest.xml).
 3. Connect the watch by USB and copy the file into `GARMIN/APPS` on the watch. On Windows the watch appears as a drive; on macOS use an MTP tool such as [OpenMTP](https://openmtp.ganeshrvel.com).
 4. Disconnect the watch. NextSet appears in the app list.
 
-To update, copy the new `.prg` over the old one. Your workouts and settings are kept.
+To update a sideloaded copy, copy the new `.prg` over the old one. Your workouts and settings are kept.
 
 ## Set up
 
@@ -95,7 +99,7 @@ Hold UP to open the menu anywhere. The small icons at the screen edge show what 
 
 **Does it work without the phone?** Logging does, once routines are synced. Sync and upload need the phone's connection. Finished workouts wait in the queue until the phone is back.
 
-**I use [liftosaur2garmin](https://github.com/Zettt/liftosaur2garmin). Does that work?** Yes, after NextSet 0.3.4. Up to 0.3.4 NextSet added a note to every workout, which made liftosaur2garmin's parser fail; it now adds a note only for a replaced exercise or extra warmups. The same parser still fails on any Liftosaur workout that has a note, including notes you write in the Liftosaur app.
+**I use [liftosaur2garmin](https://github.com/Zettt/liftosaur2garmin). Does that work?** It should from NextSet 0.3.6 on, but this has not been confirmed with a real upload yet. Up to 0.3.5 NextSet added a note to every workout, which made liftosaur2garmin's parser fail; since 0.3.6 it adds a note only for a replaced exercise or extra warmups. The same parser still fails on any Liftosaur workout that has a note, including notes you write in the Liftosaur app.
 
 **Why five buttons only?** Every action is mapped to UP, DOWN, START, BACK and the menu, so it works with sweaty hands and gloves. Touch-only watches would need their own controls.
 
