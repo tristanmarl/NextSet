@@ -30,6 +30,9 @@ class ExerciseView extends WatchUi.View {
         WatchUi.requestUpdate();
     }
 
+    // Fixed layout (CLAUDE.md UI rules): name at the top, set dots (or the rest time while
+    // resting) below it, weight and reps big in the centre, heart rate at the bottom. During a
+    // rest the ring runs round the edge and the centre shows the next set.
     public function onUpdate(dc as Dc) as Void {
         _loadTapLeft = -1;
         _loadTapRight = -1;
@@ -40,186 +43,144 @@ class ExerciseView extends WatchUi.View {
         var session = getApp().controller().session();
         if (session == null) {
             dc.drawText(dc.getWidth() / 2, dc.getHeight() / 2, Graphics.FONT_MEDIUM,
-                "No active workout", Graphics.TEXT_JUSTIFY_CENTER);
+                "No active workout", Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
             return;
         }
         var exercise = UiFormat.exercise(session as Dictionary, _entryId);
         if (exercise == null) {
             dc.drawText(dc.getWidth() / 2, dc.getHeight() / 2, Graphics.FONT_MEDIUM,
-                "Exercise unavailable", Graphics.TEXT_JUSTIFY_CENTER);
+                "Exercise unavailable", Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
             return;
         }
+        var h = dc.getHeight();
+        var titleY = h * 25 / 100;
+        var rowY = h * 39 / 100;
+        var valueY = h * 57 / 100;
+        var hrY = h * 79 / 100;
         var current = exercise as Dictionary;
         var slot = SessionLogic.activeSlot(current);
-        var planned = current["plannedSetCount"] as Number;
         var loadType = current["loadType"] as String;
         var tappableLoad = Model.sameString(loadType, "weight") ||
             Model.sameString(loadType, "assistance");
-        var caption = UiFormat.captionFont();
-        var titleFont = Graphics.FONT_MEDIUM;
-        var name = current["name"] as String;
+
+        var rest = (session as Dictionary)["rest"];
+        var resting = slot >= 0 && rest instanceof Dictionary &&
+            (Model.sameString(rest["state"], "running") || Model.sameString(rest["state"], "expired"));
+        // While resting, the centre shows the set that comes next (in a superset another exercise).
+        var shown = current;
+        var shownSlot = slot;
+        var editable = true;
+        if (resting) {
+            drawRestRing(dc, session as Dictionary);
+            var next = SessionLogic.nextUp(session as Dictionary, (rest as Dictionary)["entryId"] as String);
+            if (next != null && !Model.sameString((next as Dictionary)["entryId"], _entryId)) {
+                var other = UiFormat.exercise(session as Dictionary, (next as Dictionary)["entryId"] as String);
+                if (other != null) {
+                    shown = other as Dictionary;
+                    shownSlot = (next as Dictionary)["slot"] as Number;
+                    editable = false;
+                }
+            }
+        }
+
+        var name = shown["name"] as String;
         var groupLabel = SessionLogic.supersetLabel(session as Dictionary,
-            SessionLogic.exerciseIndex(session as Dictionary, _entryId));
+            SessionLogic.exerciseIndex(session as Dictionary, shown["entryId"] as String));
         if (groupLabel != null) {
             name = (groupLabel as String) + " " + name;
         }
-        var titleLines = UiFormat.wrapTitle(dc, name, titleFont,
-            dc.getWidth() * 0.72);
-        if (titleLines.size() == 1 && !Model.sameString(titleLines[0], name)) {
-            titleFont = Graphics.FONT_SMALL;
-            titleLines = UiFormat.wrapTitle(dc, name, titleFont, dc.getWidth() * 0.62);
-            if (titleLines.size() == 1 && !Model.sameString(titleLines[0], name)) {
-                titleFont = Graphics.FONT_XTINY;
-                titleLines = UiFormat.wrapTitle(dc, name, titleFont, dc.getWidth() * 0.62);
-            }
-        }
-        var titleHeight = dc.getFontHeight(titleFont);
-        var setFont = Graphics.FONT_SMALL;
-        var setHeight = dc.getFontHeight(setFont);
-        var valueFont = Graphics.FONT_MEDIUM;
-        var valueHeight = dc.getFontHeight(valueFont);
-        var mainHeight = titleLines.size() * titleHeight + 5 + setHeight + 8 + valueHeight;
-        // Running rest, or the overtime count-up once it has run out.
-        var restStatus = slot < 0 ? null : (UiFormat.restStatus(session as Dictionary) != null ?
-            UiFormat.restStatus(session as Dictionary) : UiFormat.restOvertime(session as Dictionary));
-        if (restStatus != null) {
-            drawRestRing(dc, session as Dictionary);
-        }
-        var nextUp = restStatus == null ? null : UiFormat.nextUpLine(session as Dictionary);
-        var last = slot < 0 || restStatus != null ? null : UiFormat.lastLine(current, slot);
-        // Target is lowest priority: only shown when notes and messages leave room.
-        var target = slot < 0 || restStatus != null || _message != null ||
-            current["notes"] instanceof String ? null :
-            UiFormat.targetLine(current, slot);
-        // How to reach the load: shown until the first switch, and while the load is selected.
-        var focusable = tappableLoad && slot >= 0 && restStatus == null;
-        var hint = !focusable ? null : (_loadFocused ? "MENU: change reps" :
-            (getApp().focusHintSeen ? null : "MENU: change load"));
-        if (hint != null) {
-            target = null;
-        }
+        UiFormat.drawTitle(dc, name, titleY);
+
         if (slot < 0) {
-            mainHeight = titleLines.size() * titleHeight + 8 + dc.getFontHeight(Graphics.FONT_SMALL) +
-                4 + dc.getFontHeight(Graphics.FONT_SMALL);
-        } else {
-            mainHeight += 8 + dc.getFontHeight(caption);
-            if (restStatus != null) {
-                mainHeight += dc.getFontHeight(Graphics.FONT_SMALL) + 3;
-                if (nextUp != null) {
-                    mainHeight += dc.getFontHeight(caption) + 2;
-                }
-            } else {
-                if (last != null) {
-                    mainHeight += dc.getFontHeight(caption) + 2;
-                }
-                if (target != null || hint != null) {
-                    mainHeight += dc.getFontHeight(caption) + 2;
-                }
-                if (current["notes"] instanceof String) {
-                    mainHeight += dc.getFontHeight(caption) + 2;
-                }
-                if (_message != null) {
-                    mainHeight += dc.getFontHeight(caption) + 2;
-                }
-            }
-        }
-        var y = (dc.getHeight() - mainHeight) / 2;
-        for (var i = 0; i < titleLines.size(); i++) {
-            y = UiFormat.drawLine(dc, titleLines[i] as String, y, titleFont) + 1;
-        }
-        if (slot < 0) {
-            y += 7;
-            y = UiFormat.drawLine(dc, current["closedEarly"] ? "Finished early" :
-                "Complete", y, Graphics.FONT_SMALL) + 4;
-            y = UiFormat.drawLine(dc, UiFormat.progress(current), y, Graphics.FONT_SMALL) + 4;
-            UiFormat.drawLine(dc, "Hold UP: add set", y, caption);
+            var count = current["plannedSetCount"] as Number;
+            Icons.setDots(dc, rowY, count, count, -1);
+            var s = Icons.unit(dc);
+            Icons.check(dc, dc.getWidth() / 2, valueY, s * 3, Graphics.COLOR_GREEN);
+            UiFormat.drawHrRow(dc, hrY, _message);
             Icons.backMarker(dc);
             Icons.menuMarker(dc);
             return;
         }
 
-        y += 4;
-        var range = UiFormat.repRange(current, slot);
-        var setTitle = slot >= Model.WARMUP_BASE ?
-            "Warmup " + (slot - Model.WARMUP_BASE + 1).toString() + "/" +
-                SessionLogic.warmupCount(current).toString() :
-            "Set " + (slot + 1).toString() + "/" + planned.toString() +
-                (range == null ? "" : " · " + range);
-        y = UiFormat.drawLine(dc, setTitle, y, setFont) + 7;
-        var value = exerciseLine(session as Dictionary, current, slot);
-        var valueY = y;
-        var visibleValue = UiFormat.safeText(dc, value, valueY, valueFont);
-        if (!Model.sameString(visibleValue, value)) {
-            valueFont = Graphics.FONT_SMALL;
-            valueHeight = dc.getFontHeight(valueFont);
-            visibleValue = UiFormat.safeText(dc, value, valueY, valueFont);
-        }
-        var valueWidth = dc.getTextWidthInPixels(visibleValue, valueFont);
-        var lineLeft = (dc.getWidth() - valueWidth) / 2;
-        var draftValues = (Model.slotAt(current, slot) as Dictionary)["draft"] as Dictionary;
-        if (tappableLoad && Model.sameString(visibleValue, value)) {
-            var loadLabel = UiFormat.load100(draftValues["load100"] as Number) + " kg" +
-                (Model.sameString(loadType, "assistance") ? " assist" : "");
-            _loadTapLeft = lineLeft - 10;
-            _loadTapRight = lineLeft + dc.getTextWidthInPixels(loadLabel, valueFont) + 10;
-            _loadTapTop = valueY - 3;
-            _loadTapBottom = valueY + valueHeight + 3;
-            y = UiFormat.drawSetValue(dc, loadLabel, draftValues["reps"].toString(), _loadFocused,
-                valueY, valueFont) + 6;
+        if (resting) {
+            var running = Model.sameString((rest as Dictionary)["state"], "running");
+            var now = Time.now().value();
+            var text = running ? UiFormat.clockText(RestClock.remaining(rest as Dictionary, now)) :
+                "+" + UiFormat.clockText(RestClock.overtime(rest as Dictionary, now));
+            dc.setColor(running ? Graphics.COLOR_BLUE : Graphics.COLOR_GREEN, Graphics.COLOR_BLACK);
+            dc.drawText(dc.getWidth() / 2, rowY, Graphics.FONT_LARGE, text,
+                Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+        } else if (slot >= Model.WARMUP_BASE) {
+            dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_BLACK);
+            dc.drawText(dc.getWidth() / 2, rowY, Graphics.FONT_SMALL, "Warmup " +
+                (slot - Model.WARMUP_BASE + 1).toString() + "/" +
+                SessionLogic.warmupCount(current).toString(),
+                Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
         } else {
-            y = UiFormat.drawLine(dc, value, valueY, valueFont) + 6;
+            Icons.setDots(dc, rowY, doneSets(current), current["plannedSetCount"] as Number, slot);
         }
 
-        if (restStatus != null) {
-            y = UiFormat.drawRestLine(dc, session as Dictionary, y, Graphics.FONT_SMALL);
-            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
-            if (nextUp != null) {
-                y = UiFormat.drawLine(dc, nextUp as String, y, caption) + 2;
-            }
-        }
-        if (last != null) {
-            y = UiFormat.drawLine(dc, last as String, y, caption) + 2;
-        }
-        if (target != null) {
-            y = UiFormat.drawLine(dc, target as String, y, caption) + 2;
-        }
-        if (hint != null) {
-            y = UiFormat.drawLine(dc, hint as String, y, caption) + 2;
-        }
-        if (restStatus == null && current["notes"] instanceof String) {
-            y = UiFormat.drawLine(dc, current["notes"] as String, y, caption) + 2;
-        }
-        if (restStatus == null && _message != null) {
-            y = UiFormat.drawLine(dc, _message as String, y, caption) + 2;
-        }
-
-        var timed = Model.sameString(loadType, "timed");
+        var timedNow = null;
         var run = (session as Dictionary)["timedRun"];
         var isRunning = run instanceof Dictionary &&
             Model.sameString(run["entryId"], _entryId) && run["slot"] == slot;
+        if (isRunning && editable) {
+            timedNow = getApp().controller().timedElapsed(Time.now().value());
+        }
+        var parts = UiFormat.valueParts(shown, shownSlot, timedNow,
+            targetDurationSec(shown, shownSlot));
+        // Yellow and underlined: the value UP/DOWN change (load, reps or duration).
+        var focus = !editable ? -1 : (Model.sameString(loadType, "timed") ? (isRunning ? -1 : 0) :
+            (_loadFocused && tappableLoad ? 0 : parts.size() - 1));
+        var box = UiFormat.drawBig(dc, parts, valueY, focus, Graphics.COLOR_WHITE);
+        if (tappableLoad && editable) {
+            _loadTapLeft = box[0] - 10;
+            _loadTapRight = box[0] + (box[1] - box[0]) / 2;
+            _loadTapTop = box[2] - 4;
+            _loadTapBottom = box[3] + 4;
+        }
+
+        // Bottom row: heart rate; an error replaces it, and a one-time hint teaches the load switch.
+        var hint = null;
+        if (_message == null && tappableLoad && editable && !resting && !getApp().focusHintSeen) {
+            hint = "Hold UP: change load";
+        }
+        if (hint != null) {
+            dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_BLACK);
+            dc.drawText(dc.getWidth() / 2, hrY, UiFormat.captionFont(), hint as String,
+                Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+        } else {
+            UiFormat.drawHrRow(dc, hrY, _message);
+        }
+
+        var timed = Model.sameString(loadType, "timed");
         var draft = (Model.slotAt(current, slot) as Dictionary)["draft"] as Dictionary;
         var measured = draft["measuredSec"] instanceof Number && draft["measuredSec"] > 0;
         var manuallyEdited = draft["durationEdited"] == true;
-        // The hint line is now the transient confirmation of the last logged set.
-        var confirmation = getApp().confirmText;
-        if (confirmation != null) {
-            var s = Icons.unit(dc);
-            var width = dc.getTextWidthInPixels(confirmation as String, caption);
-            Icons.check(dc, dc.getWidth() / 2 - width / 2 - s * 2, y + 2 + dc.getFontHeight(caption) / 2,
-                s, Graphics.COLOR_GREEN);
-            dc.setColor(Graphics.COLOR_GREEN, Graphics.COLOR_BLACK);
-            UiFormat.drawLine(dc, confirmation as String, y + 2, caption);
-            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
-        }
         // Button hints at the physical keys: START = play / stop / log, BACK = overview.
         Icons.startMarker(dc, timed ? (isRunning ? "stop" : ((measured || !manuallyEdited) ? "play" : "check")) :
             "check");
         Icons.backMarker(dc);
-        Icons.focusMarkers(dc, _loadFocused && tappableLoad);
+        if (editable && !isRunning) {
+            Icons.focusMarkers(dc);
+        }
+    }
+
+    // Working sets of the exercise that are logged.
+    private function doneSets(exercise as Dictionary) as Number {
+        var count = 0;
+        var planned = exercise["plannedSetCount"] as Number;
+        for (var i = 0; i < planned; i++) {
+            var found = Model.slotAt(exercise, i);
+            if (found != null && (found as Dictionary)["completed"] instanceof Dictionary) {
+                count++;
+            }
+        }
+        return count;
     }
 
     // Countdown ring at the very edge, outside the button-hint icons (inside them it would run
-    // through the title and rest lines): dim full circle, a yellow arc clockwise from 12 o'clock
+    // through the title and rest lines): dim full circle, a blue arc clockwise from 12 o'clock
     // for the remaining rest, and a full green ring once the rest has run out. Redrawn only with
     // the screen, i.e. with the existing 1 s rest redraw.
     private function drawRestRing(dc as Dc, session as Dictionary) as Void {
@@ -240,7 +201,7 @@ class ExerciseView extends WatchUi.View {
         dc.setPenWidth(pen);
         dc.setColor(Graphics.COLOR_DK_GRAY, Graphics.COLOR_BLACK);
         dc.drawCircle(width / 2, height / 2, radius);
-        dc.setColor(expired ? Graphics.COLOR_GREEN : Graphics.COLOR_YELLOW, Graphics.COLOR_BLACK);
+        dc.setColor(expired ? Graphics.COLOR_GREEN : Graphics.COLOR_BLUE, Graphics.COLOR_BLACK);
         if (fraction >= 1.0) {
             dc.drawCircle(width / 2, height / 2, radius);
         } else if (fraction > 0.0) {
@@ -271,7 +232,7 @@ class ExerciseView extends WatchUi.View {
             return false;
         }
         _loadFocused = true;
-        getApp().focusHintSeen = true;
+        getApp().markFocusHintSeen();
         WatchUi.requestUpdate();
         return true;
     }
@@ -290,7 +251,7 @@ class ExerciseView extends WatchUi.View {
             return;
         }
         _loadFocused = !_loadFocused;
-        getApp().focusHintSeen = true;
+        getApp().markFocusHintSeen();
         getApp().clearConfirmation();
         WatchUi.requestUpdate();
     }
@@ -409,14 +370,14 @@ class ExerciseView extends WatchUi.View {
                 saved = controller.completeTimed(_entryId, slot, now);
             } else if (draft["measuredSec"] instanceof Number && draft["measuredSec"] > 0) {
                 saved = controller.startTimed(_entryId, slot, now);
-                _message = saved ? "Timer resumed" : "Timer not started";
+                _message = saved ? null : "Timer not started";
                 WatchUi.requestUpdate();
                 return saved;
             } else if (draft["durationEdited"] == true) {
                 saved = controller.completeDraft(_entryId, slot, now);
             } else {
                 saved = controller.startTimed(_entryId, slot, now);
-                _message = saved ? "Timer started" : "Timer not started";
+                _message = saved ? null : "Timer not started";
                 WatchUi.requestUpdate();
                 return saved;
             }

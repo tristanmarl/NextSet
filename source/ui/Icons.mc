@@ -3,7 +3,7 @@ import Toybox.Lang;
 import Toybox.Math;
 
 // Icons drawn with Dc primitives (system-font glyph coverage on the FR965 is unverified).
-// White, yellow and green on black only. Button angles come from the fr965 simulator layout:
+// White, yellow, green and red (heart) on black only. Button angles come from the fr965 simulator layout:
 // degrees counter-clockwise from 3 o'clock, measured from the screen centre to the key.
 module Icons {
     const ANGLE_START = 25;
@@ -123,12 +123,8 @@ module Icons {
         edge(dc, "down", ANGLE_DOWN);
     }
 
-    // UP/DOWN chevrons, yellow while they change the load (matching the highlighted value).
-    function focusMarkers(dc as Dc, loadFocused as Boolean) as Void {
-        if (!loadFocused) {
-            browseMarkers(dc);
-            return;
-        }
+    // UP/DOWN chevrons in yellow: on the set screen they always change the highlighted value.
+    function focusMarkers(dc as Dc) as Void {
         var s = unit(dc);
         var radius = (dc.getWidth() < dc.getHeight() ? dc.getWidth() : dc.getHeight()) / 2 - s * 2;
         var angles = [ANGLE_UP, ANGLE_DOWN];
@@ -137,6 +133,39 @@ module Icons {
             var x = dc.getWidth() / 2 + (radius * Math.cos(radians)).toNumber();
             var y = dc.getHeight() / 2 - (radius * Math.sin(radians)).toNumber();
             chevron(dc, x, y, s, i, Graphics.COLOR_YELLOW);
+        }
+        dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+    }
+
+    // Heart for the HR readout: two circles and a triangle.
+    function heart(dc as Dc, x as Number, y as Number, s as Number) as Void {
+        dc.setColor(Graphics.COLOR_RED, Graphics.COLOR_BLACK);
+        var r = s * 3 / 4 + 2;
+        dc.fillCircle(x - r + 1, y - r / 2, r);
+        dc.fillCircle(x + r - 1, y - r / 2, r);
+        dc.fillPolygon([[x - 2 * r, y - r / 3], [x + 2 * r, y - r / 3], [x, y + 2 * r - 1]]);
+    }
+
+    // One dot per working set: done green, the current one white, the rest gray outlines.
+    function setDots(dc as Dc, y as Number, done as Number, planned as Number, current as Number) as Void {
+        var s = unit(dc);
+        var r = s < 3 ? 4 : s + 1;
+        var gap = r * 3;
+        var x = dc.getWidth() / 2 - (planned - 1) * gap / 2;
+        for (var i = 0; i < planned; i++) {
+            if (i < done && i != current) {
+                dc.setColor(Graphics.COLOR_GREEN, Graphics.COLOR_BLACK);
+                dc.fillCircle(x, y, r);
+            } else if (i == current) {
+                dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+                dc.fillCircle(x, y, r);
+            } else {
+                dc.setColor(Graphics.COLOR_DK_GRAY, Graphics.COLOR_BLACK);
+                dc.setPenWidth(2);
+                dc.drawCircle(x, y, r - 1);
+                dc.setPenWidth(1);
+            }
+            x += gap;
         }
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
     }

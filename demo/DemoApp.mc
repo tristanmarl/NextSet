@@ -44,6 +44,8 @@ class DemoApp extends NextSetApp {
         if (_screen == 0) {
             view = new ExerciseView(row);
         } else if (_screen == 1) {
+            // Second screen without a rest: the plain set screen.
+            controller().restAction("skip", Time.now().value());
             var press = new ExerciseView(demoEntry("Chest Press"));
             press.toggleFocus();
             view = press;

@@ -1,3 +1,4 @@
+import Toybox.Activity;
 import Toybox.Graphics;
 import Toybox.Lang;
 import Toybox.Math;
@@ -45,6 +46,141 @@ module UiFormat {
         }
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
         return y + height;
+    }
+
+    // Big centred value such as "55 kg × 9": parts are [text, kind] with kind "num" (big number
+    // font), "unit" (small text) or "sep" (small text with spaces). `focus` is the index of the
+    // part drawn yellow and underlined (-1 for none). Numbers shrink until the row fits; parts
+    // share a baseline. Returns [left, right, top, bottom] of the drawn row (for tap targets).
+    function drawBig(dc as Dc, parts as Array, cy as Number, focus as Number,
+                     color as Number) as Array<Number> {
+        var fonts = [Graphics.FONT_NUMBER_MEDIUM, Graphics.FONT_NUMBER_MILD, Graphics.FONT_LARGE,
+            Graphics.FONT_MEDIUM];
+        var maxWidth = dc.getWidth() * 72 / 100;
+        var big = fonts[0] as Graphics.FontType;
+        var small = Graphics.FONT_SMALL;
+        var total = 0;
+        for (var f = 0; f < fonts.size(); f++) {
+            big = fonts[f] as Graphics.FontType;
+            small = f < 2 ? Graphics.FONT_SMALL : Graphics.FONT_XTINY;
+            total = bigWidth(dc, parts, big, small);
+            if (total <= maxWidth) {
+                break;
+            }
+        }
+        var baseline = cy + ascent(dc, big) / 2;
+        var x = (dc.getWidth() - total) / 2;
+        var left = x;
+        for (var i = 0; i < parts.size(); i++) {
+            var part = parts[i] as Array;
+            var isNumber = Model.sameString(part[1], "num");
+            var font = isNumber ? big : small;
+            var text = Model.sameString(part[1], "sep") ? " " + part[0] + " " :
+                (Model.sameString(part[1], "unit") ? " " + part[0] : part[0] as String);
+            var width = dc.getTextWidthInPixels(text, font);
+            dc.setColor(i == focus ? Graphics.COLOR_YELLOW : (isNumber ? color : Graphics.COLOR_LT_GRAY),
+                Graphics.COLOR_BLACK);
+            dc.drawText(x, baseline - ascent(dc, font), font, text, Graphics.TEXT_JUSTIFY_LEFT);
+            if (i == focus) {
+                dc.setPenWidth(3);
+                dc.drawLine(x, baseline + 4, x + width, baseline + 4);
+                dc.setPenWidth(1);
+            }
+            x += width;
+        }
+        dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+        return [left, x, baseline - ascent(dc, big), baseline + 6];
+    }
+
+    function bigWidth(dc as Dc, parts as Array, big as Graphics.FontType,
+                      small as Graphics.FontType) as Number {
+        var total = 0;
+        for (var i = 0; i < parts.size(); i++) {
+            var part = parts[i] as Array;
+            var kind = part[1];
+            var text = Model.sameString(kind, "sep") ? " " + part[0] + " " :
+                (Model.sameString(kind, "unit") ? " " + part[0] : part[0] as String);
+            total += dc.getTextWidthInPixels(text, Model.sameString(kind, "num") ? big : small);
+        }
+        return total;
+    }
+
+    // Height of the glyphs above the baseline (font ascent where the API has it).
+    function ascent(dc as Dc, font as Graphics.FontType) as Number {
+        if (Graphics has :getFontAscent) {
+            return Graphics.getFontAscent(font);
+        }
+        return dc.getFontHeight(font) * 3 / 4;
+    }
+
+    // Exercise name in at most two lines, medium font or else small, never smaller; centred on cy.
+    function drawTitle(dc as Dc, name as String, cy as Number) as Void {
+        var maxWidth = dc.getWidth() * 66 / 100;
+        var font = Graphics.FONT_MEDIUM;
+        var lines = wrapTitle(dc, name, font, maxWidth);
+        if (!Model.sameString(lines.size() == 1 ? lines[0] : lines[0] + " " + lines[1], name)) {
+            font = Graphics.FONT_SMALL;
+            lines = wrapTitle(dc, name, font, dc.getWidth() * 72 / 100);
+        }
+        var height = dc.getFontHeight(font);
+        var y = cy - lines.size() * height / 2;
+        dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+        for (var i = 0; i < lines.size(); i++) {
+            dc.drawText(dc.getWidth() / 2, y, font, lines[i] as String, Graphics.TEXT_JUSTIFY_CENTER);
+            y += height;
+        }
+    }
+
+    // Heart and the live heart rate (from the running activity), or the given error in red.
+    function drawHrRow(dc as Dc, cy as Number, error as String?) as Void {
+        var font = Graphics.FONT_SMALL;
+        if (error != null) {
+            dc.setColor(Graphics.COLOR_RED, Graphics.COLOR_BLACK);
+            dc.drawText(dc.getWidth() / 2, cy, captionFont(), error as String,
+                Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+            return;
+        }
+        var hr = heartRate();
+        var text = hr > 0 ? hr.toString() : "--";
+        var s = Icons.unit(dc);
+        var width = dc.getTextWidthInPixels(text, font);
+        var iconWidth = s * 4;
+        var x = (dc.getWidth() - width - iconWidth - s) / 2;
+        Icons.heart(dc, x + iconWidth / 2, cy, s);
+        dc.setColor(hr > 0 ? Graphics.COLOR_WHITE : Graphics.COLOR_DK_GRAY, Graphics.COLOR_BLACK);
+        dc.drawText(x + iconWidth + s, cy, font, text, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
+        dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+    }
+
+    // Current heart rate in bpm from the recording activity, 0 when there is none.
+    function heartRate() as Number {
+        var info = Activity.getActivityInfo();
+        var hr = info == null ? null : info.currentHeartRate;
+        return hr instanceof Number && hr >= 30 && hr <= 250 ? hr as Number : 0;
+    }
+
+    // Big-value parts for the draft of a set (see drawBig). Timed sets: running and paused show
+    // the held seconds against the target.
+    function valueParts(exercise as Dictionary, slot as Number, timedNow as Number?,
+                        targetSec as Number) as Array {
+        var draft = (Model.slotAt(exercise, slot) as Dictionary)["draft"] as Dictionary;
+        var type = exercise["loadType"];
+        if (Model.sameString(type, "timed")) {
+            if (timedNow != null) {
+                return [[timedNow.toString(), "num"], ["/ " + targetSec.toString() + " s", "unit"]];
+            }
+            if (draft["measuredSec"] instanceof Number && draft["measuredSec"] > 0) {
+                return [[draft["measuredSec"].toString(), "num"], ["/ " + targetSec.toString() + " s", "unit"]];
+            }
+            return [[draft["durationSec"].toString(), "num"], ["s", "unit"]];
+        }
+        var reps = [draft["reps"].toString(), "num"];
+        if (Model.sameString(type, "bodyweight")) {
+            return [["BW", "unit"], ["×", "sep"], reps];
+        }
+        return [[load100(draft["load100"] as Number), "num"],
+            [Model.sameString(type, "assistance") ? "kg assist" : "kg", "unit"], ["×", "sep"], reps];
     }
 
     // Return the bottom of the font box so the next row cannot erase this one.

@@ -23,6 +23,7 @@ class NextSetApp extends Application.AppBase {
     // Set by OverviewView.onShow/onHide: the Overview's elapsed time needs a periodic redraw.
     public var overviewShown as Boolean = false;
     // The set screen shows "MENU: change load" until the lifter has switched once.
+    // One-time "Hold UP: change load" hint; remembered in the small storage key "hint.load".
     public var focusHintSeen as Boolean = false;
     // Transient "Set 2 · 65 kg × 8" confirmation (in memory, ~2 s).
     public var confirmText as String? = null;
@@ -30,12 +31,29 @@ class NextSetApp extends Application.AppBase {
     private var _tickCount as Number = 0;
     // System.getTimer() time when the second buzz of the superset cue is due (0 = none).
     private var _buzzRepeatAt as Number = 0;
+    private var _lastHr as Number = 0;
 
     public function initialize() {
         AppBase.initialize();
         _controller = new SessionController(new Store());
         _timer = new Timer.Timer();
         _startTimer = new Timer.Timer();
+        try {
+            focusHintSeen = Application.Storage.getValue("hint.load") == true;
+        } catch (error) {
+        }
+    }
+
+    // Called from a key press (never from a tick), so the one small write is safe here.
+    public function markFocusHintSeen() as Void {
+        if (focusHintSeen) {
+            return;
+        }
+        focusHintSeen = true;
+        try {
+            Application.Storage.setValue("hint.load", true);
+        } catch (error) {
+        }
     }
 
     public function onStart(state as Dictionary?) as Void {
@@ -275,9 +293,13 @@ class NextSetApp extends Application.AppBase {
                 _buzzRepeatAt = 0;
             }
         }
+        // The set screen shows the live heart rate: redraw it when the value changes.
+        var hr = UiFormat.heartRate();
+        var hrChanged = hr != _lastHr && WatchUi.getCurrentView()[0] instanceof ExerciseView;
+        _lastHr = hr;
         // The Overview shows elapsed workout time; redraw it every few seconds.
         if (_controller.hasRestShown() || _controller.hasRunningTimed() || vibrate || confirming ||
-            (_tickCount % 5 == 0 && overviewShown)) {
+            hrChanged || (_tickCount % 5 == 0 && overviewShown)) {
             WatchUi.requestUpdate();
         }
     }

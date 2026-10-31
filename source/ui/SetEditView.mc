@@ -81,7 +81,7 @@ class SetEditView extends WatchUi.View {
         }
         Icons.startMarker(dc, "check");
         Icons.backMarker(dc);
-        Icons.focusMarkers(dc, _loadFocused);
+        Icons.focusMarkers(dc);
     }
 
     public function adjust(direction as Number) as Void {
