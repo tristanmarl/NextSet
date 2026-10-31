@@ -59,6 +59,8 @@ Prompt-variable answers are not collected by the watch. Unilateral `repsLeft` an
 
 Every screen change follows these rules; check fr965 (454 px) and fenix7s (240 px) in the simulator.
 
+**Everything earns its place.** Screen space on a watch is tiny: an element stays only if the lifter needs it at that moment to decide what to do. When in doubt, leave it out or move it to a menu. Never shrink or cut text to make room: remove something instead.
+
 1. **One glance, one question.** Each screen answers one question: the set screen "what do I lift", the rest screen "when do I go and with what", the summary "how did it go". Everything else lives in a menu.
 2. **One meaning per colour.** Yellow = you are changing something (edit field, UP/DOWN arrows). Blue = resting (ring, rest time). Green = done or go (logged, rest over, uploaded). Red = something is wrong, and the heart. White = information. Gray = secondary text.
 3. **Fixed positions.** Weight and reps, HR, and the set position sit in the same place on every workout screen.
