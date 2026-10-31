@@ -65,7 +65,8 @@ class DemoApp extends NextSetApp {
         } else if (_screen == 8) {
             view = new HistoryView();
         } else {
-            view = new NumberEditView(row, 0, "duration", false, null, null, null);
+            view = new QuestionView([{"kind" => "rpe", "entryId" => row, "slot" => 1, "value" => 85},
+                {"kind" => "var", "entryId" => row, "name" => "target", "value" => "225lb"}]);
         }
         WatchUi.switchToView(view, new WatchUi.BehaviorDelegate(), WatchUi.SLIDE_IMMEDIATE);
     }

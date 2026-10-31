@@ -376,9 +376,9 @@ function testUploadTimedUnilateralAndAssistance(logger as Test.Logger) as Boolea
         check(logger, unilateralSet["reps"] == 8 && unilateralSet["repsLeft"] == 8 &&
             Model.sameString(unilateralSet["weight"], "55.5kg"),
             "unilateral assistance mapping keeps positive load and reports repsLeft") &&
-        check(logger, !Model.validLiftosaurWorkout(invalidTimedUnilateral) &&
-            Catalog.parseRoutine(invalidTimedUnilateral, 1, 1) == null,
-            "timed unilateral workouts are rejected because the watch cannot record both holds");
+        check(logger, Model.validLiftosaurWorkout(invalidTimedUnilateral) &&
+            Catalog.parseRoutine(invalidTimedUnilateral, 1, 1) != null,
+            "one-sided timed workouts sync: the watch records both holds");
 }
 
 (:test)

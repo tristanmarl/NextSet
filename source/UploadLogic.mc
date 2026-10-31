@@ -96,9 +96,6 @@ module UploadLogic {
                 }
                 var performed = completed as Dictionary;
                 var timed = Model.sameString(type, "timed");
-                if (timed && exercise["unilateral"] == true) {
-                    return null;
-                }
                 var reps = timed ? 1 : performed["reps"];
                 var load100 = performed["load100"];
                 if (!Model.inRange(reps, 1, Model.MAX_REPS, false) ||
@@ -121,6 +118,8 @@ module UploadLogic {
                     "set" => i + 1,
                     "reps" => reps,
                     "kg" => kg,
+                    "rpe10" => performed["rpe10"],
+                    "timeLeftSec" => timed ? performed["durationLeftSec"] : null,
                     "timeSec" => timed ? performed["durationSec"] : null,
                     "activeSec" => activeSec,
                     "completedAt" => performed["completedAt"],
@@ -135,6 +134,7 @@ module UploadLogic {
                     "loadType" => type,
                     "unilateral" => exercise["unilateral"] == true,
                     "unit" => Model.sameString(exercise["loadUnit"], "lb") ? "lb" : "kg",
+                    "userVars" => exercise["userVars"],
                     "plannedSetCount" => planned,
                     "sets" => sets
                 };
@@ -189,6 +189,7 @@ module UploadLogic {
             }
             rows.add({"index" => w, "reps" => reps,
                 "kg" => loaded ? (load100 as Number) / 100.0 : 0.0,
+                "rpe10" => done["rpe10"],
                 "timeSec" => timed ? done["durationSec"] : null,
                 "completedAt" => done["completedAt"]});
         }
@@ -292,8 +293,11 @@ module UploadLogic {
             fraction.toString() + suffix;
     }
 
+    // Values Liftosaur requires beyond reps and weight (API "sets that ask for a value"): rpe for
+    // logRpe sets, userVars when the entry has prompted variables, setTimerLeft for one-sided
+    // timed sets. A value the lifter did not give falls back to the program's own suggestion.
     function mappedCompleted(exercise as Dictionary, set as Dictionary,
-                             plan as Dictionary) as Dictionary? {
+                             plan as Dictionary, prompted as Object?) as Dictionary? {
         var timedPlan = plan["setTimer"] instanceof Number;
         var timedSession = set["timeSec"] instanceof Number;
         if (timedPlan != timedSession) {
@@ -306,7 +310,7 @@ module UploadLogic {
             result["weight"] = "0kg";
             result["setTimer"] = set["timeSec"];
             if (plan["isUnilateral"] == true || exercise["unilateral"] == true) {
-                return null;
+                result["setTimerLeft"] = set["timeLeftSec"] instanceof Number ? set["timeLeftSec"] : set["timeSec"];
             }
         } else {
             result["reps"] = set["reps"];
@@ -317,8 +321,41 @@ module UploadLogic {
                 result["repsLeft"] = set["reps"];
             }
         }
+        if (plan["logRpe"] == true) {
+            var target = plan["rpe"];
+            result["rpe"] = set["rpe10"] instanceof Number ? rpeValue(set["rpe10"] as Number) :
+                (target instanceof Number || target instanceof Float || target instanceof Double ? target : 8);
+        }
+        var vars = userVarsFor(prompted, exercise["userVars"]);
+        if (vars != null) {
+            result["userVars"] = vars;
+        }
         return Model.validMappedSet({"entryId" => "x", "setId" => "x",
             "completed" => result}) ? result : null;
+    }
+
+    // 85 -> 8.5, 80 -> 8 (whole numbers stay numbers).
+    function rpeValue(rpe10 as Number) as Numeric {
+        return rpe10 % 10 == 0 ? rpe10 / 10 : rpe10 / 10.0;
+    }
+
+    // One value per prompted variable of the live entry: the lifter's answer, else the
+    // advertised value. Null when the entry prompts for nothing.
+    function userVarsFor(prompted as Object?, answers as Object?) as Dictionary? {
+        if (!(prompted instanceof Array) || (prompted as Array).size() == 0) {
+            return null;
+        }
+        var result = {};
+        for (var i = 0; i < (prompted as Array).size(); i++) {
+            var item = (prompted as Array)[i];
+            if (!(item instanceof Dictionary) || !(item["name"] instanceof String)) {
+                continue;
+            }
+            var name = item["name"] as String;
+            var answer = answers instanceof Dictionary ? (answers as Dictionary)[name] : null;
+            result[name] = answer != null ? answer : item["value"];
+        }
+        return result;
     }
 
     function cloneJob(job as Dictionary) as Dictionary {
@@ -438,7 +475,7 @@ module UploadLogic {
                 var setNumber = set["set"] as Number;
                 var append = setNumber > plans.size();
                 var plan = plans[append ? plans.size() - 1 : setNumber - 1] as Dictionary;
-                var completed = mappedCompleted(saved, set, plan);
+                var completed = mappedCompleted(saved, set, plan, source["promptedVars"]);
                 if (completed == null) {
                     return null;
                 }
@@ -480,7 +517,7 @@ module UploadLogic {
                     continue;
                 }
                 var livePlan = liveWarmups[position] as Dictionary;
-                var warmupDone = mappedCompleted(saved, warmup, livePlan);
+                var warmupDone = mappedCompleted(saved, warmup, livePlan, null);
                 var warmupMapped = {"entryId" => source["entryId"], "setId" => livePlan["setId"],
                     "completed" => warmupDone};
                 if (warmupDone != null && Model.validMappedSet(warmupMapped)) {

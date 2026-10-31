@@ -210,6 +210,15 @@ module SessionLogic {
         }
         var base = state["session"] as Dictionary;
         base["timedRun"] = null;
+        var timedExercise = (base["exercises"] as Array)[exerciseIndex(base, entryId)] as Dictionary;
+        if (timedExercise["unilateral"] == true && !(draft["leftSec"] instanceof Number)) {
+            // One-sided hold: this was the left side; the right side is held next.
+            var leftDraft = (state["slot"] as Dictionary)["draft"] as Dictionary;
+            leftDraft["leftSec"] = duration;
+            leftDraft["measuredSec"] = 0;
+            leftDraft["targetAlertConsumed"] = false;
+            return base;
+        }
         var actual = {"durationSec" => duration};
         var candidate = completeSet(base, entryId, slotIndex, actual, now);
         if (candidate == null) {
@@ -221,6 +230,10 @@ module SessionLogic {
         var completed = completedSlot["completed"] as Dictionary;
         var completedDraft = completedSlot["draft"] as Dictionary;
         completed["durationSource"] = "measured";
+        if (draft["leftSec"] instanceof Number) {
+            completed["durationLeftSec"] = draft["leftSec"];
+        }
+        completedDraft.remove("leftSec");
         completedDraft["measuredSec"] = 0;
         completedDraft["durationEdited"] = false;
         completedDraft["targetAlertConsumed"] = false;
@@ -847,5 +860,50 @@ module SessionLogic {
             }
         }
         return {"sets" => sets, "volumeKg" => volume100 / 100.0, "exercises" => exerciseCount};
+    }
+
+    // RPE (x10, 10-100) of a logged set that asks for one.
+    function setRpe(session as Dictionary, entryId as String, slotIndex as Number,
+                    rpe10 as Number) as Dictionary? {
+        var index = exerciseIndex(session, entryId);
+        if (index < 0 || !Model.inRange(rpe10, 10, 100, false)) {
+            return null;
+        }
+        var existing = Model.slotAt((session["exercises"] as Array)[index] as Dictionary, slotIndex);
+        if (existing == null || !((existing as Dictionary)["completed"] instanceof Dictionary)) {
+            return null;
+        }
+        var state = slotCandidate(session, index, slotIndex);
+        var slot = state["slot"] as Dictionary;
+        var completed = SessionLogic.copyDictionary(slot["completed"] as Dictionary);
+        completed["rpe10"] = rpe10;
+        slot["completed"] = completed;
+        return state["session"] as Dictionary;
+    }
+
+    // Answer to one prompted state variable of an exercise.
+    function setUserVar(session as Dictionary, entryId as String, name as String,
+                        value as Object) as Dictionary? {
+        var index = exerciseIndex(session, entryId);
+        if (index < 0 || !Model.validVarValue(value)) {
+            return null;
+        }
+        var candidate = copyDictionary(session);
+        var exercises = [];
+        var source = session["exercises"] as Array;
+        for (var i = 0; i < source.size(); i++) {
+            exercises.add(source[i]);
+        }
+        var exercise = copyDictionary(source[index] as Dictionary);
+        var vars = exercise["userVars"] instanceof Dictionary ?
+            copyDictionary(exercise["userVars"] as Dictionary) : {};
+        if (!vars.hasKey(name)) {
+            return null;
+        }
+        vars[name] = value;
+        exercise["userVars"] = vars;
+        exercises[index] = exercise;
+        candidate["exercises"] = exercises;
+        return candidate;
     }
 }

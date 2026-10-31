@@ -108,6 +108,11 @@ module Model {
             return false;
         }
         var set = target as Dictionary;
+        // Sets that ask for an RPE: logRpe, with the program's target RPE x10 when it has one.
+        if ((set["logRpe"] != null && !(set["logRpe"] instanceof Boolean)) ||
+            !inRange(set["rpe10"], 10, 100, true)) {
+            return false;
+        }
         if (sameString(type, "timed")) {
             return set["load100"] == null && set["reps"] == 1 &&
                 inRange(set["durationSec"], 1, MAX_DURATION_SEC, false);
@@ -151,6 +156,40 @@ module Model {
         var value = weight as String;
         var suffix = value.substring(value.length() - 2, value.length());
         return sameString(suffix, "kg") || sameString(suffix, "lb") ? suffix : null;
+    }
+
+    // Prompted state variables: [{"name", "value"}] as the program advertises them (at most four).
+    function validPrompts(value as Object?) as Boolean {
+        if (!(value instanceof Array) || (value as Array).size() > 4) {
+            return false;
+        }
+        for (var i = 0; i < (value as Array).size(); i++) {
+            var item = (value as Array)[i];
+            if (!(item instanceof Dictionary) || !validNonblankText(item["name"], 24) ||
+                !validVarValue(item["value"])) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // Answers to prompted variables: name -> value (number, or a string such as "225lb").
+    function validUserVars(value as Object?) as Boolean {
+        if (!(value instanceof Dictionary) || (value as Dictionary).size() > 4) {
+            return false;
+        }
+        var keys = (value as Dictionary).keys();
+        for (var i = 0; i < keys.size(); i++) {
+            if (!validNonblankText(keys[i], 24) || !validVarValue((value as Dictionary)[keys[i]])) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    function validVarValue(value as Object?) as Boolean {
+        return value instanceof Number || value instanceof Float || value instanceof Double ||
+            validNonblankText(value, 16);
     }
 
     function validUnit(unit as Object?) as Boolean {
@@ -214,13 +253,6 @@ module Model {
                 if (!validLiftosaurSet(values[i])) {
                     return false;
                 }
-            }
-        }
-        for (var i = 0; i < (sets as Array).size(); i++) {
-            var workingSet = (sets as Array)[i] as Dictionary;
-            if (workingSet["isUnilateral"] == true &&
-                workingSet["setTimer"] instanceof Number) {
-                return false;
             }
         }
         return true;
@@ -339,7 +371,8 @@ module Model {
                     }
                 }
             }
-            if (!validText(item["notes"], 160, true)) {
+            if (!validText(item["notes"], 160, true) ||
+                (item["prompts"] != null && !validPrompts(item["prompts"]))) {
                 return false;
             }
         }
@@ -498,7 +531,7 @@ module Model {
                     sameString(type, "timed")) ||
                 !(exercise["unilateral"] instanceof Boolean) ||
                 (exercise["unit"] != null && !validUnit(exercise["unit"])) ||
-                (sameString(type, "timed") && exercise["unilateral"] == true) ||
+                (exercise["userVars"] != null && !validUserVars(exercise["userVars"])) ||
                 !inRange(exercise["plannedSetCount"], 1, MAX_SETS, false) ||
                 !(sets instanceof Array) || (sets as Array).size() < 1 ||
                 (sets as Array).size() > MAX_SETS) {
@@ -518,6 +551,8 @@ module Model {
                     (timed != sameString(type, "timed")) ||
                     !inRange(set["reps"], 1, MAX_REPS, false) ||
                     !validKg(set["kg"]) ||
+                    !inRange(set["rpe10"], 10, 100, true) ||
+                    !inRange(set["timeLeftSec"], 1, MAX_DURATION_SEC, true) ||
                     !inRange(set["timeSec"], 1, MAX_DURATION_SEC, true) ||
                     !inRange(set["activeSec"], 0, MAX_DURATION_SEC, true) ||
                     !inRange(set["completedAt"], job["start"] as Number,
@@ -714,7 +749,9 @@ module Model {
                 !inRange(item["targetRepsMax"], 1, MAX_REPS, true) ||
                 !inRange(item["targetDurationSec"], 1, MAX_DURATION_SEC, true) ||
                 !inRange(item["liftosaurPlannedSetCount"], 1, MAX_SETS, true) ||
-                !validText(item["notes"], 160, true)) {
+                !validText(item["notes"], 160, true) ||
+                (item["prompts"] != null && !validPrompts(item["prompts"])) ||
+                (item["userVars"] != null && !validUserVars(item["userVars"]))) {
                 return false;
             }
             if (item["warmups"] != null) {
@@ -828,7 +865,9 @@ module Model {
             return false;
         }
         var values = draft as Dictionary;
-        if (!inRange(values["load100"], 0, MAX_LOAD100, true) ||
+        // leftSec: the left side of a one-sided timed set, held before the right side.
+        if (!inRange(values["leftSec"], 1, MAX_DURATION_SEC, true) ||
+            !inRange(values["load100"], 0, MAX_LOAD100, true) ||
             !inRange(values["reps"], 1, MAX_REPS, true) ||
             !inRange(values["durationSec"], 1, MAX_DURATION_SEC, true) ||
             !inRange(values["measuredSec"], 0, MAX_DURATION_SEC, true) ||
@@ -854,7 +893,9 @@ module Model {
         if (set["slot"] != slot || !inRange(set["sequence"], 1, 2147483647, false) ||
             !inRange(set["completedAt"], 0, 2147483647, false) ||
             (set["updatedAt"] != null && !inRange(set["updatedAt"], 0, 2147483647, false)) ||
-            (set["activeSec"] != null && !inRange(set["activeSec"], 0, MAX_DURATION_SEC, false))) {
+            (set["activeSec"] != null && !inRange(set["activeSec"], 0, MAX_DURATION_SEC, false)) ||
+            !inRange(set["rpe10"], 10, 100, true) ||
+            !inRange(set["durationLeftSec"], 1, MAX_DURATION_SEC, true)) {
             return false;
         }
         if (sameString(type, "weight") || sameString(type, "assistance")) {

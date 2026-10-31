@@ -110,6 +110,12 @@ class ExerciseView extends WatchUi.View {
             dc.setColor(running ? Graphics.COLOR_BLUE : Graphics.COLOR_GREEN, Graphics.COLOR_BLACK);
             dc.drawText(dc.getWidth() / 2, rowY, Graphics.FONT_LARGE, text,
                 Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+        } else if (Model.sameString(loadType, "timed") && current["unilateral"] == true) {
+            var sideDraft = (Model.slotAt(current, slot) as Dictionary)["draft"] as Dictionary;
+            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+            dc.drawText(dc.getWidth() / 2, rowY, Graphics.FONT_SMALL,
+                sideDraft["leftSec"] instanceof Number ? "Right side" : "Left side",
+                Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
         } else if (slot >= Model.WARMUP_BASE) {
             dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_BLACK);
             dc.drawText(dc.getWidth() / 2, rowY, Graphics.FONT_SMALL, "Warmup " +
@@ -419,7 +425,22 @@ class ExerciseView extends WatchUi.View {
         }
     }
 
+    // After a logged set: the usual feedback and navigation, then any values the program asks
+    // for (RPE of this set; prompted variables once the exercise's last set is done) on top.
     private function afterSetSaved(slot as Number) as Void {
+        afterSetNavigation(slot);
+        var session = getApp().controller().session();
+        var exercise = session == null ? null : UiFormat.exercise(session as Dictionary, _entryId);
+        if (exercise != null) {
+            var questions = QuestionLogic.afterSet(exercise as Dictionary, _entryId, slot);
+            if (questions.size() > 0) {
+                var view = new QuestionView(questions);
+                WatchUi.pushView(view, new QuestionDelegate(view), WatchUi.SLIDE_UP);
+            }
+        }
+    }
+
+    private function afterSetNavigation(slot as Number) as Void {
         _message = null;
         _loadFocused = false;
         var saved = getApp().controller().session();

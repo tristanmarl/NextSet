@@ -53,10 +53,10 @@ function testPoundUploadAndFit(logger as Test.Logger) as Boolean {
         Model.sameString(UploadLogic.weightString(6250, "kg"), "62.5kg") &&
         Model.sameString(UploadLogic.weightString(6250, null), "62.5kg");
     var mapped = UploadLogic.mappedCompleted({"unit" => "lb", "unilateral" => false},
-        {"kg" => 135.0, "reps" => 5}, {"reps" => 5, "weight" => "135lb"});
+        {"kg" => 135.0, "reps" => 5}, {"reps" => 5, "weight" => "135lb"}, null);
     var mappedOk = mapped != null && Model.sameString((mapped as Dictionary)["weight"], "135lb");
     var oldJob = UploadLogic.mappedCompleted({"unilateral" => false},
-        {"kg" => 60.0, "reps" => 5}, {"reps" => 5, "weight" => "60kg"});
+        {"kg" => 60.0, "reps" => 5}, {"reps" => 5, "weight" => "60kg"}, null);
     var oldJobOk = oldJob != null && Model.sameString((oldJob as Dictionary)["weight"], "60kg");
     var kg = Model.toKg(100.0, "lb");
     var fitOk = kg > 45.35 && kg < 45.37 && Model.toKg(100.0, "kg") == 100.0;

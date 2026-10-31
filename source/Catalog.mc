@@ -1,4 +1,5 @@
 import Toybox.Lang;
+import Toybox.Math;
 
 module Catalog {
     function workoutFromReply(reply as Object?) as Dictionary? {
@@ -53,10 +54,6 @@ module Catalog {
                     bodyweight = false;
                 }
             }
-            // ponytail: timed unilateral is unsupported until the watch can record both holds.
-            if (timed && isUnilateral) {
-                return null;
-            }
             var type = timed ? "timed" : (bodyweight ? "bodyweight" : "weight");
             var equipment = source["equipment"] instanceof String ?
                 source["equipment"] as String : "";
@@ -74,11 +71,15 @@ module Catalog {
                     sourceSet["minReps"] instanceof Number &&
                     (sourceSet["minReps"] as Number) < (sourceSet["reps"] as Number) ?
                     sourceSet["minReps"] : null;
+                var rpe = sourceSet["rpe"];
                 targets.add({
                     "reps" => reps,
                     "minReps" => lowReps,
                     "load100" => Model.sameString(type, "weight") ? load100 : null,
-                    "durationSec" => sourceSet["setTimer"]
+                    "durationSec" => sourceSet["setTimer"],
+                    "logRpe" => sourceSet["logRpe"] == true ? true : null,
+                    "rpe10" => rpe instanceof Number || rpe instanceof Float || rpe instanceof Double ?
+                        clampRpe10(Math.round((rpe as Numeric) * 10.0).toNumber()) : null
                 });
             }
             var warmups = [];
@@ -126,6 +127,7 @@ module Catalog {
                 "targetRepsMin" => timed ? null : firstTarget["reps"],
                 "targetRepsMax" => timed ? null : firstTarget["reps"],
                 "targetDurationSec" => firstSet["setTimer"],
+                "prompts" => promptsOf(source["promptedVars"]),
                 "startingLoad100" => Model.sameString(type, "weight") ?
                     Model.weightLoad100(firstSet["weight"]) : null
             });
@@ -381,6 +383,8 @@ module Catalog {
                 "warmups" => cloneTargets(entry["warmups"] as Array),
                 "warmupSlots" => warmupSlots,
                 "notes" => entry["notes"],
+                "prompts" => entry["prompts"],
+                "userVars" => defaultUserVars(entry["prompts"]),
                 "closedEarly" => false,
                 "slots" => slots
             };
@@ -411,5 +415,37 @@ module Catalog {
             "nextSetSequence" => 1,
             "lastCompleted" => null
         };
+    }
+
+    function clampRpe10(value as Number) as Number {
+        return value < 10 ? 10 : (value > 100 ? 100 : value);
+    }
+
+    // Prompted state variables as the entry advertises them; null when there are none.
+    function promptsOf(value as Object?) as Array? {
+        if (!(value instanceof Array) || (value as Array).size() == 0) {
+            return null;
+        }
+        var result = [];
+        for (var i = 0; i < (value as Array).size() && i < 4; i++) {
+            var item = (value as Array)[i];
+            if (item instanceof Dictionary) {
+                result.add({"name" => item["name"], "value" => item["value"]});
+            }
+        }
+        return Model.validPrompts(result) && result.size() > 0 ? result : null;
+    }
+
+    // Answers start at the advertised values, so a skipped question still sends a value.
+    function defaultUserVars(prompts as Object?) as Dictionary? {
+        if (!(prompts instanceof Array)) {
+            return null;
+        }
+        var result = {};
+        for (var i = 0; i < (prompts as Array).size(); i++) {
+            var item = (prompts as Array)[i] as Dictionary;
+            result[item["name"]] = item["value"];
+        }
+        return result;
     }
 }

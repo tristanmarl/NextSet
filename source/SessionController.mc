@@ -800,6 +800,23 @@ class SessionController {
         return true;
     }
 
+    // Answers asked after a set (RPE) or after an exercise (prompted variables); key presses only.
+    public function setRpe(entryId as String, slot as Number, rpe10 as Number) as Boolean {
+        if (!isWorkoutRunning()) {
+            return false;
+        }
+        var candidate = SessionLogic.setRpe(_session as Dictionary, entryId, slot, rpe10);
+        return candidate != null && commit(candidate as Dictionary);
+    }
+
+    public function setUserVar(entryId as String, name as String, value as Object) as Boolean {
+        if (!isWorkoutRunning()) {
+            return false;
+        }
+        var candidate = SessionLogic.setUserVar(_session as Dictionary, entryId, name, value);
+        return candidate != null && commit(candidate as Dictionary);
+    }
+
     public function timedElapsed(now as Number) as Number {
         if (_session != null && _session["timedRun"] instanceof Dictionary) {
             return SessionLogic.timedElapsedSec(_session["timedRun"] as Dictionary, now);
