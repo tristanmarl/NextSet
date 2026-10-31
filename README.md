@@ -1,4 +1,6 @@
-# NextSet
+<p align="center"><img src="docs/store/icon-500.png" width="120" alt="NextSet icon: a T-rex holding a barbell"></p>
+
+# NextSet: Unofficial Liftosaur Companion
 
 **Log your [Liftosaur](https://www.liftosaur.com) workouts on your Garmin watch.**
 
@@ -43,7 +45,7 @@ Not supported: two-button touch watches (Venu, vívoactive), Connect IQ 3 watche
 ## What you need
 
 - A supported Garmin watch, paired with Garmin Connect on your phone (sync and upload use the phone's connection).
-- A Liftosaur account with **API access** and an API key (`lftsk_…`). See the [Liftosaur API docs](https://www.liftosaur.com/doc/api).
+- A Liftosaur account with **Liftosaur Premium** (needed for API access) and an API key (`lftsk_…`). See the [Liftosaur API docs](https://www.liftosaur.com/doc/api).
 - A Liftosaur program whose days do not depend on prompted values (see [Limitations](#limitations)).
 
 ## Install

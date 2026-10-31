@@ -89,12 +89,11 @@ Simulator results are not device results. Record what was checked on a real watc
 
 The workflow checks that the tag matches the manifest version and builds:
 
-- `NextSet-X.Y.Z-private-beta.iq` (separate app id for the Connect IQ beta)
 - `NextSet-X.Y.Z.iq` (all watches, for the Connect IQ Store)
 - `NextSet-X.Y.Z.prg` (FR965)
 - `NextSet-X.Y.Z-sideload.zip` (one `.prg` per watch)
 
-It fails if any artifact contains `lftsk_`, then creates a pre-release. The **ci** workflow compiles `fr965` and `fr255s` on pushes to `main` and on pull requests; unit tests do not run in CI because the simulator needs a GUI.
+It fails if any artifact contains `lftsk_`, then creates a public GitHub release with the tag message as notes. The private-beta package (`monkey.beta.jungle`, separate app id) is built locally only when needed: `monkeyc -e -r -f monkey.beta.jungle -o bin/NextSet-X.Y.Z-private-beta.iq -y "$KEY"`. The **ci** workflow compiles `fr965` and `fr255s` on pushes to `main` and on pull requests; unit tests do not run in CI because the simulator needs a GUI.
 
 CI needs two things that are not in the repository:
 
