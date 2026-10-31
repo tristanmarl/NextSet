@@ -275,3 +275,30 @@ class ConfirmDelegate extends KeyDelegate {
         return true;
     }
 }
+
+class ActivityResultDelegate extends WatchUi.Menu2InputDelegate {
+    public function initialize() {
+        Menu2InputDelegate.initialize();
+    }
+
+    public function onSelect(item as MenuItem) as Void {
+        if (Model.sameString(item.getId(), "retry")) {
+            if (getApp().controller().retryActivitySave()) {
+                WatchUi.popView(WatchUi.SLIDE_DOWN);
+                WatchUi.requestUpdate();
+            } else {
+                Navigator.feedback("Garmin save failed; local log is safe");
+            }
+        } else if (Model.sameString(item.getId(), "exit")) {
+            if (getApp().controller().keepLocalLogAndCloseActivity()) {
+                Navigator.exitApp();
+            } else {
+                Navigator.feedback("Local log remains safe; activity could not be closed");
+            }
+        }
+    }
+
+    public function onBack() as Void {
+        WatchUi.popView(WatchUi.SLIDE_DOWN);
+    }
+}
