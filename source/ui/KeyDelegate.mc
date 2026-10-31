@@ -9,6 +9,11 @@ import Toybox.WatchUi;
 // Hold UP arrives as KEY_MENU (onMenuKey); there is no simulator long-press emulation here.
 // Subclasses override the onXxxKey methods only.
 class KeyDelegate extends WatchUi.InputDelegate {
+    // Opt-in for the set screen: dispatch every onKey event whatever its press type, exactly like
+    // the BehaviorDelegate it replaces did for START/UP/DOWN (0.3.4: keys act on press). BACK and
+    // hold UP (menu) keep the edge filter below.
+    protected var _anyPressType as Boolean = false;
+
     public function initialize() {
         InputDelegate.initialize();
     }
@@ -23,7 +28,9 @@ class KeyDelegate extends WatchUi.InputDelegate {
         if (!handled) {
             return false;
         }
-        if (type == WatchUi.PRESS_TYPE_DOWN || type == WatchUi.PRESS_TYPE_UP) {
+        var edge = type == WatchUi.PRESS_TYPE_DOWN || type == WatchUi.PRESS_TYPE_UP;
+        var pressKey = key == WatchUi.KEY_ENTER || key == WatchUi.KEY_UP || key == WatchUi.KEY_DOWN;
+        if (edge && !(_anyPressType && pressKey)) {
             return true;
         }
         if (key == WatchUi.KEY_ENTER) {

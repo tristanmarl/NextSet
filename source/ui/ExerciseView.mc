@@ -7,17 +7,9 @@ import Toybox.WatchUi;
 class ExerciseView extends WatchUi.View {
     private var _entryId as String;
     private var _message as String? = null;
-    private var _loadTapLeft as Number = -1;
-    private var _loadTapRight as Number = -1;
-    private var _loadTapTop as Number = -1;
-    private var _loadTapBottom as Number = -1;
-    // UP/DOWN change the load instead of the reps (weight and assistance sets; the menu toggles).
-    private var _loadFocused as Boolean = false;
-    private var _rapid as RapidPress;
 
     public function initialize(entryId as String) {
         _entryId = entryId;
-        _rapid = new RapidPress();
         View.initialize();
     }
 
@@ -34,10 +26,6 @@ class ExerciseView extends WatchUi.View {
     // resting) below it, weight and reps big in the centre, heart rate at the bottom. During a
     // rest the ring runs round the edge and the centre shows the next set.
     public function onUpdate(dc as Dc) as Void {
-        _loadTapLeft = -1;
-        _loadTapRight = -1;
-        _loadTapTop = -1;
-        _loadTapBottom = -1;
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
         dc.clear();
         var session = getApp().controller().session();
@@ -60,8 +48,6 @@ class ExerciseView extends WatchUi.View {
         var current = exercise as Dictionary;
         var slot = SessionLogic.activeSlot(current);
         var loadType = current["loadType"] as String;
-        var tappableLoad = Model.sameString(loadType, "weight") ||
-            Model.sameString(loadType, "assistance");
 
         var rest = (session as Dictionary)["rest"];
         var resting = slot >= 0 && rest instanceof Dictionary &&
@@ -93,7 +79,7 @@ class ExerciseView extends WatchUi.View {
 
         if (slot < 0) {
             var count = current["plannedSetCount"] as Number;
-            Icons.setDots(dc, rowY, count, count, -1);
+            Icons.setProgress(dc, rowY, count, count, -1);
             var s = Icons.unit(dc);
             Icons.check(dc, dc.getWidth() / 2, valueY, s * 3, Graphics.COLOR_GREEN);
             UiFormat.drawHrRow(dc, hrY, _message);
@@ -123,7 +109,7 @@ class ExerciseView extends WatchUi.View {
                 SessionLogic.warmupCount(current).toString(),
                 Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
         } else {
-            Icons.setDots(dc, rowY, doneSets(current), current["plannedSetCount"] as Number, slot);
+            Icons.setProgress(dc, rowY, doneSets(current), current["plannedSetCount"] as Number, slot);
         }
 
         var timedNow = null;
@@ -135,21 +121,15 @@ class ExerciseView extends WatchUi.View {
         }
         var parts = UiFormat.valueParts(shown, shownSlot, timedNow,
             targetDurationSec(shown, shownSlot));
-        // Yellow and underlined: the value UP/DOWN change (load, reps or duration).
+        // Yellow and underlined: the value UP/DOWN change (reps, or the duration of a timed set).
         var focus = !editable ? -1 : (Model.sameString(loadType, "timed") ? (isRunning ? -1 : 0) :
-            (_loadFocused && tappableLoad ? 0 : parts.size() - 1));
-        var box = UiFormat.drawBig(dc, parts, valueY, focus, Graphics.COLOR_WHITE);
-        if (tappableLoad && editable) {
-            _loadTapLeft = box[0] - 10;
-            _loadTapRight = box[0] + (box[1] - box[0]) / 2;
-            _loadTapTop = box[2] - 4;
-            _loadTapBottom = box[3] + 4;
-        }
+            parts.size() - 1);
+        UiFormat.drawBig(dc, parts, valueY, focus, Graphics.COLOR_WHITE);
 
-        // Bottom row: heart rate; an error replaces it, and a one-time hint teaches the load switch.
+        // Bottom row: heart rate; an error replaces it, and a one-time hint teaches the editor.
         var hint = null;
-        if (_message == null && tappableLoad && editable && !resting && !getApp().focusHintSeen) {
-            hint = "Hold UP: change load";
+        if (_message == null && editable && !resting && !getApp().focusHintSeen) {
+            hint = "Hold UP: edit set";
         }
         if (hint != null) {
             dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_BLACK);
@@ -218,50 +198,6 @@ class ExerciseView extends WatchUi.View {
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
     }
 
-    public function tapLoadAt(x as Number, y as Number) as Boolean {
-        if (_loadTapLeft < 0 || x < _loadTapLeft || x > _loadTapRight ||
-            y < _loadTapTop || y > _loadTapBottom) {
-            return false;
-        }
-        var session = getApp().controller().session();
-        if (session == null) {
-            return false;
-        }
-        var exercise = UiFormat.exercise(session as Dictionary, _entryId);
-        if (exercise == null) {
-            return false;
-        }
-        var current = exercise as Dictionary;
-        var slot = SessionLogic.activeSlot(current);
-        if (slot < 0 || (!Model.sameString(current["loadType"], "weight") &&
-            !Model.sameString(current["loadType"], "assistance"))) {
-            return false;
-        }
-        _loadFocused = true;
-        getApp().markFocusHintSeen();
-        WatchUi.requestUpdate();
-        return true;
-    }
-
-    public function loadFocused() as Boolean {
-        return _loadFocused;
-    }
-
-    // Menu → Change load / Change reps: UP/DOWN switch between the reps and the load of the next set.
-    public function toggleFocus() as Void {
-        var session = getApp().controller().session();
-        var exercise = session == null ? null : UiFormat.exercise(session as Dictionary, _entryId);
-        if (exercise == null || SessionLogic.activeSlot(exercise as Dictionary) < 0 ||
-            (!Model.sameString((exercise as Dictionary)["loadType"], "weight") &&
-             !Model.sameString((exercise as Dictionary)["loadType"], "assistance"))) {
-            return;
-        }
-        _loadFocused = !_loadFocused;
-        getApp().markFocusHintSeen();
-        getApp().clearConfirmation();
-        WatchUi.requestUpdate();
-    }
-
     private function exerciseLine(session as Dictionary, exercise as Dictionary,
                                   slotIndex as Number) as String {
         if (!Model.sameString(exercise["loadType"], "timed")) {
@@ -323,20 +259,15 @@ class ExerciseView extends WatchUi.View {
         var run = (session as Dictionary)["timedRun"];
         if (timed && run instanceof Dictionary && Model.sameString(run["entryId"], _entryId) &&
             run["slot"] == slot) {
-            _message = "Use MENU to edit";
+            _message = "Hold UP: edit set";
             WatchUi.requestUpdate();
             return;
         }
-        var loadable = Model.sameString(current["loadType"], "weight") ||
-            Model.sameString(current["loadType"], "assistance");
-        var field = timed ? "durationSec" : (_loadFocused && loadable ? "load100" : "reps");
+        // UP/DOWN always change the reps (the duration of a timed set); weight is in the editor.
+        var field = timed ? "durationSec" : "reps";
         var oldValue = draft[field] == null ? 0 : draft[field] as Number;
         var newValue = oldValue + direction;
-        if (Model.sameString(field, "load100")) {
-            var step = current["weightIncrement100"] instanceof Number ? current["weightIncrement100"] as Number : 100;
-            newValue = oldValue + direction * step * _rapid.multiplier(direction);
-            newValue = newValue < 0 ? 0 : (newValue > Model.MAX_LOAD100 ? Model.MAX_LOAD100 : newValue);
-        } else if (newValue < 1) {
+        if (newValue < 1) {
             newValue = 1;
         }
         if (controller.updateDraft(_entryId, slot, field, newValue)) {
@@ -442,7 +373,6 @@ class ExerciseView extends WatchUi.View {
 
     private function afterSetNavigation(slot as Number) as Void {
         _message = null;
-        _loadFocused = false;
         var saved = getApp().controller().session();
         var savedExercise = saved == null ? null : UiFormat.exercise(saved as Dictionary, _entryId);
         var text = savedExercise == null ? null : UiFormat.confirmText(savedExercise as Dictionary, slot);
@@ -482,42 +412,46 @@ class ExerciseView extends WatchUi.View {
     }
 }
 
-class ExerciseDelegate extends WatchUi.BehaviorDelegate {
+class ExerciseDelegate extends KeyDelegate {
     private var _view as ExerciseView;
     private var _armed as Boolean = true;
 
     public function initialize(view as ExerciseView) {
         _view = view;
-        BehaviorDelegate.initialize();
+        KeyDelegate.initialize();
+        // 0.3.4: START, UP and DOWN act on press, whatever the event type.
+        _anyPressType = true;
     }
 
-    // Keys act on press. On the FR965 only hold UP (menu) reaches the app; hold START, DOWN and
-    // LIGHT are firmware shortcuts, so the reps/load switch lives in the menu.
-    public function onKey(event as KeyEvent) as Boolean {
+    // START logs (one press per set: re-armed on release, 800 ms guard), UP/DOWN change the
+    // reps (duration for timed sets), hold UP (KEY_MENU) opens the menu, BACK returns.
+    public function onStartKey() as Boolean {
         if (Navigator.staleWorkoutView()) {
             return true;
         }
-        var key = event.getKey();
-        if (key == KEY_ENTER) {
-            var now = System.getTimer();
-            var lastSavedAt = getApp().lastSetSavedAt;
-            var tooSoon = lastSavedAt != null && now >= (lastSavedAt as Number) &&
-                now - (lastSavedAt as Number) < 800;
-            if (_armed && !tooSoon && _view.completeDraft(true)) {
-                getApp().lastSetSavedAt = now;
-            }
-            _armed = false;
-            return true;
+        var now = System.getTimer();
+        var lastSavedAt = getApp().lastSetSavedAt;
+        var tooSoon = lastSavedAt != null && now >= (lastSavedAt as Number) &&
+            now - (lastSavedAt as Number) < 800;
+        if (_armed && !tooSoon && _view.completeDraft(true)) {
+            getApp().lastSetSavedAt = now;
         }
-        if (key == KEY_UP) {
+        _armed = false;
+        return true;
+    }
+
+    public function onUpKey() as Boolean {
+        if (!Navigator.staleWorkoutView()) {
             _view.adjustDraft(1);
-            return true;
         }
-        if (key == KEY_DOWN) {
+        return true;
+    }
+
+    public function onDownKey() as Boolean {
+        if (!Navigator.staleWorkoutView()) {
             _view.adjustDraft(-1);
-            return true;
         }
-        return false;
+        return true;
     }
 
     public function onKeyReleased(event as KeyEvent) as Boolean {
@@ -528,26 +462,15 @@ class ExerciseDelegate extends WatchUi.BehaviorDelegate {
         return false;
     }
 
-    public function onSelect() as Boolean {
-        return false;
-    }
-
-    public function onTap(event as ClickEvent) as Boolean {
-        var coordinates = event.getCoordinates();
-        _view.tapLoadAt(coordinates[0], coordinates[1]);
-        return true;
-    }
-
-    public function onMenu() as Boolean {
-        if (Navigator.staleWorkoutView()) {
-            return true;
+    public function onMenuKey() as Boolean {
+        if (!Navigator.staleWorkoutView()) {
+            Navigator.exerciseMenu(_view.entryId(), _view);
         }
-        Navigator.exerciseMenu(_view.entryId(), _view);
         return true;
     }
 
     // BACK returns to Overview; a running timed set on this exercise is paused first.
-    public function onBack() as Boolean {
+    public function onBackKey() as Boolean {
         if (Navigator.staleWorkoutView()) {
             return true;
         }

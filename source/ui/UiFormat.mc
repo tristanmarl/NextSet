@@ -54,13 +54,19 @@ module UiFormat {
     // share a baseline. Returns [left, right, top, bottom] of the drawn row (for tap targets).
     function drawBig(dc as Dc, parts as Array, cy as Number, focus as Number,
                      color as Number) as Array<Number> {
+        return drawBigFrom(dc, parts, cy, focus, color, 0);
+    }
+
+    // Same, starting at a smaller number font (first = 1 skips NUMBER_MEDIUM) for two big rows.
+    function drawBigFrom(dc as Dc, parts as Array, cy as Number, focus as Number,
+                         color as Number, first as Number) as Array<Number> {
         var fonts = [Graphics.FONT_NUMBER_MEDIUM, Graphics.FONT_NUMBER_MILD, Graphics.FONT_LARGE,
             Graphics.FONT_MEDIUM];
         var maxWidth = dc.getWidth() * 72 / 100;
-        var big = fonts[0] as Graphics.FontType;
+        var big = fonts[first] as Graphics.FontType;
         var small = Graphics.FONT_SMALL;
         var total = 0;
-        for (var f = 0; f < fonts.size(); f++) {
+        for (var f = first; f < fonts.size(); f++) {
             big = fonts[f] as Graphics.FontType;
             small = f < 2 ? Graphics.FONT_SMALL : Graphics.FONT_XTINY;
             total = bigWidth(dc, parts, big, small);

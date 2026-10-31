@@ -51,25 +51,10 @@ module Navigator {
         var menu = new WatchUi.Menu2({:title=>title.length() > 18 ? title.substring(0, 16) + ".." : title});
         var next = SessionLogic.activeSlot(exercise);
         var lastEntry = SessionLogic.lastEditEntryId(session, entryId);
-        if (Model.sameString(exercise["loadType"], "weight") ||
-            Model.sameString(exercise["loadType"], "assistance")) {
-            if (next >= 0) {
-                var draft = (Model.slotAt(exercise, next) as Dictionary)["draft"] as Dictionary;
-                var loadLabel = UiFormat.load100(draft["load100"] as Number) +
-                    " " + UiFormat.unit(exercise) +
-                    (Model.sameString(exercise["loadType"], "assistance") ? " assist" : "");
-                var action = Model.sameString(exercise["loadType"], "assistance") ?
-                    "Change assistance" : "Change load";
-                // From the set screen this switches UP/DOWN in place; it comes first.
-                if (!fromOverview && view.loadFocused()) {
-                    menu.addItem(new WatchUi.MenuItem("Change reps",
-                        (draft["reps"] as Number).toString() + " reps", "edit_next", null));
-                } else {
-                    menu.addItem(new WatchUi.MenuItem(action, loadLabel, "edit_next", null));
-                }
-            }
-        } else if (next >= 0 && Model.sameString(exercise["loadType"], "timed")) {
-            menu.addItem(new WatchUi.MenuItem("Edit duration", null, "edit_next", null));
+        if (next >= 0) {
+            // First: the editor for the next set (weight and reps, reps only, or the duration).
+            menu.addItem(new WatchUi.MenuItem("Edit set", UiFormat.draftLine(exercise, next),
+                "edit_next", null));
         }
         // Then the set logged last, with its values (in a superset possibly the other member's).
         if (lastEntry != null) {

@@ -262,41 +262,35 @@ class NumberEditView extends WatchUi.View {
 
 }
 
-class NumberEditDelegate extends WatchUi.BehaviorDelegate {
+class NumberEditDelegate extends KeyDelegate {
     private var _view as NumberEditView;
 
     public function initialize(view as NumberEditView) {
         _view = view;
-        BehaviorDelegate.initialize();
+        KeyDelegate.initialize();
     }
 
-    public function onKey(event as KeyEvent) as Boolean {
-        var key = event.getKey();
-        if (key == KEY_UP) {
-            _view.adjust(1);
-            return true;
-        }
-        if (key == KEY_DOWN) {
-            _view.adjust(-1);
-            return true;
-        }
-        if (key == KEY_ENTER) {
-            _view.save();
-            return true;
-        }
-        return false;
+    public function onUpKey() as Boolean {
+        _view.adjust(1);
+        return true;
     }
 
-    public function onSelect() as Boolean {
-        return false;
+    public function onDownKey() as Boolean {
+        _view.adjust(-1);
+        return true;
     }
 
-    public function onMenu() as Boolean {
+    public function onStartKey() as Boolean {
+        _view.save();
+        return true;
+    }
+
+    public function onMenuKey() as Boolean {
         _view.cycleStep();
         return true;
     }
 
-    public function onBack() as Boolean {
+    public function onBackKey() as Boolean {
         _view.cancel();
         return true;
     }

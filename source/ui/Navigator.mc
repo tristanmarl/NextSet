@@ -132,9 +132,8 @@ module Navigator {
         WatchUi.pushView(view, new NumberEditDelegate(view), WatchUi.SLIDE_UP);
     }
 
-    function setEdit(entryId as String, slot as Number, correcting as Boolean,
-                     focusLoad as Boolean) as Void {
-        var view = new SetEditView(entryId, slot, correcting, focusLoad);
+    function setEdit(entryId as String, slot as Number, correcting as Boolean) as Void {
+        var view = new SetEditView(entryId, slot, correcting);
         WatchUi.pushView(view, new SetEditDelegate(view), WatchUi.SLIDE_UP);
     }
 
@@ -335,33 +334,38 @@ module Navigator {
     }
 }
 
-class HomeDelegate extends WatchUi.BehaviorDelegate {
+class HomeDelegate extends KeyDelegate {
     private var _view as HomeView;
 
     public function initialize(view as HomeView) {
         _view = view;
-        BehaviorDelegate.initialize();
+        KeyDelegate.initialize();
     }
 
-    public function onKey(event as KeyEvent) as Boolean {
-        if (getApp().controller().hasActiveSession() ||
-            getApp().controller().hasPendingFinalization() ||
-            getApp().controller().hasRecoverySaveFailure()) {
+    // UP/DOWN pick a day only while no workout is active or being saved.
+    private function browsing() as Boolean {
+        return !getApp().controller().hasActiveSession() &&
+            !getApp().controller().hasPendingFinalization() &&
+            !getApp().controller().hasRecoverySaveFailure();
+    }
+
+    public function onUpKey() as Boolean {
+        if (!browsing()) {
             return false;
         }
-        var key = event.getKey();
-        if (key == KEY_UP) {
-            _view.moveRoutine(-1);
-            return true;
-        }
-        if (key == KEY_DOWN) {
-            _view.moveRoutine(1);
-            return true;
-        }
-        return false;
+        _view.moveRoutine(-1);
+        return true;
     }
 
-    public function onSelect() as Boolean {
+    public function onDownKey() as Boolean {
+        if (!browsing()) {
+            return false;
+        }
+        _view.moveRoutine(1);
+        return true;
+    }
+
+    public function onStartKey() as Boolean {
         var controller = getApp().controller();
         if (controller.hasRecoverySaveFailure()) {
             if (controller.retryRecovery(Time.now().value())) {
@@ -387,12 +391,12 @@ class HomeDelegate extends WatchUi.BehaviorDelegate {
         return true;
     }
 
-    public function onMenu() as Boolean {
+    public function onMenuKey() as Boolean {
         Navigator.homeMenu();
         return true;
     }
 
-    public function onBack() as Boolean {
+    public function onBackKey() as Boolean {
         if (getApp().controller().hasActiveSession()) {
             Navigator.actions();
             return true;
@@ -406,25 +410,9 @@ class HomeDelegate extends WatchUi.BehaviorDelegate {
     }
 }
 
-class StartingWorkoutDelegate extends WatchUi.BehaviorDelegate {
+class StartingWorkoutDelegate extends KeyDelegate {
     public function initialize() {
-        BehaviorDelegate.initialize();
-    }
-
-    public function onKey(event as KeyEvent) as Boolean {
-        return true;
-    }
-
-    public function onSelect() as Boolean {
-        return true;
-    }
-
-    public function onMenu() as Boolean {
-        return true;
-    }
-
-    public function onBack() as Boolean {
-        return true;
+        KeyDelegate.initialize();
     }
 }
 
@@ -544,17 +532,17 @@ class FeedbackView extends WatchUi.View {
     }
 }
 
-class FeedbackDelegate extends WatchUi.BehaviorDelegate {
+class FeedbackDelegate extends KeyDelegate {
     public function initialize() {
-        BehaviorDelegate.initialize();
+        KeyDelegate.initialize();
     }
 
-    public function onBack() as Boolean {
+    public function onBackKey() as Boolean {
         WatchUi.popView(WatchUi.SLIDE_DOWN);
         return true;
     }
 
-    public function onSelect() as Boolean {
+    public function onStartKey() as Boolean {
         WatchUi.popView(WatchUi.SLIDE_DOWN);
         return true;
     }

@@ -81,11 +81,7 @@ class ExerciseMenuDelegate extends WatchUi.Menu2InputDelegate {
                 return;
             }
             WatchUi.popView(WatchUi.SLIDE_DOWN);
-            if (Model.sameString((lastExercise as Dictionary)["loadType"], "timed")) {
-                Navigator.numberEdit(target as String, lastSlot, "durationSec", true);
-            } else {
-                Navigator.setEdit(target as String, lastSlot, true, false);
-            }
+            Navigator.setEdit(target as String, lastSlot, true);
             return;
         }
         if (Model.sameString(id, "weight_step")) {
@@ -116,16 +112,10 @@ class ExerciseMenuDelegate extends WatchUi.Menu2InputDelegate {
                     WatchUi.popView(WatchUi.SLIDE_DOWN);
                     return;
                 }
-                WatchUi.popView(WatchUi.SLIDE_DOWN);
-                Navigator.numberEdit(_entryId, slot, "durationSec", false);
-            } else {
-                WatchUi.popView(WatchUi.SLIDE_DOWN);
-                if (_fromOverview) {
-                    Navigator.setEdit(_entryId, slot, false, true);
-                } else {
-                    _view.toggleFocus();
-                }
             }
+            getApp().markFocusHintSeen();
+            WatchUi.popView(WatchUi.SLIDE_DOWN);
+            Navigator.setEdit(_entryId, slot, false);
             return;
         }
         if (Model.sameString(id, "skip_warmups")) {

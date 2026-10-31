@@ -125,12 +125,12 @@ class SummaryView extends WatchUi.View {
     }
 }
 
-class SummaryDelegate extends WatchUi.BehaviorDelegate {
+class SummaryDelegate extends KeyDelegate {
     public function initialize() {
-        BehaviorDelegate.initialize();
+        KeyDelegate.initialize();
     }
 
-    public function onSelect() as Boolean {
+    public function onStartKey() as Boolean {
         var session = getApp().controller().session();
         if (session != null && (Model.sameString((session as Dictionary)["fitState"], "failed") ||
             Model.sameString((session as Dictionary)["fitState"], "unknown"))) {
@@ -141,8 +141,7 @@ class SummaryDelegate extends WatchUi.BehaviorDelegate {
         return true;
     }
 
-    public function onBack() as Boolean {
-        onSelect();
-        return true;
+    public function onBackKey() as Boolean {
+        return onStartKey();
     }
 }
