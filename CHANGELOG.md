@@ -2,6 +2,13 @@
 
 NextSet is an unofficial companion for Liftosaur. It is not made or endorsed by Liftosaur and needs Liftosaur Premium for API access.
 
+## 0.4.1
+- **Buttons only.** Every NextSet screen now ignores touch, so sweat or a brush against the screen can no longer select a weight with no way back. UP/DOWN on the set screen always change the reps (the duration for a timed set); START logs the set, one press per set as before.
+- **New "Edit set" editor.** Hold UP and choose **Edit set** (the first item) for the next set, or **Edit last set** for the one before. The weight and reps are shown big and the selected one has a white frame: UP/DOWN pick a field, START enters it (yellow and underlined), UP/DOWN change it, START keeps it, BACK undoes that field. BACK from the choice saves and closes. Bodyweight sets edit reps only, timed sets the duration. "Change load" / "Change reps" are gone; the set screen shows the hint "Hold UP: edit set" once.
+- **Overview uses the whole screen:** the exercise name, "Exercise 2/8", the sets done big ("2/3") and the next set ("55 kg × 9", in kg or lb), plus heart rate.
+- **Easier to see set dots:** bigger, open sets have a light-gray outline, done sets are green, the current set is white with a ring. Exercises with more than six sets show "4/8" instead.
+- **"Starting…", "Saving…" and "Cancelling…"** are short and wrap instead of being cut off ("Starting workout…" lost its end on small watches). After a failed save, START retries.
+
 ## 0.4.0
 - **New screens.** Every workout screen keeps the same places: the exercise at the top, set dots below it, weight and reps as big numbers in the middle, heart rate at the bottom. Long exercise names wrap onto two lines instead of being cut off, and button help, capitals and "all is well" texts are gone (a check icon says it instead).
 - **Rest you can read from the rack.** A blue ring runs around the screen with the time left, and the centre already shows the next set's weight, so you can load the bar or move the pin. The ring turns green in overtime.

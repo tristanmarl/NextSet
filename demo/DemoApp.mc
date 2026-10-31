@@ -9,6 +9,8 @@ import Toybox.WatchUi;
 // so they can be captured without button input. Never shipped.
 class DemoApp extends NextSetApp {
     private var _cycle as Timer.Timer;
+    private var _adder as Timer.Timer;
+    private var _added as Number = 0;
     private var _screen as Number = 0;
 
     public function initialize() {
@@ -16,6 +18,17 @@ class DemoApp extends NextSetApp {
         seed();
         NextSetApp.initialize();
         _cycle = new Timer.Timer();
+        _adder = new Timer.Timer();
+    }
+
+    // Seven planned sets show the "1/7" counter instead of dots; one set per tick (watchdog).
+    public function addDemoSet() as Void {
+        controller().addSet(demoEntry("Chest Press"));
+        controller().skipWarmups(demoEntry("Chest Press"));
+        _added++;
+        if (_added >= 4) {
+            _adder.stop();
+        }
     }
 
     public function onStart(state as Dictionary?) as Void {
@@ -31,6 +44,7 @@ class DemoApp extends NextSetApp {
         }
         NextSetApp.onStart(state);
         _cycle.start(method(:nextScreen), 8000, true);
+        _adder.start(method(:addDemoSet), 700, true);
     }
 
     public function getInitialView() as [WatchUi.Views] or [WatchUi.Views, WatchUi.InputDelegates] {
@@ -38,32 +52,45 @@ class DemoApp extends NextSetApp {
     }
 
     public function nextScreen() as Void {
-        _screen = (_screen + 1) % 10;
+        _screen = (_screen + 1) % 14;
         var view = null;
         var row = demoEntry("Seated Row");
+        var press = demoEntry("Chest Press");
         if (_screen == 0) {
             view = new ExerciseView(row);
         } else if (_screen == 1) {
-            // Second screen without a rest: the plain set screen.
+            // Plain set screen (seven sets: counter); the rest is skipped for the next ones.
             controller().restAction("skip", Time.now().value());
-            var press = new ExerciseView(demoEntry("Chest Press"));
-            press.toggleFocus();
-            view = press;
+            view = new ExerciseView(press);
         } else if (_screen == 2) {
-            view = new OverviewView();
+            view = new ExerciseView(row);
         } else if (_screen == 3) {
-            var exercise = UiFormat.exercise(controller().session() as Dictionary, row) as Dictionary;
-            view = new SetEditView(row, UiFormat.lastSlot(exercise), true, true);
+            view = new OverviewView();
         } else if (_screen == 4) {
-            view = new HomeView();
+            var exercise = UiFormat.exercise(controller().session() as Dictionary, press) as Dictionary;
+            view = new SetEditView(press, SessionLogic.activeSlot(exercise), false);
         } else if (_screen == 5) {
-            view = new ReviewView();
+            var exercise = UiFormat.exercise(controller().session() as Dictionary, press) as Dictionary;
+            var editor = new SetEditView(press, SessionLogic.activeSlot(exercise), false);
+            editor.startPressed();
+            view = editor;
         } else if (_screen == 6) {
-            view = new ConfirmView("Discard?", "Keep working", "Discard");
+            var exercise = UiFormat.exercise(controller().session() as Dictionary, row) as Dictionary;
+            view = new SetEditView(row, UiFormat.lastSlot(exercise), true);
         } else if (_screen == 7) {
-            view = new SummaryView("completed");
+            view = new StartingWorkoutView();
         } else if (_screen == 8) {
-            view = new HistoryView();
+            view = new HomeView();
+        } else if (_screen == 9) {
+            view = new ReviewView();
+        } else if (_screen == 10) {
+            view = new ConfirmView("Discard?", "Keep working", "Discard");
+        } else if (_screen == 11) {
+            view = new SummaryView("completed");
+        } else if (_screen == 12) {
+            var history = new HistoryView();
+            history.select();
+            view = history;
         } else {
             view = new QuestionView([{"kind" => "rpe", "entryId" => row, "slot" => 1, "value" => 85},
                 {"kind" => "var", "entryId" => row, "name" => "target", "value" => "225lb"}]);
