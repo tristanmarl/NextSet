@@ -39,6 +39,28 @@ module RestClock {
         return left < 0 ? 0 : (left > duration ? duration : left);
     }
 
+    // Fraction of the rest still to run, 0.0-1.0, for the countdown ring: remaining / duration
+    // for a running or paused rest (a paused rest keeps its fraction), 0.0 otherwise (expired,
+    // dismissed, no duration). Pure; the view draws the full ring itself in overtime.
+    function ringFraction(rest as Dictionary, now as Number) as Float {
+        var state = rest["state"];
+        if (!Model.sameString(state, "running") && !Model.sameString(state, "paused")) {
+            return 0.0;
+        }
+        var duration = rest["durationSec"];
+        if (!(duration instanceof Number) || (duration as Number) <= 0) {
+            return 0.0;
+        }
+        var fraction = remaining(rest, now).toFloat() / (duration as Number).toFloat();
+        return fraction < 0.0 ? 0.0 : (fraction > 1.0 ? 1.0 : fraction);
+    }
+
+    // Arc end angle (degrees, 90 = 12 o'clock, clockwise) for a ring that starts at 12 o'clock
+    // and covers `fraction` of the circle.
+    function ringEndDegrees(fraction as Float) as Number {
+        return (90.0 - 360.0 * fraction).toNumber();
+    }
+
     // One short warning 10 s before the end of a rest of at least 20 s.
     function preAlertDue(rest as Dictionary, now as Number) as Boolean {
         if (!Model.sameString(rest["state"], "running") ||

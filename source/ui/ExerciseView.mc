@@ -82,6 +82,9 @@ class ExerciseView extends WatchUi.View {
         // Running rest, or the overtime count-up once it has run out.
         var restStatus = slot < 0 ? null : (UiFormat.restStatus(session as Dictionary) != null ?
             UiFormat.restStatus(session as Dictionary) : UiFormat.restOvertime(session as Dictionary));
+        if (restStatus != null) {
+            drawRestRing(dc, session as Dictionary);
+        }
         var nextUp = restStatus == null ? null : UiFormat.nextUpLine(session as Dictionary);
         var last = slot < 0 || restStatus != null ? null : UiFormat.lastLine(current, slot);
         // Target is lowest priority: only shown when notes and messages leave room.
@@ -213,6 +216,39 @@ class ExerciseView extends WatchUi.View {
             "check");
         Icons.backMarker(dc);
         Icons.focusMarkers(dc, _loadFocused && tappableLoad);
+    }
+
+    // Countdown ring at the very edge, outside the button-hint icons (inside them it would run
+    // through the title and rest lines): dim full circle, a yellow arc clockwise from 12 o'clock
+    // for the remaining rest, and a full green ring once the rest has run out. Redrawn only with
+    // the screen, i.e. with the existing 1 s rest redraw.
+    private function drawRestRing(dc as Dc, session as Dictionary) as Void {
+        var rest = session["rest"];
+        if (!(rest instanceof Dictionary)) {
+            return;
+        }
+        var width = dc.getWidth();
+        var height = dc.getHeight();
+        // The icons sit at min/2 - 2u and reach out to about min/2 - u/2, so a pen of u/2 at the
+        // very edge leaves them clear.
+        var u = Icons.unit(dc);
+        var pen = u / 2 < 3 ? 3 : u / 2;
+        var radius = (width < height ? width : height) / 2 - pen / 2;
+        var expired = Model.sameString((rest as Dictionary)["state"], "expired");
+        var fraction = expired ? 1.0 :
+            RestClock.ringFraction(rest as Dictionary, Time.now().value());
+        dc.setPenWidth(pen);
+        dc.setColor(Graphics.COLOR_DK_GRAY, Graphics.COLOR_BLACK);
+        dc.drawCircle(width / 2, height / 2, radius);
+        dc.setColor(expired ? Graphics.COLOR_GREEN : Graphics.COLOR_YELLOW, Graphics.COLOR_BLACK);
+        if (fraction >= 1.0) {
+            dc.drawCircle(width / 2, height / 2, radius);
+        } else if (fraction > 0.0) {
+            dc.drawArc(width / 2, height / 2, radius, Graphics.ARC_CLOCKWISE, 90,
+                RestClock.ringEndDegrees(fraction));
+        }
+        dc.setPenWidth(1);
+        dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
     }
 
     public function tapLoadAt(x as Number, y as Number) as Boolean {
