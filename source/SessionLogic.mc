@@ -445,16 +445,23 @@ module SessionLogic {
         return state["session"] as Dictionary;
     }
 
-    function addSet(session as Dictionary, entryId as String) as Dictionary? {
+    // Whether a working set can be added to the exercise (per-exercise and per-workout limits).
+    function canAddSet(session as Dictionary, entryId as String) as Boolean {
         var index = exerciseIndex(session, entryId);
         if (index < 0 || totals(session)["planned"] >= Model.MAX_SETS_PER_WORKOUT) {
+            return false;
+        }
+        var count = ((session["exercises"] as Array)[index] as Dictionary)["slots"].size();
+        return count > 0 && count < Model.MAX_SETS;
+    }
+
+    function addSet(session as Dictionary, entryId as String) as Dictionary? {
+        if (!canAddSet(session, entryId)) {
             return null;
         }
+        var index = exerciseIndex(session, entryId);
         var exercise = (session["exercises"] as Array)[index] as Dictionary;
         var sourceSlots = exercise["slots"] as Array;
-        if (sourceSlots.size() == 0 || sourceSlots.size() >= Model.MAX_SETS) {
-            return null;
-        }
 
         var state = exerciseCandidate(session, index);
         var changedExercise = state["exercise"] as Dictionary;
@@ -678,6 +685,33 @@ module SessionLogic {
             }
         }
         return count;
+    }
+
+    // The set BACK on the set screen opens in the editor: the working set logged last; warmups only
+    // while no working set is logged. -1 when nothing is logged.
+    function lastLoggedSlot(exercise as Dictionary) as Number {
+        var last = -1;
+        var sequence = -1;
+        var slots = exercise["slots"] as Array;
+        for (var i = 0; i < slots.size(); i++) {
+            var completed = slots[i]["completed"];
+            if (completed != null && completed["sequence"] > sequence) {
+                sequence = completed["sequence"];
+                last = i;
+            }
+        }
+        if (last >= 0) {
+            return last;
+        }
+        var warmups = exercise["warmupSlots"];
+        for (var i = 0; warmups instanceof Array && i < (warmups as Array).size(); i++) {
+            var completed = (warmups as Array)[i]["completed"];
+            if (completed != null && completed["sequence"] > sequence) {
+                sequence = completed["sequence"];
+                last = Model.WARMUP_BASE + i;
+            }
+        }
+        return last;
     }
 
     function hasLogged(exercise as Dictionary) as Boolean {

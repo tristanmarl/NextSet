@@ -21,6 +21,40 @@ module EditorLogic {
         return ["reps"];
     }
 
+    // Row id after the fields in the two-level editor of a logged set: START opens Delete set N?.
+    const ROW_DELETE = "delete";
+
+    // Rows of the two-level editor of a logged set: the fields, then Delete.
+    function rows(loadType as String?) as Array<String> {
+        var list = fields(loadType);
+        var all = [] as Array<String>;
+        for (var i = 0; i < list.size(); i++) {
+            all.add(list[i]);
+        }
+        all.add(ROW_DELETE);
+        return all;
+    }
+
+    function isDeleteRow(rows as Array<String>, selected as Number) as Boolean {
+        return selected >= 0 && selected < rows.size() && Model.sameString(rows[selected], ROW_DELETE);
+    }
+
+    // What hold UP does on the set screen: "weight" (Change weight), "time" (Change time) or
+    // "none" (bodyweight: reps are changed with UP/DOWN, no hold, no icon).
+    function holdUpAction(loadType as String?) as String {
+        var field = singleField(loadType);
+        if (field == null) {
+            return "none";
+        }
+        return Model.sameString(field, "durationSec") ? "time" : "weight";
+    }
+
+    // What BACK does on the set screen: open the last logged set in the editor when the exercise
+    // has one (slot >= 0), else go straight to the Overview.
+    function backOpensEditor(lastLoggedSlot as Number) as Boolean {
+        return lastLoggedSlot >= 0;
+    }
+
     // The single field of the one-field editor ("Change weight" / "Change time"); null for
     // bodyweight, whose reps are changed on the set screen.
     function singleField(loadType as String?) as String? {
