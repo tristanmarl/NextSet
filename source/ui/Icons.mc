@@ -10,7 +10,8 @@ module Icons {
     const ANGLE_BACK = 335;
     const ANGLE_UP = 180;
     const ANGLE_DOWN = 210;
-    const ANGLE_MENU = 153;  // hold UP; drawn just above the UP marker
+    const ANGLE_MENU = 153;  // former hold-UP position (next to LIGHT); kept for reference
+    const ANGLE_HOLD = 172;  // hold UP: beside the UP button, inside its arrow
 
     function unit(dc as Dc) as Number {
         return dc.getFontHeight(Graphics.FONT_XTINY) / 4;
@@ -197,12 +198,34 @@ module Icons {
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
     }
 
+    // Hold-UP action, drawn beside the UP button just inside its arrow: the icon in a ring with a
+    // gap, like a press still filling up, which reads as "hold".
+    function holdMarker(dc as Dc, kind as String) as Void {
+        var s = unit(dc);
+        var radius = (dc.getWidth() < dc.getHeight() ? dc.getWidth() : dc.getHeight()) / 2 - s * 6;
+        var radians = ANGLE_HOLD * Math.PI / 180.0;
+        var x = dc.getWidth() / 2 + (radius * Math.cos(radians)).toNumber();
+        var y = dc.getHeight() / 2 - (radius * Math.sin(radians)).toNumber();
+        var ring = s * 5 / 2 + 2;
+        dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+        dc.setPenWidth(2);
+        // 300 degrees counter-clockwise from 1 o'clock: a ring with a gap at the top right.
+        dc.drawArc(x, y, ring, Graphics.ARC_COUNTER_CLOCKWISE, 60, 0);
+        dc.setPenWidth(1);
+        if (Model.sameString(kind, "plus")) {
+            plus(dc, x, y, s, Graphics.COLOR_WHITE);
+        } else {
+            dots(dc, x, y, s, Graphics.COLOR_WHITE);
+        }
+        dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+    }
+
     function menuMarker(dc as Dc) as Void {
-        edge(dc, "menu", ANGLE_MENU);
+        holdMarker(dc, "menu");
     }
 
     // Hold UP adds a set (Overview).
     function addMarker(dc as Dc) as Void {
-        edge(dc, "plus", ANGLE_MENU);
+        holdMarker(dc, "plus");
     }
 }
