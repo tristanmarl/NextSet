@@ -113,17 +113,18 @@ module UiFormat {
         return dc.getFontHeight(font) * 3 / 4;
     }
 
-    // Exercise name in at most two lines, medium font or else small, never smaller; centred on cy.
+    // Exercise name: one line in the medium font, else the small font in at most two lines
+    // (never smaller). Centred on cy; two lines sit a quarter line higher so they stay clear of
+    // the row below.
     function drawTitle(dc as Dc, name as String, cy as Number) as Void {
-        var maxWidth = dc.getWidth() * 66 / 100;
         var font = Graphics.FONT_MEDIUM;
-        var lines = wrapTitle(dc, name, font, maxWidth);
-        if (!Model.sameString(lines.size() == 1 ? lines[0] : lines[0] + " " + lines[1], name)) {
+        var lines = [name];
+        if (dc.getTextWidthInPixels(name, font) > dc.getWidth() * 66 / 100) {
             font = Graphics.FONT_SMALL;
-            lines = wrapTitle(dc, name, font, dc.getWidth() * 72 / 100);
+            lines = wrapTitle(dc, name, font, dc.getWidth() * 66 / 100);
         }
         var height = dc.getFontHeight(font);
-        var y = cy - lines.size() * height / 2;
+        var y = cy - lines.size() * height / 2 - (lines.size() > 1 ? height / 4 : 0);
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
         for (var i = 0; i < lines.size(); i++) {
             dc.drawText(dc.getWidth() / 2, y, font, lines[i] as String, Graphics.TEXT_JUSTIFY_CENTER);

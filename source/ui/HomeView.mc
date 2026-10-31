@@ -61,69 +61,47 @@ class HomeView extends WatchUi.View {
         dc.clear();
         var controller = getApp().controller();
         var notice = getHomeNotice();
-        var caption = UiFormat.captionFont();
         var active = controller.hasActiveSession();
         var routine = !active && _routineIndex >= 0 && _routineIndex < _routines.size() ?
             _routines[_routineIndex] as Dictionary : null;
-        var lines = ["NextSet"];
-        var fonts = [Graphics.FONT_LARGE];
-        var gaps = [6];
+        // Day name on top, then its state; first-run hints only while nothing is set up.
+        var h = dc.getHeight();
+        var title = null;
+        var tag = null;
+        var tagColor = Graphics.COLOR_GREEN;
+        var hint = null;
         if (active) {
             var session = controller.session() as Dictionary;
-            lines.add("WORKOUT ACTIVE");
-            fonts.add(Graphics.FONT_SMALL);
-            gaps.add(5);
-            lines.add(session["templateName"] as String);
-            fonts.add(caption);
-            gaps.add(8);
+            title = session["templateName"] as String;
+            var totals = SessionLogic.totals(session);
+            tag = totals["done"].toString() + "/" + totals["planned"].toString() + " sets";
         } else if (routine != null) {
-            var entries = routine["entries"] as Array;
-            var empty = entries.size() == 0;
-            var nextId = controller.nextRoutineId();
-            lines.add((Model.sameString(routine["id"], nextId) ? "NEXT · " : "") +
-                (routine["name"] as String));
-            fonts.add(Graphics.FONT_MEDIUM);
-            gaps.add(5);
-            var totalSets = 0;
-            for (var i = 0; i < entries.size(); i++) {
-                totalSets += (entries[i] as Dictionary)["workingSetCount"] as Number;
+            title = routine["name"] as String;
+            if (Model.sameString(routine["id"], controller.nextRoutineId())) {
+                tag = "Next";
             }
-            var summary = entries.size().toString() + " ex · " + totalSets.toString() + " sets";
-            lines.add(summary);
-            fonts.add(caption);
-            gaps.add(8);
-            if (empty) {
-                lines.add("START: Add an exercise");
-                fonts.add(Graphics.FONT_XTINY);
-                gaps.add(8);
+            if ((routine["entries"] as Array).size() == 0) {
+                hint = "START: Add an exercise";
             }
         } else {
             var keyed = controller.hasKey();
-            lines.add(keyed ? "No routines synced" : "No Liftosaur key");
-            fonts.add(Graphics.FONT_SMALL);
-            gaps.add(8);
-            lines.add(keyed ? "START: Sync routines" : "START: Enter key");
-            fonts.add(Graphics.FONT_XTINY);
-            gaps.add(8);
+            title = keyed ? "No routines" : "No Liftosaur key";
+            hint = keyed ? "START: Sync routines" : "START: Enter key";
         }
-        if (notice != null) {
-            lines.add(notice as String);
-            fonts.add(caption);
-            gaps.add(0);
+        UiFormat.drawTitle(dc, title as String, h * 38 / 100);
+        if (tag != null) {
+            dc.setColor(tagColor, Graphics.COLOR_BLACK);
+            dc.drawText(dc.getWidth() / 2, h * 56 / 100, Graphics.FONT_SMALL, tag as String,
+                Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
         }
-        var totalHeight = 0;
-        for (var i = 0; i < lines.size(); i++) {
-            totalHeight += dc.getFontHeight(fonts[i] as Graphics.FontType) +
-                (gaps[i] as Number);
+        var bottom = notice != null ? notice : hint;
+        if (bottom != null) {
+            dc.setColor(notice != null && controller.errorCode() != Err.NONE ? Graphics.COLOR_RED :
+                Graphics.COLOR_LT_GRAY, Graphics.COLOR_BLACK);
+            dc.drawText(dc.getWidth() / 2, h * 74 / 100, UiFormat.captionFont(), bottom as String,
+                Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
         }
-        var y = (dc.getHeight() - totalHeight) / 2;
-        for (var i = 0; i < lines.size(); i++) {
-            if (notice != null && i == lines.size() - 1) {
-                dc.setColor(Graphics.COLOR_YELLOW, Graphics.COLOR_BLACK);
-            }
-            y = UiFormat.drawLine(dc, lines[i] as String, y,
-                fonts[i] as Graphics.FontType) + (gaps[i] as Number);
-        }
+        dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
         // Keys are marked with drawn icons: START = open/resume, UP/DOWN = pick a day, hold UP = menu.
         Icons.startMarker(dc, "play");
         if (routine != null && _routines.size() > 1) {

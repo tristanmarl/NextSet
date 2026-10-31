@@ -39,32 +39,81 @@ class HistoryView extends WatchUi.View {
         if (_selected >= _sessions.size()) {
             _selected = _sessions.size() - 1;
         }
-        var y = UiFormat.drawLine(dc, "HISTORY  " + (_selected + 1).toString() + "/" +
-            _sessions.size().toString(), 40, Graphics.FONT_XTINY) + 12;
-        var footerY = height - 28;
-        var rowHeight = dc.getFontHeight(Graphics.FONT_XTINY) + dc.getFontHeight(caption) + 8;
-        var visible = (footerY - y) / rowHeight;
-        if (visible < 1) {
-            visible = 1;
+        // One workout per page (UP/DOWN browse, START opens the sets): day name, date with
+        // "cancelled" or "partial" only when it applies, sets done big, and the status row.
+        var record = _sessions[_selected] as Dictionary;
+        var h = height;
+        var unavailable = record["unavailable"] == true || !(record["exercises"] instanceof Array);
+        UiFormat.drawTitle(dc, unavailable ? "Workout unavailable" :
+            shortText(record["templateName"], 30, "Workout"), h * 25 / 100);
+        if (unavailable) {
+            Icons.backMarker(dc);
+            Icons.browseMarkers(dc);
+            return;
         }
-        var first = _selected >= visible ? _selected - visible + 1 : 0;
-        for (var i = first; i < _sessions.size() && i < first + visible; i++) {
-            var record = _sessions[i] as Dictionary;
-            var selected = i == _selected;
-            if (selected) {
-                dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
-                dc.fillRectangle(32, y, width - 64, rowHeight - 8);
-                dc.setColor(Graphics.COLOR_BLACK, Graphics.COLOR_WHITE);
-            }
-            var title = record["unavailable"] == true ? "Workout unavailable" :
-                shortText(record["templateName"], 30, "Workout");
-            var mark = uploadMark(record);
-            var detailY = UiFormat.drawLine(dc, mark == null ? title : title + " " + mark, y,
-                Graphics.FONT_XTINY);
-            UiFormat.drawLine(dc, listSummary(record), detailY, caption);
+        var totals = SessionLogic.totals(record);
+        var label = statusLabel(record, totals);
+        var row = shortDate(record) + (label == null ? "" : " · " + label);
+        dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_BLACK);
+        dc.drawText(width / 2, h * 39 / 100, Graphics.FONT_SMALL, row,
+            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+        UiFormat.drawBig(dc, [[totals["done"].toString() + "/" + totals["planned"].toString(), "num"],
+            ["sets", "unit"]], h * 57 / 100, -1, Graphics.COLOR_WHITE);
+        drawStatus(dc, record, h * 79 / 100, caption);
+        Icons.startMarker(dc, "play");
+        Icons.backMarker(dc);
+        if (_sessions.size() > 1) {
+            Icons.browseMarkers(dc);
+        }
+    }
+
+    // Garmin and Liftosaur as check icons when fine; the first problem in words (red) otherwise.
+    private function drawStatus(dc as Dc, record as Dictionary, y as Number,
+                                font as Graphics.FontType) as Void {
+        var fit = record["fitState"];
+        var problem = null;
+        if (!Model.sameString(fit, "saved") && !Model.sameString(fit, "segment_saved") &&
+            !Model.sameString(record["status"], "aborted")) {
+            problem = fitStatusLabel(record);
+        }
+        var state = record["id"] instanceof String ? _uploads[record["id"]] : null;
+        if (problem == null && Model.sameString(state, Liftosaur.STATUS_SKIPPED)) {
+            problem = "Liftosaur skipped";
+        }
+        if (problem != null) {
+            dc.setColor(Graphics.COLOR_RED, Graphics.COLOR_BLACK);
+            dc.drawText(dc.getWidth() / 2, y, font, problem as String,
+                Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
             dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
-            y += rowHeight;
+            return;
         }
+        var s = Icons.unit(dc);
+        var parts = Model.sameString(record["status"], "aborted") ? [] : ["Garmin"];
+        if (Model.sameString(state, Liftosaur.STATE_DONE) || Model.sameString(state, Liftosaur.STATUS_PENDING)) {
+            parts.add("Liftosaur");
+        }
+        if (parts.size() == 0) {
+            return;
+        }
+        var gap = s * 4;
+        var total = 0;
+        for (var i = 0; i < parts.size(); i++) {
+            total += s * 3 + dc.getTextWidthInPixels(parts[i] as String, font) + (i > 0 ? gap : 0);
+        }
+        var x = (dc.getWidth() - total) / 2;
+        for (var i = 0; i < parts.size(); i++) {
+            var pending = Model.sameString(parts[i], "Liftosaur") && Model.sameString(state, Liftosaur.STATUS_PENDING);
+            if (pending) {
+                Icons.clock(dc, x + s, y, s, Graphics.COLOR_WHITE);
+            } else {
+                Icons.check(dc, x + s, y, s, Graphics.COLOR_GREEN);
+            }
+            dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_BLACK);
+            dc.drawText(x + s * 3, y, font, parts[i] as String,
+                Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
+            x += s * 3 + dc.getTextWidthInPixels(parts[i] as String, font) + gap;
+        }
+        dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
     }
 
     private function drawDetail(dc as Dc) as Void {
@@ -74,17 +123,11 @@ class HistoryView extends WatchUi.View {
         var unavailable = record["unavailable"] == true || !(record["exercises"] instanceof Array);
         var title = unavailable ? "Workout unavailable" :
             shortText(record["templateName"], 30, "Workout");
-        var y = UiFormat.drawLine(dc, "HISTORY  " + (_selected + 1).toString() + "/" +
-            _sessions.size().toString(), 36, caption) + 4;
-        y = UiFormat.drawLine(dc, title, y, Graphics.FONT_XTINY) + 4;
+        var y = UiFormat.drawLine(dc, title, height * 12 / 100, Graphics.FONT_SMALL) + 4;
         if (!unavailable) {
             var totals = SessionLogic.totals(record);
-            y = UiFormat.drawLine(dc, statusLabel(record, totals) + "  " +
-                totals["done"].toString() + "/" + totals["planned"].toString() + " sets",
-                y, caption) + 4;
-            y = UiFormat.drawLine(dc, dateAndElapsed(record), y, caption) + 4;
-            var upload = uploadLabel(record);
-            y = upload == null ? y + 6 : UiFormat.drawLine(dc, upload, y, caption) + 6;
+            y = UiFormat.drawLine(dc, dateAndElapsed(record) + "  " + totals["done"].toString() + "/" +
+                totals["planned"].toString() + " sets", y, caption) + 8;
         }
         var footerY = height - 28;
         var rowHeight = dc.getFontHeight(caption) + 4;
@@ -106,43 +149,16 @@ class HistoryView extends WatchUi.View {
         }
     }
 
-    // Liftosaur upload outcome of a finished session; null for sessions that were never queued.
-    private function uploadLabel(record as Dictionary) as String? {
-        var state = record["id"] instanceof String ? _uploads[record["id"]] : null;
-        if (Model.sameString(state, Liftosaur.STATE_DONE)) {
-            return "Liftosaur ✓";
-        }
-        if (Model.sameString(state, Liftosaur.STATUS_PENDING)) {
-            return "Liftosaur pending";
-        }
-        return Model.sameString(state, Liftosaur.STATUS_SKIPPED) ? "Liftosaur skipped" : null;
-    }
-
-    private function uploadMark(record as Dictionary) as String? {
-        var state = record["id"] instanceof String ? _uploads[record["id"]] : null;
-        return Model.sameString(state, Liftosaur.STATE_DONE) ? "✓" : null;
-    }
-
-    private function listSummary(record as Dictionary) as String {
-        if (record["unavailable"] == true || !(record["exercises"] instanceof Array)) {
-            var seq = record["sessionSeq"] instanceof Number ?
-                "#" + record["sessionSeq"].toString() : "";
-            return "Unavailable  " + seq;
-        }
-        var totals = SessionLogic.totals(record);
-        return statusLabel(record, totals) + "  " + totals["done"].toString() + "/" +
-            totals["planned"].toString() + " sets  " + shortDate(record);
-    }
-
-    private function statusLabel(record as Dictionary, totals as Dictionary) as String {
+    // "cancelled" or "partial", null for a full workout (no word when all is well).
+    private function statusLabel(record as Dictionary, totals as Dictionary) as String? {
         if (Model.sameString(record["status"], "aborted")) {
-            return "CANCELLED";
+            return "cancelled";
         }
         if (Model.sameString(record["completionKind"], "full") ||
             (totals["planned"] > 0 && totals["done"] == totals["planned"])) {
-            return "FULL";
+            return null;
         }
-        return "PARTIAL";
+        return "partial";
     }
 
     private function detailLines(record as Dictionary) as Array {
@@ -151,7 +167,9 @@ class HistoryView extends WatchUi.View {
             lines.add("Saved workout details unavailable");
             return lines;
         }
-        lines.add(fitStatusLabel(record));
+        if (!Model.sameString(record["fitState"], "saved") && !Model.sameString(record["status"], "aborted")) {
+            lines.add(fitStatusLabel(record));
+        }
         if (record["fitSegments"] instanceof Number && record["fitSegments"] > 1) {
             lines.add(record["fitSegments"].toString() + " Garmin activities saved");
         }

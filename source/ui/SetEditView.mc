@@ -56,28 +56,19 @@ class SetEditView extends WatchUi.View {
     public function onUpdate(dc as Dc) as Void {
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
         dc.clear();
-        var caption = UiFormat.captionFont();
-        var lines = 3 + (_loadFocused ? 1 : 0) + (_error != null ? 1 : 0);
-        var height = dc.getFontHeight(Graphics.FONT_SMALL) + 8 + dc.getFontHeight(Graphics.FONT_MEDIUM) + 10 +
-            lines * (dc.getFontHeight(caption) + 4);
-        var y = (dc.getHeight() - height) / 2;
+        // Title, the big value in the set screen's place, an error in the heart-rate row.
+        var h = dc.getHeight();
         var title = (_correcting ? "Edit " : "Next ") +
             (_slot >= Model.WARMUP_BASE ? "warmup " : "set ") + UiFormat.slotLabel(_slot);
-        y = UiFormat.drawLine(dc, title, y, Graphics.FONT_SMALL) + 8;
-        var repsText = _reps.toString() + (_hasLoad ? "" : " reps");
-        y = UiFormat.drawSetValue(dc, _hasLoad ? loadText() : null, repsText, _loadFocused, y,
-            Graphics.FONT_MEDIUM) + 10;
-        if (_loadFocused) {
-            y = UiFormat.drawLine(dc, "Step " + UiFormat.load100(_increment100) + " kg", y, caption) + 4;
-        }
-        if (_hasLoad) {
-            y = UiFormat.drawLine(dc, "MENU: change " + (_loadFocused ? "reps" : "load"), y, caption) + 4;
-        }
-        y = UiFormat.drawLine(dc, "START save · BACK cancel", y, caption) + 4;
+        UiFormat.drawTitle(dc, title, h * 25 / 100);
+        var reps = [_reps.toString(), "num"];
+        var parts = _hasLoad ?
+            [[UiFormat.load100(_load100), "num"], [_assistance ? "kg assist" : "kg", "unit"], ["×", "sep"], reps] :
+            [reps, ["reps", "unit"]];
+        UiFormat.drawBig(dc, parts, h * 57 / 100, _hasLoad && _loadFocused ? 0 : (_hasLoad ? 3 : 0),
+            Graphics.COLOR_WHITE);
         if (_error != null) {
-            dc.setColor(Graphics.COLOR_YELLOW, Graphics.COLOR_BLACK);
-            UiFormat.drawLine(dc, _error as String, y, caption);
-            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+            UiFormat.drawHrRow(dc, h * 79 / 100, _error);
         }
         Icons.startMarker(dc, "check");
         Icons.backMarker(dc);
@@ -120,7 +111,7 @@ class SetEditView extends WatchUi.View {
         }
         if (!saved) {
             var problem = controller.errorCode();
-            _error = problem == Err.SAVE_FAILED_RETRY_BEFORE_CONTINUING ? "SAVE FAILED" : "NOT SAVED";
+            _error = problem == Err.SAVE_FAILED_RETRY_BEFORE_CONTINUING ? "Save failed" : "Not saved";
             WatchUi.requestUpdate();
             return;
         }
@@ -143,7 +134,7 @@ class SetEditView extends WatchUi.View {
     private function loadValues() as Void {
         var context = editorContext();
         if (context == null) {
-            _error = "SET UNAVAILABLE";
+            _error = "Set unavailable";
             _loadFocused = false;
             return;
         }
@@ -183,9 +174,6 @@ class SetEditView extends WatchUi.View {
         return {"exercise" => exercise, "draft" => (found as Dictionary)["draft"], "completed" => completed};
     }
 
-    private function loadText() as String {
-        return UiFormat.load100(_load100) + " kg" + (_assistance ? " assist" : "");
-    }
 }
 
 class SetEditDelegate extends WatchUi.BehaviorDelegate {

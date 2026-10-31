@@ -69,51 +69,13 @@ class OverviewView extends WatchUi.View {
         if (groupLabel != null) {
             focusTitle = (groupLabel as String) + " " + focusTitle;
         }
-        var titleFont = Graphics.FONT_SMALL;
-        var countFont = Graphics.FONT_LARGE;
-        var gap = 8;
-        var footerFont = UiFormat.captionFont();
-        var footerHeight = dc.getFontHeight(footerFont) + 2;
+        // Same positions as the set screen: name, set dots, heart rate.
+        var h = dc.getHeight();
+        UiFormat.drawTitle(dc, focusTitle, h * 25 / 100);
         var nextSlot = SessionLogic.nextSlot(focused);
-        var restStatus = UiFormat.restStatus(current) != null ? UiFormat.restStatus(current) :
-            UiFormat.restOvertime(current);
-        // Rows below the count: next target (optional), progress, rest (optional), position and time.
-        var rows = 3 + (nextSlot >= 0 ? 1 : 0);
-        var blockHeight = dc.getFontHeight(titleFont) + gap + dc.getFontHeight(countFont) + 3 +
-            rows * footerHeight + (restStatus != null ? dc.getFontHeight(footerFont) + 4 : 0);
-        var titleY = (dc.getHeight() - blockHeight) / 2;
-        if (!Model.sameString(UiFormat.safeText(dc, focusTitle, titleY, titleFont), focusTitle)) {
-            titleFont = Graphics.FONT_XTINY;
-            blockHeight -= dc.getFontHeight(Graphics.FONT_SMALL) - dc.getFontHeight(titleFont);
-            titleY = (dc.getHeight() - blockHeight) / 2;
-        }
-        UiFormat.drawLine(dc, focusTitle, titleY, titleFont);
-        var countY = titleY + dc.getFontHeight(titleFont) + gap;
-        var count = SessionLogic.completedCount(focused).toString() + "/" +
-            focused["plannedSetCount"].toString() + " sets";
-        UiFormat.drawLine(dc, count, countY, countFont);
-        var y = countY + dc.getFontHeight(countFont) + 3;
-        if (nextSlot >= 0) {
-            var range = UiFormat.repRange(focused, nextSlot);
-            y = UiFormat.drawLine(dc, "Next: " + UiFormat.draftLine(focused, nextSlot) +
-                (range == null ? "" : " (" + range + ")"), y, footerFont) + 2;
-        }
-        var totals = SessionLogic.totals(current);
-        y = UiFormat.drawLine(dc, totals["done"].toString() + "/" + totals["planned"].toString() +
-            " SETS", y, footerFont) + 2;
-        if (restStatus != null) {
-            y = UiFormat.drawRestLine(dc, current, y, footerFont) + 1;
-            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
-        }
-        // Position and elapsed workout time; the keys are marked with drawn icons (no font glyphs).
-        var position = (_selectedIndex + 1).toString() + "/" + exercises.size().toString();
-        var elapsed = UiFormat.clockText(WorkoutClock.elapsed(current, Time.now().value()));
-        var s = Icons.unit(dc);
-        var both = position + "  " + elapsed;
-        var width = dc.getTextWidthInPixels(both, footerFont);
-        Icons.clock(dc, dc.getWidth() / 2 + width / 2 + s * 2, y + dc.getFontHeight(footerFont) / 2,
-            s, Graphics.COLOR_WHITE);
-        UiFormat.drawLine(dc, both, y, footerFont);
+        Icons.setDots(dc, h * 39 / 100, SessionLogic.completedCount(focused),
+            focused["plannedSetCount"] as Number, nextSlot >= 0 && nextSlot < Model.WARMUP_BASE ? nextSlot : -1);
+        UiFormat.drawHrRow(dc, h * 79 / 100, null);
         Icons.startMarker(dc, "play");
         Icons.backMarker(dc);
         Icons.browseMarkers(dc);

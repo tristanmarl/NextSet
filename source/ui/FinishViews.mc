@@ -31,26 +31,17 @@ class ReviewView extends WatchUi.View {
             UiFormat.drawLine(dc, "No active workout", dc.getHeight() / 2 - 10, Graphics.FONT_SMALL);
             return;
         }
+        // Same places as the set screen: title, a small row, the big value (workout time).
         var stats = UiFormat.reviewStats(session as Dictionary, Time.now().value());
-        var caption = UiFormat.captionFont();
-        var lines = ["Finish?", UiFormat.clockText(stats["elapsedSec"] as Number),
-            UiFormat.plural(stats["sets"] as Number, "set"),
-            UiFormat.plural(stats["exercises"] as Number, "exercise"), "BACK: more"];
-        var fonts = [Graphics.FONT_SMALL, Graphics.FONT_LARGE, caption, caption, Graphics.FONT_XTINY];
-        var gaps = [8, 6, 2, 10, 0];
-        var total = 0;
-        for (var i = 0; i < lines.size(); i++) {
-            total += dc.getFontHeight(fonts[i] as Graphics.FontType) + (gaps[i] as Number);
-        }
-        var y = (dc.getHeight() - total) / 2;
-        for (var i = 0; i < lines.size(); i++) {
-            if (i == lines.size() - 1) {
-                dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_BLACK);
-            }
-            y = UiFormat.drawLine(dc, lines[i] as String, y, fonts[i] as Graphics.FontType) +
-                (gaps[i] as Number);
-        }
-        dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+        var h = dc.getHeight();
+        UiFormat.drawTitle(dc, "Finish?", h * 25 / 100);
+        dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_BLACK);
+        dc.drawText(dc.getWidth() / 2, h * 39 / 100, Graphics.FONT_SMALL,
+            UiFormat.plural(stats["sets"] as Number, "set") + " · " +
+                UiFormat.plural(stats["exercises"] as Number, "exercise"),
+            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+        UiFormat.drawBig(dc, [[UiFormat.clockText(stats["elapsedSec"] as Number), "num"]],
+            h * 57 / 100, -1, Graphics.COLOR_WHITE);
         Icons.startMarker(dc, "check");
         Icons.backMarker(dc);
     }
@@ -205,14 +196,23 @@ class ConfirmView extends WatchUi.View {
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
         dc.clear();
         var h = dc.getHeight();
-        var font = Graphics.FONT_SMALL;
-        UiFormat.drawLine(dc, _title, h * 27 / 100, font);
+        UiFormat.drawTitle(dc, _title, h * 25 / 100);
+        // The selected choice is yellow and underlined (what START will do); the other is gray.
         var items = [_keepLabel, _actionLabel];
+        var font = Graphics.FONT_MEDIUM;
         for (var i = 0; i < 2; i++) {
             var active = i == selected;
+            var y = h * (50 + 17 * i) / 100;
             dc.setColor(active ? Graphics.COLOR_YELLOW : Graphics.COLOR_LT_GRAY, Graphics.COLOR_BLACK);
-            UiFormat.drawLine(dc, (active ? "> " : "  ") + (items[i] as String),
-                h * (46 + 16 * i) / 100, font);
+            dc.drawText(dc.getWidth() / 2, y, font, items[i] as String,
+                Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+            if (active) {
+                var width = dc.getTextWidthInPixels(items[i] as String, font);
+                dc.setPenWidth(3);
+                dc.drawLine((dc.getWidth() - width) / 2, y + dc.getFontHeight(font) / 2,
+                    (dc.getWidth() + width) / 2, y + dc.getFontHeight(font) / 2);
+                dc.setPenWidth(1);
+            }
         }
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
         Icons.startMarker(dc, "check");

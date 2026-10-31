@@ -34,21 +34,25 @@ class NumberEditView extends WatchUi.View {
     public function onUpdate(dc as Dc) as Void {
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
         dc.clear();
-        var caption = UiFormat.captionFont();
-        var title = _configKind != null ? "EDIT CONFIG" :
-            ("Set " + (_slot + 1).toString() + (_correcting ? " (done) · " : " · ") +
-                fieldWord());
-        var y = UiFormat.drawLine(dc, title, 72, Graphics.FONT_XTINY) + 6;
-        y = UiFormat.drawLine(dc, fieldLabel(), y, Graphics.FONT_SMALL) + 6;
-        y = UiFormat.drawLine(dc, displayValue(), y, Graphics.FONT_LARGE) + 10;
-        if (isLoadField() || _configKind != null) {
-            y = UiFormat.drawLine(dc, stepLabel() + " · MENU step", y, caption) + 4;
-        }
-        y = UiFormat.drawLine(dc, "UP/DOWN change · START save", y, caption) + 4;
+        // One label, the big value in the set screen's place; the bottom row shows an error in
+        // red, else the step (MENU cycles it) in gray.
+        var h = dc.getHeight();
+        var title = _configKind != null ? _configTitle as String :
+            (_slot >= Model.WARMUP_BASE ? "Warmup " : "Set ") + UiFormat.slotLabel(_slot) + " " + fieldWord();
+        UiFormat.drawTitle(dc, title, h * 25 / 100);
+        UiFormat.drawBig(dc, [[valueNumber(), "num"], [valueUnit(), "unit"]], h * 57 / 100, 0,
+            Graphics.COLOR_WHITE);
         if (_error != null) {
-            dc.setColor(Graphics.COLOR_YELLOW, Graphics.COLOR_BLACK);
-            UiFormat.drawLine(dc, _error as String, y, caption);
+            UiFormat.drawHrRow(dc, h * 79 / 100, _error);
+        } else if (isLoadField() || _configKind != null) {
+            dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_BLACK);
+            dc.drawText(dc.getWidth() / 2, h * 79 / 100, UiFormat.captionFont(), stepLabel(),
+                Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
         }
+        Icons.startMarker(dc, "check");
+        Icons.backMarker(dc);
+        Icons.focusMarkers(dc);
     }
 
     public function adjust(direction as Number) as Void {
@@ -89,7 +93,7 @@ class NumberEditView extends WatchUi.View {
             var problem = controller.errorCode();
             _error = problem == Err.SETTINGS_SAVE_FAILED ||
                  problem == Err.SAVE_FAILED_RETRY_BEFORE_CONTINUING ?
-                 "SAVE FAILED" : "INVALID VALUE";
+                 "Save failed" : "Invalid value";
             WatchUi.requestUpdate();
         }
     }
@@ -111,7 +115,7 @@ class NumberEditView extends WatchUi.View {
                 _parentId == null ? "" : _parentId as String,
                 _entryId, _field);
             if (configValue == null) {
-                _error = "VALUE UNAVAILABLE";
+                _error = "Value unavailable";
                 return;
             }
             _value = configValue as Number;
@@ -119,7 +123,7 @@ class NumberEditView extends WatchUi.View {
         }
         var context = editorContext();
         if (context == null) {
-            _error = "SET UNAVAILABLE";
+            _error = "Set unavailable";
             return;
         }
         var data = context as Dictionary;
@@ -127,7 +131,7 @@ class NumberEditView extends WatchUi.View {
         var values = _correcting ? data["completed"] as Dictionary : data["draft"] as Dictionary;
         _loadType = exercise["loadType"] as String;
         if (!validField() || values[_field] == null || !(values[_field] instanceof Number)) {
-            _error = "FIELD UNAVAILABLE";
+            _error = "Field unavailable";
             return;
         }
         _value = values[_field] as Number;
@@ -201,12 +205,12 @@ class NumberEditView extends WatchUi.View {
 
     private function stepLabel() as String {
         if (isLoadField()) {
-            return "STEP " + UiFormat.load100(stepSize()) + " kg";
+            return "Step " + UiFormat.load100(stepSize()) + " kg";
         }
         var step = stepModeValue();
-        return "STEP " + step.toString() +
+        return "Step " + step.toString() +
             ((Model.sameString(_field, "defaultRestSec") || Model.sameString(_field, "restSec") ||
-              Model.sameString(_field, "targetDurationSec")) ? " sec" : "");
+              Model.sameString(_field, "targetDurationSec")) ? " s" : "");
     }
 
     private function stepModeValue() as Number {
@@ -218,33 +222,27 @@ class NumberEditView extends WatchUi.View {
 
     private function fieldWord() as String {
         if (isLoadField()) {
-            return Model.sameString(_loadType, "assistance") ? "assistance" : "load";
+            return Model.sameString(_loadType, "assistance") ? "assist" : "load";
         }
-        return Model.sameString(_field, "reps") ? "reps" : "duration";
+        return Model.sameString(_field, "reps") ? "reps" : "time";
     }
 
-    private function fieldLabel() as String {
-        if (_configKind != null) {
-            return _configTitle as String;
-        }
-        if (isLoadField()) {
-            return Model.sameString(_loadType, "assistance") ? "ASSISTANCE (KG)" : "LOAD (KG)";
-        }
-        return Model.sameString(_field, "reps") ? "REPS" : "DURATION (SEC)";
+    private function valueNumber() as String {
+        return isLoadField() ? UiFormat.load100(_value) : _value.toString();
     }
 
-    private function displayValue() as String {
+    private function valueUnit() as String {
         if (isLoadField()) {
-            return UiFormat.load100(_value) + " kg";
+            return "kg";
         }
         if (Model.sameString(_field, "reps") || Model.sameString(_field, "targetRepsMin") ||
             Model.sameString(_field, "targetRepsMax")) {
-            return _value.toString() + " reps";
+            return "reps";
         }
         if (Model.sameString(_field, "workingSetCount")) {
-            return _value.toString() + " sets";
+            return "sets";
         }
-        return _value.toString() + " sec";
+        return "s";
     }
 
     private function stepSize() as Number {

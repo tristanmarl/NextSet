@@ -17,109 +17,111 @@ class SummaryView extends WatchUi.View {
         if (session == null) {
             return;
         }
-        var totals = SessionLogic.totals(session as Dictionary);
+        // Title, sets, the workout time big, heart rate, and one status row: a check per part
+        // when all is well, words only for a problem.
+        var current = session as Dictionary;
+        var totals = SessionLogic.totals(current);
+        var h = dc.getHeight();
         var complete = Model.sameString(_outcome, "completed");
-        var full = Model.sameString((session as Dictionary)["completionKind"], "full");
-        var title = complete ? (full ? "Workout saved" : "Workout saved (partial)") :
-            "Workout cancelled";
-        var lines = [title, totals["done"].toString() + "/" +
-            totals["planned"].toString() + " sets"];
-        var fonts = [Graphics.FONT_SMALL, Graphics.FONT_LARGE];
-        var gaps = [8, 8];
+        UiFormat.drawTitle(dc, complete ? "Saved" : "Cancelled", h * 25 / 100);
+        dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_BLACK);
+        dc.drawText(dc.getWidth() / 2, h * 39 / 100, Graphics.FONT_SMALL,
+            totals["done"].toString() + "/" + totals["planned"].toString() + " sets",
+            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+        if (current["elapsedSec"] instanceof Number) {
+            UiFormat.drawBig(dc, [[UiFormat.clockText(current["elapsedSec"] as Number), "num"]],
+                h * 55 / 100, -1, Graphics.COLOR_WHITE);
+        }
+        var hr = getApp().hrStats(current["id"]);
         var caption = UiFormat.captionFont();
-        if (session["elapsedSec"] instanceof Number) {
-            lines.add(duration(session["elapsedSec"] as Number));
-            fonts.add(caption);
-            gaps.add(8);
+        if (hr != null) {
+            var text = (hr as Array)[0].toString() + " avg · " + (hr as Array)[1].toString() + " max";
+            var s = Icons.unit(dc);
+            var width = dc.getTextWidthInPixels(text, caption);
+            Icons.heart(dc, (dc.getWidth() - width) / 2 - s * 3, h * 70 / 100, s);
+            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+            dc.drawText(dc.getWidth() / 2, h * 70 / 100, caption, text,
+                Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
         }
-        lines.add(activityLabel(session["fitState"]));
-        fonts.add(caption);
-        gaps.add(5);
-        var segments = session["fitSegments"];
-        if (segments instanceof Number && segments > 1) {
-            lines.add("Saved as " + segments.toString() + " Garmin activities");
-            fonts.add(caption);
-            gaps.add(5);
-        }
-        var unknown = session["fitUnknownSegments"];
-        if (unknown instanceof Number && unknown > 0) {
-            lines.add("One Garmin part unknown");
-            fonts.add(caption);
-            gaps.add(5);
-        }
-        var upload = getApp().controller().uploadSummary();
-        var uploadIndex = -1;
-        if (upload != null) {
-            uploadIndex = lines.size();
-            lines.add((upload as Dictionary)["text"] as String);
-            fonts.add(caption);
-            gaps.add(5);
-        }
-        lines.add(hasUnresolvedActivity() ? "START: SAVE CHOICE" : "START: EXIT");
-        fonts.add(Graphics.FONT_XTINY);
-        gaps.add(0);
-        if (getApp().controller().uploading()) {
-            lines.add("Upload resumes next launch");
-            fonts.add(caption);
-            gaps.add(0);
-        }
-        var totalHeight = 0;
-        for (var i = 0; i < lines.size(); i++) {
-            totalHeight += dc.getFontHeight(fonts[i] as Graphics.FontType) +
-                (gaps[i] as Number);
-        }
-        var y = (dc.getHeight() - totalHeight) / 2;
-        for (var i = 0; i < lines.size(); i++) {
-            var lineY = y;
-            y = UiFormat.drawLine(dc, lines[i] as String, y,
-                fonts[i] as Graphics.FontType) + (gaps[i] as Number);
-            if (i == uploadIndex) {
-                drawUploadIcon(dc, (upload as Dictionary)["icon"] as String, lines[i] as String,
-                    lineY, fonts[i] as Graphics.FontType);
-            }
-        }
+        drawStatus(dc, current, h * 81 / 100, caption);
+        // START exits, or opens the retry choice for an unresolved Garmin activity.
+        Icons.startMarker(dc, hasUnresolvedActivity() ? "play" : "check");
     }
 
-    private function drawUploadIcon(dc as Dc, icon as String, text as String, y as Number,
-                                    font as Graphics.FontType) as Void {
+    // "✓ Garmin  ✓ Liftosaur" when both are fine; otherwise the first problem in words (red).
+    private function drawStatus(dc as Dc, session as Dictionary, y as Number,
+                                font as Graphics.FontType) as Void {
+        var fit = session["fitState"];
+        var garminOk = Model.sameString(fit, "saved") || Model.sameString(fit, "segment_saved");
+        var unknown = session["fitUnknownSegments"];
+        var problem = null;
+        if (!garminOk) {
+            problem = activityLabel(fit);
+        } else if (unknown instanceof Number && unknown > 0) {
+            problem = "One Garmin part unknown";
+        }
+        var upload = getApp().controller().uploadSummary();
+        var uploadIcon = upload == null ? null : (upload as Dictionary)["icon"] as String;
+        if (problem == null && uploadIcon != null && Model.sameString(uploadIcon, "cross")) {
+            problem = (upload as Dictionary)["text"] as String;
+        }
+        if (problem != null) {
+            dc.setColor(Graphics.COLOR_RED, Graphics.COLOR_BLACK);
+            dc.drawText(dc.getWidth() / 2, y, font, problem as String,
+                Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+            return;
+        }
         var s = Icons.unit(dc);
-        var x = dc.getWidth() / 2 - dc.getTextWidthInPixels(text, font) / 2 - s * 2;
-        var cy = y + dc.getFontHeight(font) / 2;
+        var left = "Garmin";
+        var right = upload == null ? null : "Liftosaur";
+        var gap = s * 4;
+        var leftWidth = s * 3 + dc.getTextWidthInPixels(left, font);
+        var rightWidth = right == null ? 0 : s * 3 + dc.getTextWidthInPixels(right as String, font);
+        var x = (dc.getWidth() - leftWidth - (right == null ? 0 : gap + rightWidth)) / 2;
+        Icons.check(dc, x + s, y, s, Graphics.COLOR_GREEN);
+        dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_BLACK);
+        dc.drawText(x + s * 3, y, font, left, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
+        if (right != null) {
+            x += leftWidth + gap;
+            drawUploadIcon(dc, uploadIcon as String, x + s, y);
+            dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_BLACK);
+            dc.drawText(x + s * 3, y, font, right as String,
+                Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
+        }
+        dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+    }
+
+    // Liftosaur upload state: check (uploaded), arrow (uploading), clock (waiting).
+    private function drawUploadIcon(dc as Dc, icon as String, x as Number, y as Number) as Void {
+        var s = Icons.unit(dc);
         if (Model.sameString(icon, "check")) {
-            Icons.check(dc, x, cy, s, Graphics.COLOR_GREEN);
+            Icons.check(dc, x, y, s, Graphics.COLOR_GREEN);
         } else if (Model.sameString(icon, "arrow")) {
-            Icons.arrow(dc, x, cy, s, true, Graphics.COLOR_WHITE);
-        } else if (Model.sameString(icon, "clock")) {
-            Icons.clock(dc, x, cy, s, Graphics.COLOR_YELLOW);
+            Icons.arrow(dc, x, y, s, true, Graphics.COLOR_WHITE);
         } else {
-            Icons.cross(dc, x, cy, s, Graphics.COLOR_YELLOW);
+            Icons.clock(dc, x, y, s, Graphics.COLOR_WHITE);
         }
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
     }
 
     private function activityLabel(fitState as Object?) as String {
         if (Model.sameString(fitState, "saved") || Model.sameString(fitState, "segment_saved")) {
-            return "GARMIN ACTIVITY SAVED";
+            return "Garmin activity saved";
         }
         if (Model.sameString(fitState, "failed")) {
-            return "GARMIN ACTIVITY FAILED";
+            return "Garmin activity failed";
         }
         if (Model.sameString(fitState, "unknown")) {
-            return "GARMIN ACTIVITY UNKNOWN";
+            return "Garmin activity unknown";
         }
-        return "GARMIN ACTIVITY NOT SAVED";
+        return "Garmin activity not saved";
     }
 
     private function hasUnresolvedActivity() as Boolean {
         var session = getApp().controller().session();
         return session != null && (Model.sameString((session as Dictionary)["fitState"], "failed") ||
             Model.sameString((session as Dictionary)["fitState"], "unknown"));
-    }
-
-    private function duration(totalSeconds as Number) as String {
-        var minutes = totalSeconds / 60;
-        var seconds = totalSeconds % 60;
-        return minutes.toString() + ":" + (seconds < 10 ? "0" : "") + seconds.toString();
     }
 }
 

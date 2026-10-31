@@ -32,6 +32,11 @@ class NextSetApp extends Application.AppBase {
     // System.getTimer() time when the second buzz of the superset cue is due (0 = none).
     private var _buzzRepeatAt as Number = 0;
     private var _lastHr as Number = 0;
+    // Heart-rate samples of the running workout (memory only) for the summary's avg and max.
+    private var _hrSession as String? = null;
+    private var _hrSum as Number = 0;
+    private var _hrCount as Number = 0;
+    private var _hrMax as Number = 0;
 
     public function initialize() {
         AppBase.initialize();
@@ -234,6 +239,33 @@ class NextSetApp extends Application.AppBase {
         confirmText = null;
     }
 
+    private function sampleHr(hr as Number) as Void {
+        var session = _controller.session();
+        var id = session == null ? null : (session as Dictionary)["id"];
+        if (!(id instanceof String)) {
+            return;
+        }
+        if (!Model.sameString(id, _hrSession)) {
+            _hrSession = id as String;
+            _hrSum = 0;
+            _hrCount = 0;
+            _hrMax = 0;
+        }
+        if (hr > 0) {
+            _hrSum += hr;
+            _hrCount++;
+            _hrMax = hr > _hrMax ? hr : _hrMax;
+        }
+    }
+
+    // [avg, max] heart rate of the given workout, or null without samples (e.g. after a relaunch).
+    public function hrStats(sessionId as Object?) as Array<Number>? {
+        if (_hrCount == 0 || !Model.sameString(sessionId, _hrSession)) {
+            return null;
+        }
+        return [(_hrSum + _hrCount / 2) / _hrCount, _hrMax];
+    }
+
     // Short vibration (respects the vibration setting); double = distinct superset switch cue.
     // Single-profile only: the second buzz of a double cue is fired by a later onTick (see
     // BuzzLogic). Without a running tick timer the cue is a single buzz.
@@ -267,7 +299,7 @@ class NextSetApp extends Application.AppBase {
         _suppressFirstAlert = false;
         if (preAlert && _controller.vibrationEnabled() && Attention has :vibrate) {
             try {
-                Attention.vibrate([new Attention.VibeProfile(100, 250)]);
+                Attention.vibrate([new Attention.VibeProfile(100, 400)]);
             } catch (error) {
             }
         }
@@ -293,13 +325,14 @@ class NextSetApp extends Application.AppBase {
                 _buzzRepeatAt = 0;
             }
         }
-        // The set screen shows the live heart rate: redraw it when the value changes.
+        // The set screen and the Overview show the live heart rate: redraw when it changes.
         var hr = UiFormat.heartRate();
-        var hrChanged = hr != _lastHr && WatchUi.getCurrentView()[0] instanceof ExerciseView;
+        sampleHr(hr);
+        var top = WatchUi.getCurrentView()[0];
+        var hrChanged = hr != _lastHr && (top instanceof ExerciseView || top instanceof OverviewView);
         _lastHr = hr;
-        // The Overview shows elapsed workout time; redraw it every few seconds.
         if (_controller.hasRestShown() || _controller.hasRunningTimed() || vibrate || confirming ||
-            hrChanged || (_tickCount % 5 == 0 && overviewShown)) {
+            hrChanged) {
             WatchUi.requestUpdate();
         }
     }
