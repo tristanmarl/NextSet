@@ -61,3 +61,19 @@ function testRestClockPauseResume(logger as Test.Logger) as Boolean {
             Model.sameString(rest["state"], "running"),
             "resuming rest must restart from its saved remaining duration without mutating source");
 }
+
+(:test)
+function testBuzzLogicSecondBuzzTiming(logger as Test.Logger) as Boolean {
+    var at = BuzzLogic.repeatAt(10000);
+    var early = BuzzLogic.repeatDue(at, 10200, false);
+    var onTime = BuzzLogic.repeatDue(at, 10900, false);
+    var blocked = BuzzLogic.repeatDue(at, 10900, true);
+    var none = BuzzLogic.repeatDue(0, 10900, false);
+    var late = BuzzLogic.repeatDue(at, 14000, false);
+    var stale = BuzzLogic.repeatStale(at, 14000);
+    var fresh = BuzzLogic.repeatStale(at, 11000);
+    return clockCheck(logger, at == 10400 && !early && onTime && !blocked && !none,
+            "second buzz must wait 400 ms, skip blocked ticks and ignore 0") &&
+        clockCheck(logger, !late && stale && !fresh && !BuzzLogic.repeatStale(0, 99999),
+            "an old pending second buzz is dropped, not fired");
+}

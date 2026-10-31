@@ -730,6 +730,15 @@ class SessionController {
         return Model.sameString(candidate["fitState"], "segment_saved");
     }
 
+    // True when checkpoint(now) would write the checkpoint key (used to keep a tick quiet).
+    public function checkpointDue(now as Number) as Boolean {
+        if (!isWorkoutRunning()) {
+            return false;
+        }
+        var last = _session["lastCheckpointAt"];
+        return !(last instanceof Number && now >= last && now - last < 30);
+    }
+
     public function checkpoint(now as Number) as Boolean {
         if (!isWorkoutRunning()) {
             return false;

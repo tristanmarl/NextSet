@@ -2,6 +2,7 @@ import Toybox.Application;
 import Toybox.Attention;
 import Toybox.Graphics;
 import Toybox.Lang;
+import Toybox.System;
 import Toybox.Time;
 import Toybox.Timer;
 import Toybox.WatchUi;
@@ -27,6 +28,8 @@ class NextSetApp extends Application.AppBase {
     public var confirmText as String? = null;
     private var _confirmUntil as Number = 0;
     private var _tickCount as Number = 0;
+    // System.getTimer() time when the second buzz of the superset cue is due (0 = none).
+    private var _buzzRepeatAt as Number = 0;
 
     public function initialize() {
         AppBase.initialize();
@@ -214,15 +217,19 @@ class NextSetApp extends Application.AppBase {
     }
 
     // Short vibration (respects the vibration setting); double = distinct superset switch cue.
+    // Single-profile only: the second buzz of a double cue is fired by a later onTick (see
+    // BuzzLogic). Without a running tick timer the cue is a single buzz.
     public function buzz(double as Boolean) as Void {
+        _buzzRepeatAt = 0;
         if (!_controller.vibrationEnabled() || !(Attention has :vibrate)) {
             return;
         }
         try {
-            Attention.vibrate(double ?
-                [new Attention.VibeProfile(60, 100), new Attention.VibeProfile(0, 90),
-                 new Attention.VibeProfile(60, 100)] : [new Attention.VibeProfile(50, 120)]);
+            Attention.vibrate([new Attention.VibeProfile(double ? 80 : 50, double ? 200 : 120)]);
         } catch (error) {
+        }
+        if (double && _timerStarted) {
+            _buzzRepeatAt = BuzzLogic.repeatAt(System.getTimer());
         }
     }
 
@@ -236,6 +243,7 @@ class NextSetApp extends Application.AppBase {
         if (confirming && System.getTimer() >= _confirmUntil) {
             confirmText = null;
         }
+        var checkpointDue = _controller.checkpointDue(Time.now().value());
         var vibrate = _controller.onTick(Time.now().value(), !_suppressFirstAlert);
         var preAlert = _controller.takePreRestAlert(Time.now().value(), !_suppressFirstAlert);
         _suppressFirstAlert = false;
@@ -249,6 +257,22 @@ class NextSetApp extends Application.AppBase {
             try {
                 Attention.vibrate([new Attention.VibeProfile(100, 1000)]);
             } catch (error) {
+            }
+        }
+        // Second buzz of the superset cue: never in a tick that vibrates or writes storage.
+        var nowMs = System.getTimer();
+        if (_buzzRepeatAt > 0) {
+            var blocked = vibrate || preAlert || checkpointDue;
+            if (BuzzLogic.repeatDue(_buzzRepeatAt, nowMs, blocked)) {
+                _buzzRepeatAt = 0;
+                if (_controller.vibrationEnabled() && Attention has :vibrate) {
+                    try {
+                        Attention.vibrate([new Attention.VibeProfile(80, 200)]);
+                    } catch (error) {
+                    }
+                }
+            } else if (BuzzLogic.repeatStale(_buzzRepeatAt, nowMs)) {
+                _buzzRepeatAt = 0;
             }
         }
         // The Overview shows elapsed workout time; redraw it every few seconds.
