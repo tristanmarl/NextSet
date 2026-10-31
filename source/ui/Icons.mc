@@ -146,27 +146,44 @@ module Icons {
         dc.fillPolygon([[x - 2 * r, y - r / 3], [x + 2 * r, y - r / 3], [x, y + 2 * r - 1]]);
     }
 
-    // One dot per working set: done green, the current one white, the rest gray outlines.
+    // One dot per working set: done green and filled, the current one white and filled with an
+    // outline, the rest open with a light-gray thick outline.
     function setDots(dc as Dc, y as Number, done as Number, planned as Number, current as Number) as Void {
         var s = unit(dc);
-        var r = s < 3 ? 4 : s + 1;
+        var r = s + 3;
         var gap = r * 3;
         var x = dc.getWidth() / 2 - (planned - 1) * gap / 2;
         for (var i = 0; i < planned; i++) {
-            if (i < done && i != current) {
+            if (i == current) {
+                dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+                dc.setPenWidth(2);
+                dc.drawCircle(x, y, r + 2);
+                dc.setPenWidth(1);
+                dc.fillCircle(x, y, r - 1);
+            } else if (i < done) {
                 dc.setColor(Graphics.COLOR_GREEN, Graphics.COLOR_BLACK);
                 dc.fillCircle(x, y, r);
-            } else if (i == current) {
-                dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
-                dc.fillCircle(x, y, r);
             } else {
-                dc.setColor(Graphics.COLOR_DK_GRAY, Graphics.COLOR_BLACK);
-                dc.setPenWidth(2);
+                dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_BLACK);
+                dc.setPenWidth(3);
                 dc.drawCircle(x, y, r - 1);
                 dc.setPenWidth(1);
             }
             x += gap;
         }
+        dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+    }
+
+    // Set position row: dots up to EditorLogic.MAX_DOTS planned sets, else the number "4/8"
+    // (current < 0: all done).
+    function setProgress(dc as Dc, y as Number, done as Number, planned as Number, current as Number) as Void {
+        if (EditorLogic.useDots(planned)) {
+            setDots(dc, y, done, planned, current);
+            return;
+        }
+        dc.setColor(current < 0 ? Graphics.COLOR_GREEN : Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+        dc.drawText(dc.getWidth() / 2, y, Graphics.FONT_SMALL, EditorLogic.counterText(current, planned),
+            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
     }
 
