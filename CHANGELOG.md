@@ -2,6 +2,11 @@
 
 NextSet is an unofficial companion for Liftosaur. It is not made or endorsed by Liftosaur and needs Liftosaur Premium for API access.
 
+## 0.4.2
+- **Finish is the last item of the menu.** The "Workout…" submenu and "Cancel workout" are gone. Hold UP and choose **Finish workout** (last item): START saves, BACK asks Keep working or Discard, with the same fonts as the review. With no set logged the review still opens, so a workout can be discarded. BACK on the Overview opens the same review.
+- **Change weight.** The first hold-UP item is now **Change weight** (**Change time** for a timed set, nothing for bodyweight). It opens the weight directly, yellow and underlined: UP/DOWN change it, START saves and closes, BACK closes without saving. **Edit last set** keeps the two-level editor. The set-screen hint reads "Hold UP: change weight".
+- **The weight step is automatic: 2.5 kg or 5 lb.** The "Weight step" menu is gone (Liftosaur's data has no rounding value to follow). Routines synced before keep working: the old 1 kg step becomes 2.5 kg, and any step you set earlier is still applied.
+
 ## 0.4.1
 - **Buttons only.** Every NextSet screen now ignores touch, so sweat or a brush against the screen can no longer select a weight with no way back. UP/DOWN on the set screen always change the reps (the duration for a timed set); START logs the set, one press per set as before.
 - **New "Edit set" editor.** Hold UP and choose **Edit set** (the first item) for the next set, or **Edit last set** for the one before. The weight and reps are shown big and the selected one has a white frame: UP/DOWN pick a field, START enters it (yellow and underlined), UP/DOWN change it, START keeps it, BACK undoes that field. BACK from the choice saves and closes. Bodyweight sets edit reps only, timed sets the duration. "Change load" / "Change reps" are gone; the set screen shows the hint "Hold UP: edit set" once.
