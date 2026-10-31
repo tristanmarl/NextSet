@@ -2,11 +2,14 @@
 
 NextSet is an unofficial companion for Liftosaur. It is not made or endorsed by Liftosaur and needs Liftosaur Premium for API access.
 
-## 0.4.2
-- **Finish is the last item of the menu.** The "Workout…" submenu and "Cancel workout" are gone. Hold UP and choose **Finish workout** (last item): START saves, BACK asks Keep working or Discard, with the same fonts as the review. With no set logged the review still opens, so a workout can be discarded. BACK on the Overview opens the same review.
-- **Change weight.** The first hold-UP item is now **Change weight** (**Change time** for a timed set, nothing for bodyweight). It opens the weight directly, yellow and underlined: UP/DOWN change it, START saves and closes, BACK closes without saving. **Edit last set** keeps the two-level editor. The set-screen hint reads "Hold UP: change weight".
-- **Shorter exercise menu.** "Skip exercise" and "Replace exercise" are gone; follow the program, or finish the workout early.
+## 0.4.3
+- **BACK steps back in time.** On the set screen BACK opens the last set you logged for that exercise (**Set N**) with the weight and reps and a new **Delete** row; BACK again saves what you changed and shows the Overview; BACK on the Overview opens the Finish review. An exercise with nothing logged goes straight to the Overview. **Delete** asks "Delete set N?" (Keep is selected first) and returns to the set screen with that set open again.
+- **No more hold-UP menu on the set screen.** Hold UP now opens **Change weight** directly (**Change time** for a timed set; bodyweight sets have nothing to change, so no icon is drawn): UP/DOWN change it, START saves, BACK cancels. "Edit last set", "Delete set", "Add set", "Skip warmups", "Skip rest", "Log paused set", "Reopen exercise" and "Finish workout" are gone from the menu: finish with BACK on the Overview.
+- **Hold UP on the Overview adds a set** to the shown exercise (a short buzz, the count updates; "Max sets reached" at the limit). The edge icons on these screens now match the real buttons.
+- **Finish workout is BACK on the Overview.** The review opens with START to save and BACK for Keep working or Discard, with the same fonts as the review. With no set logged the review still opens, so a workout can be discarded.
 - **The weight step is automatic: 2.5 kg or 5 lb.** The "Weight step" menu is gone (Liftosaur's data has no rounding value to follow). Routines synced before keep working: the old 1 kg step becomes 2.5 kg, and any step you set earlier is still applied.
+- "Skip exercise" and "Replace exercise" are gone; follow the program, or finish the workout early. An exercise closed early by an older version is reopened by START on the Overview.
+- The set-screen hint reads "Hold UP: change weight".
 
 ## 0.4.1
 - **Buttons only.** Every NextSet screen now ignores touch, so sweat or a brush against the screen can no longer select a weight with no way back. UP/DOWN on the set screen always change the reps (the duration for a timed set); START logs the set, one press per set as before.

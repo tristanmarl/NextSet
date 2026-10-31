@@ -47,7 +47,7 @@ Before a pull request:
 
 ## Screenshots
 
-`monkey.demo.jungle` builds a demo app (separate app id, `manifest.demo.xml`, never shipped) that fills the simulator with a made-up program from `demo/resources/data/demo.xml`, starts a workout with two logged sets and switches between the set screen, the load selection, the Overview, the set editor and Home every 8 s, so screens can be captured without button input:
+`monkey.demo.jungle` builds a demo app (separate app id, `manifest.demo.xml`, never shipped) that fills the simulator with a made-up program from `demo/resources/data/demo.xml`, starts a workout with two logged sets and switches between the set screens, the editors (Change weight, last set with Delete), the delete confirmation, the Overview and Home every 8 s, so screens can be captured without button input:
 
 ```sh
 monkeyc -f monkey.demo.jungle -d fr965 -o bin/NextSet-demo.prg -y "$KEY"
@@ -61,7 +61,7 @@ The demo clears the simulator's app storage on every start. README images are in
 [AGENTS.md](AGENTS.md) holds the repository rules and [CLAUDE.md](CLAUDE.md) the architecture notes. In short:
 
 - Four-space indentation, typed parameters and returns, `UpperCamelCase` classes, `lowerCamelCase` functions, `UPPER_SNAKE_CASE` constants. Match the surrounding code.
-- Logic goes in `source/`, screens and navigation in `source/ui/`. Keep everything usable with buttons only (UP, DOWN, START, BACK, hold UP for the menu).
+- Logic goes in `source/`, screens and navigation in `source/ui/`. Keep everything usable with buttons only (UP, DOWN, START, BACK, hold UP as the one shortcut on the set screen and the Overview).
 - **Callbacks passed to `method(:name)` (timers, web requests) must be public.** A private one compiles but fails on the watch.
 - **Guard APIs that some watches lack** with `has` (for example `Graphics has :getVectorFont`). The project targets Connect IQ 5.0+.
 - Requests stay asynchronous and outside timing-sensitive work. Do not run storage writes, FIT laps or requests in the same timer tick as a vibration.

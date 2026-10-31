@@ -14,6 +14,7 @@ No phone in your hand at the gym, no second app, no server in between.
   <img src="docs/screenshots/set.png" width="200" alt="Set screen: Seated Row, set dots, 55 kg × 9 with the reps underlined, heart rate">
   <img src="docs/screenshots/rest.png" width="200" alt="Rest: blue ring and 1:57 countdown, the next set 55 kg × 9">
   <img src="docs/screenshots/edit-set.png" width="200" alt="Change weight: the weight yellow and underlined">
+  <img src="docs/screenshots/last-set.png" width="200" alt="BACK on the set screen: the last set with weight, reps and Delete">
   <img src="docs/screenshots/finish.png" width="200" alt="Finish? 2 sets, 1 exercise, 0:40">
 </p>
 <p align="center"><sub>Forerunner 965 simulator with a made-up program (<code>monkey.demo.jungle</code>).</sub></p>
@@ -63,18 +64,18 @@ The Connect IQ Store is the only way to install NextSet; GitHub releases carry t
 2. **Sync.** With the phone nearby, choose **Menu → Settings → Sync routines**, or press START on Home when nothing is synced yet. Home shows "Synced N days" when done.
 3. **Train.** Choose the day with UP/DOWN on Home and press START.
 
-Hold UP to open the menu anywhere. The small icons at the screen edge show what each button does. Every workout screen keeps the same places: the exercise at the top, set dots (or the rest time) below it, weight and reps in the middle, heart rate at the bottom. Yellow and underlined is what UP/DOWN change.
+The small icons at the screen edge show what each button does. Every workout screen keeps the same places: the exercise at the top, set dots (or the rest time) below it, weight and reps in the middle, heart rate at the bottom. Yellow and underlined is what UP/DOWN change. **BACK steps back in time:** set screen, then the last set you logged, then the Overview, then the finish review (see below). There is no menu during a workout; hold UP is a single shortcut on the set screen and on the Overview.
 
 ## Using NextSet
 
 - **Log a set:** UP/DOWN change the reps, START logs the set and starts the rest. A second press within 800 ms is ignored. If the program asks for an RPE or prompted values, a question screen follows (UP/DOWN change, START saves, BACK keeps the suggestion).
-- **Change the weight (buttons only):** hold UP and choose **Change weight** (the first item; **Change time** for a timed set, nothing for bodyweight, whose reps change on the set screen). The weight opens big, yellow and underlined: UP/DOWN change it by 2.5 kg or 5 lb (fast presses speed up, two then four steps per press), START saves and closes, BACK closes without saving. A changed weight carries over to the following sets unless the program gives them a different weight. Reps can be changed straight on the set screen with UP/DOWN.
-- **Fix the last set:** in the same menu **Edit last set** (showing its values) and **Delete set N** follow. **Edit last set** opens the weight and reps big with the weight framed: UP/DOWN pick a field, START enters it (yellow and underlined), UP/DOWN change it, START keeps it, BACK restores the old value. BACK from the choice closes the editor and saves.
+- **Change the weight (buttons only):** hold UP on the set screen (**Change weight**; **Change time** for a timed set; bodyweight sets have no hold action and no icon, their reps change with UP/DOWN). The weight opens big, yellow and underlined: UP/DOWN change it by 2.5 kg or 5 lb (fast presses speed up, two then four steps per press), START saves and closes, BACK closes without saving. A changed weight carries over to the following sets unless the program gives them a different weight. Reps can be changed straight on the set screen with UP/DOWN.
+- **Fix or delete the last set:** press BACK on the set screen. The last set you logged for this exercise opens (**Set N**, or **Warmup N** while only warmups are logged) with the weight and reps big and the weight framed, and a third row, **Delete**. UP/DOWN pick a row, START enters a field (yellow and underlined; UP/DOWN change it, START keeps it, BACK restores the old value). START on **Delete** asks **Delete set N?** (**Keep** is selected first, **Delete** removes the set and you are back on the set screen with that set open again). BACK from the rows saves what you changed (nothing when you changed nothing) and goes on to the Overview. An exercise with nothing logged yet goes straight to the Overview.
 - **Timed sets:** START starts the countdown, START again logs the held time, BACK pauses. A one-sided set shows "Left side", then "Right side": hold each side and press START after each.
-- **Overview:** BACK from an exercise shows the exercises one at a time: the name, "Exercise 2/8", the sets done big ("2/3") and the next set ("55 kg × 9"). UP/DOWN browse, START trains the shown exercise, so you can go out of order.
-- **Finish:** the last item of the hold-UP menu is **Finish workout** (it is also offered after the last set, and BACK on the Overview opens it). The review shows the workout time, sets and exercises done. START saves; BACK opens a choice between **Keep working** (selected first) and **Discard** (UP/DOWN move, START confirms, BACK returns to the review). With no set logged the review can only be discarded. The summary then shows the upload status live. Discarding throws the workout away: no history, no upload, and the Garmin activity is discarded. These screens, and the confirmations for deleting a set or clearing the upload queue, answer only to the buttons.
+- **Overview:** BACK from the last-set editor (or from a set screen with nothing logged) shows the exercises one at a time: the name, "Exercise 2/8", the sets done big ("2/3") and the next set ("55 kg × 9"). UP/DOWN browse, START trains the shown exercise, so you can go out of order (START on a finished exercise opens its set screen, where BACK reaches its last set). **Hold UP adds a set** to the shown exercise (a short buzz, the count updates; "Max sets reached" when no more fit). BACK opens the finish review.
+- **Finish:** BACK on the Overview opens the review (it is also offered after the last set). The review shows the workout time, sets and exercises done. START saves; BACK opens a choice between **Keep working** (selected first) and **Discard** (UP/DOWN move, START confirms, BACK returns to the review). With no set logged the review can only be discarded. The summary then shows the upload status live. Discarding throws the workout away: no history, no upload, and the Garmin activity is discarded. These screens, and the confirmations for deleting a set or clearing the upload queue, answer only to the buttons.
 - **History:** the last four workouts, one per page, with a check for the Garmin activity and the Liftosaur upload. START shows the sets.
-- **Touch is ignored.** NextSet is operated with the five buttons only, so a wet or sweaty screen cannot change a weight or log a set. (The system menus, such as the hold-UP menu and Settings, are Garmin's own.)
+- **Touch is ignored.** NextSet is operated with the five buttons only, so a wet or sweaty screen cannot change a weight or log a set. (Settings uses Garmin's own menus.)
 - **When something goes wrong:** pending uploads retry after 2, 5 and 10 minutes while the app is open and at every launch. **Settings → Retry workout upload** retries now. **Skip this upload** and **Clear upload queue** remove stuck jobs; local history is kept.
 
 ## Limitations
@@ -96,7 +97,7 @@ Hold UP to open the menu anywhere. The small icons at the screen edge show what 
 
 **I use [liftosaur2garmin](https://github.com/Zettt/liftosaur2garmin). Does that work?** It should from NextSet 0.3.6 on, but this has not been confirmed with a real upload yet. Up to 0.3.5 NextSet added a note to every workout, which made liftosaur2garmin's parser fail; since 0.3.6 it adds a note only for a replaced exercise or extra warmups. The same parser still fails on any Liftosaur workout that has a note, including notes you write in the Liftosaur app.
 
-**Why five buttons only?** Every action is mapped to UP, DOWN, START, BACK and the menu, so it works with sweaty hands and gloves. Touch-only watches would need their own controls.
+**Why five buttons only?** Every action is mapped to UP, DOWN, START, BACK and hold UP, so it works with sweaty hands and gloves. Touch-only watches would need their own controls.
 
 ## Contributing
 

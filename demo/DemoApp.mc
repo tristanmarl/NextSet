@@ -71,9 +71,13 @@ class DemoApp extends NextSetApp {
             var exercise = UiFormat.exercise(controller().session() as Dictionary, row) as Dictionary;
             view = new SetEditView(row, UiFormat.lastSlot(exercise), true, false);
         } else if (_screen == 4) {
-            view = new ReviewView();
+            // The last-set editor with the Delete row selected.
+            var exercise = UiFormat.exercise(controller().session() as Dictionary, row) as Dictionary;
+            var editor = new SetEditView(row, UiFormat.lastSlot(exercise), true, false);
+            editor.up();
+            view = editor;
         } else if (_screen == 5) {
-            view = new ConfirmView("Discard?", "Keep working", "Discard");
+            view = new ConfirmView("Delete set 2?", "Keep", "Delete");
         } else if (_screen == 6) {
             var exercise = UiFormat.exercise(controller().session() as Dictionary, row) as Dictionary;
             var editor = new SetEditView(row, UiFormat.lastSlot(exercise), true, false);

@@ -86,20 +86,20 @@ class SetEditView extends WatchUi.View {
         UiFormat.drawTitle(dc, title, h * 25 / 100);
         var count = _ready ? _fields.size() : 0;
         var editing = _mode == EditorLogic.MODE_EDIT;
-        // Fields big, then (logged set) the Delete row in medium text; the rows share 44..78 %.
+        // Fields big, then (logged set) the Delete row in medium text; three rows share 43..75 %.
         var rowCount = _ready ? _rows.size() : 0;
         for (var i = 0; i < count; i++) {
             var y = rowCount == 1 ? h * 57 / 100 : (rowCount == 2 ? (i == 0 ? h * 50 / 100 : h * 71 / 100) :
-                h * (44 + 17 * i) / 100);
+                h * (43 + 16 * i) / 100);
             var box = UiFormat.drawBigFrom(dc, fieldParts(i), y, editing && i == _selected ? 0 : -1,
-                Graphics.COLOR_WHITE, rowCount == 1 ? 0 : 1);
+                Graphics.COLOR_WHITE, rowCount == 1 ? 0 : (rowCount == 2 ? 1 : 2));
             if (!editing && i == _selected) {
                 frame(dc, box);
             }
         }
         if (rowCount > count) {
             var selectedDelete = !editing && EditorLogic.isDeleteRow(_rows, _selected);
-            var deleteY = h * (44 + 17 * count) / 100;
+            var deleteY = rowCount == 2 ? h * 71 / 100 : h * (43 + 16 * count) / 100;
             var font = Graphics.FONT_MEDIUM;
             dc.setColor(selectedDelete ? Graphics.COLOR_WHITE : Graphics.COLOR_LT_GRAY, Graphics.COLOR_BLACK);
             dc.drawText(dc.getWidth() / 2, deleteY, font, "Delete",
