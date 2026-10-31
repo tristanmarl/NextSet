@@ -5,6 +5,7 @@ NextSet is an unofficial companion for Liftosaur. It is not made or endorsed by 
 ## 0.4.2
 - **Finish is the last item of the menu.** The "Workout…" submenu and "Cancel workout" are gone. Hold UP and choose **Finish workout** (last item): START saves, BACK asks Keep working or Discard, with the same fonts as the review. With no set logged the review still opens, so a workout can be discarded. BACK on the Overview opens the same review.
 - **Change weight.** The first hold-UP item is now **Change weight** (**Change time** for a timed set, nothing for bodyweight). It opens the weight directly, yellow and underlined: UP/DOWN change it, START saves and closes, BACK closes without saving. **Edit last set** keeps the two-level editor. The set-screen hint reads "Hold UP: change weight".
+- **Shorter exercise menu.** "Skip exercise" and "Replace exercise" are gone; follow the program, or finish the workout early.
 - **The weight step is automatic: 2.5 kg or 5 lb.** The "Weight step" menu is gone (Liftosaur's data has no rounding value to follow). Routines synced before keep working: the old 1 kg step becomes 2.5 kg, and any step you set earlier is still applied.
 
 ## 0.4.1

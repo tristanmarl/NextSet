@@ -26,7 +26,7 @@ No phone in your hand at the gym, no second app, no server in between.
 - **Kilograms or pounds.** Weights stay in the unit your Liftosaur account uses (`kg` or `lb`), on the watch and in the upload.
 - **Programs that ask for values.** Sets that log an RPE ask for it right after the set, and exercises with prompted variables (Liftoscript `state.name+`) ask for each value after the last set. Both start at the program's suggestion: START saves, BACK keeps the suggestion.
 - **Warmups, supersets, timed sets.** Warmups come from the program and upload as Liftosaur warmup sets. Supersets alternate automatically. Timed sets (planks, dead bugs) count down and log the held time; one-sided timed sets record the left and then the right side.
-- **Change things on the fly.** Change the weight of the next set, edit or delete the last set, add a set, skip warmups, skip or replace an exercise. The weight step is automatic: 2.5 kg or 5 lb.
+- **Change things on the fly.** Change the weight of the next set, edit or delete the last set, add a set or skip warmups. The weight step is automatic: 2.5 kg or 5 lb.
 - **Direct upload to Liftosaur.** Up to four finished workouts are queued and uploaded over the phone connection. An interrupted upload retries safely, and nothing is sent twice. If the program changed since you trained, the upload stops and tells you, instead of writing to the wrong day.
 - **Garmin activity.** Each workout is also a Training activity in Garmin Connect, with heart rate, duration and one lap per set.
 - **Crash safe.** The workout is saved after every set. If the watch or app restarts, you continue where you were.

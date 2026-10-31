@@ -79,12 +79,6 @@ module Navigator {
             Model.sameString(rest["state"], "running")) {
             menu.addItem(new WatchUi.MenuItem("Skip rest", null, "rest_skip", null));
         }
-        if (next >= 0 && !running) {
-            menu.addItem(new WatchUi.MenuItem("Skip exercise", null, "skip_today", null));
-            // Swap when nothing is logged yet; otherwise add an alternative for the rest of the sets.
-            menu.addItem(new WatchUi.MenuItem("Replace exercise", null,
-                SessionLogic.completedCount(exercise) == 0 ? "swap_today" : "add_alt", null));
-        }
         if (exercise["closedEarly"] == true) {
             menu.addItem(new WatchUi.MenuItem("Reopen exercise", null, "reopen", null));
         }

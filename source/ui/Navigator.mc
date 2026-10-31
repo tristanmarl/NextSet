@@ -277,25 +277,6 @@ module Navigator {
         }
     }
 
-    function programExercisePicker(entryId as String, mode as String,
-                                   view as ExerciseView, fromOverview as Boolean) as Void {
-        var exercises = getApp().controller().programExercises();
-        var menu = new WatchUi.Menu2({:title=>"Program exercises"});
-        for (var i = 0; i < exercises.size(); i++) {
-            var exercise = exercises[i] as Dictionary;
-            var detail = exercise["equipment"] instanceof String &&
-                (exercise["equipment"] as String).length() > 0 ?
-                exercise["equipment"] as String : exercise["loadType"] as String;
-            menu.addItem(new WatchUi.MenuItem(exercise["name"] as String, detail,
-                exercise["id"], null));
-        }
-        if (exercises.size() == 0) {
-            menu.addItem(new WatchUi.MenuItem("Sync routines first", null, "none", null));
-        }
-        WatchUi.pushView(menu,
-            new ProgramExerciseDelegate(entryId, mode, view, fromOverview), WatchUi.SLIDE_UP);
-    }
-
     function feedback(message as String) as Void {
         WatchUi.pushView(new FeedbackView(message), new FeedbackDelegate(), WatchUi.SLIDE_UP);
     }

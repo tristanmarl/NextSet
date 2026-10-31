@@ -107,23 +107,6 @@ class ExerciseMenuDelegate extends WatchUi.Menu2InputDelegate {
             Navigator.review();
             return;
         }
-        if (Model.sameString(id, "skip_today")) {
-            if (controller.closeExercise(_entryId, true)) {
-                WatchUi.popView(WatchUi.SLIDE_DOWN);
-                WatchUi.requestUpdate();
-                Navigator.promptIfWorkoutDone();
-            } else {
-                Navigator.feedback("Exercise unchanged; save failed");
-            }
-            return;
-        }
-        if (Model.sameString(id, "swap_today") || Model.sameString(id, "add_alt")) {
-            WatchUi.popView(WatchUi.SLIDE_DOWN);
-            Navigator.programExercisePicker(_entryId,
-                Model.sameString(id, "swap_today") ? "active_swap" : "active_add",
-                _view, _fromOverview);
-            return;
-        }
         var session = controller.session() as Dictionary;
         var exercise = UiFormat.exercise(session, _entryId) as Dictionary;
         if (Model.sameString(id, "reopen")) {
@@ -133,60 +116,6 @@ class ExerciseMenuDelegate extends WatchUi.Menu2InputDelegate {
         }
         WatchUi.popView(WatchUi.SLIDE_DOWN);
         WatchUi.requestUpdate();
-    }
-
-    public function onBack() as Void {
-        WatchUi.popView(WatchUi.SLIDE_DOWN);
-    }
-}
-
-class ProgramExerciseDelegate extends WatchUi.Menu2InputDelegate {
-    private var _entryId as String;
-    private var _mode as String;
-    private var _view as ExerciseView;
-    private var _fromOverview as Boolean;
-
-    public function initialize(entryId as String, mode as String, view as ExerciseView,
-                               fromOverview as Boolean) {
-        _entryId = entryId;
-        _mode = mode;
-        _view = view;
-        _fromOverview = fromOverview;
-        Menu2InputDelegate.initialize();
-    }
-
-    public function onSelect(item as MenuItem) as Void {
-        var id = item.getId() as String;
-        if (Model.sameString(id, "none")) {
-            WatchUi.popView(WatchUi.SLIDE_DOWN);
-            return;
-        }
-        var exercises = getApp().controller().programExercises();
-        var definition = null;
-        for (var i = 0; i < exercises.size(); i++) {
-            if (Model.sameString((exercises[i] as Dictionary)["id"], id)) {
-                definition = exercises[i] as Dictionary;
-                break;
-            }
-        }
-        var succeeded = false;
-        if (definition != null) {
-            var type = (definition as Dictionary)["loadType"] as String;
-            succeeded = Model.sameString(_mode, "active_swap") ?
-                getApp().controller().replaceSessionExercise(_entryId,
-                    definition as Dictionary, type) :
-                getApp().controller().addSessionAlternative(_entryId,
-                    definition as Dictionary, type);
-        }
-        WatchUi.popView(WatchUi.SLIDE_DOWN);
-        if (!succeeded) {
-            Navigator.feedback("Exercise unchanged");
-        } else if (_fromOverview) {
-            Navigator.exercise(_entryId);
-        } else {
-            _view.showMessage("");
-            WatchUi.requestUpdate();
-        }
     }
 
     public function onBack() as Void {
