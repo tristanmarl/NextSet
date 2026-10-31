@@ -128,8 +128,9 @@ class ExerciseView extends WatchUi.View {
 
         // Bottom row: heart rate; an error replaces it, and a one-time hint teaches the editor.
         var hint = null;
-        if (_message == null && editable && !resting && !getApp().focusHintSeen) {
-            hint = "Hold UP: edit set";
+        if (_message == null && editable && !resting && !getApp().focusHintSeen &&
+            EditorLogic.singleField(loadType) != null && !Model.sameString(loadType, "timed")) {
+            hint = "Hold UP: change weight";
         }
         if (hint != null) {
             dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_BLACK);
@@ -259,7 +260,7 @@ class ExerciseView extends WatchUi.View {
         var run = (session as Dictionary)["timedRun"];
         if (timed && run instanceof Dictionary && Model.sameString(run["entryId"], _entryId) &&
             run["slot"] == slot) {
-            _message = "Hold UP: edit set";
+            _message = "Hold UP: change time";
             WatchUi.requestUpdate();
             return;
         }

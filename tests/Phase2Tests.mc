@@ -527,7 +527,7 @@ function testRestPreAlertStepAndRepRange(logger as Test.Logger) as Boolean {
     }
     routine["entries"] = entries;
     var overrides = {};
-    overrides[weightName as String] = 250;
+    overrides[weightName as String] = 500;
     var config = {"routines" => [routine], "settings" => {"defaultRestSec" => 90},
         "incrementOverrides" => overrides};
     var session = Catalog.createSession(routine["id"] as String, "st-1", 1, 1790752141, null,
@@ -562,7 +562,7 @@ function testRestPreAlertStepAndRepRange(logger as Test.Logger) as Boolean {
     return check(logger, !RestClock.preAlertDue(rest, 1000) && RestClock.preAlertDue(rest, 1052) &&
             !RestClock.preAlertDue(rest, 1060) && !RestClock.preAlertDue(short, 1010),
             "pre-rest alert is due only in the last 10 s of a rest of at least 20 s") &&
-        check(logger, stepped == 250 && (plain == null || plain == 100),
+        check(logger, stepped == 500 && (plain == null || plain == 250),
             "a per-exercise-name weight step overrides the default increment") &&
         check(logger, Model.sameString(UiFormat.repRange(rangedExercise, 0), "8–10") &&
             rangedExercise["targetRepsMin"] == 8 && rangedExercise["targetRepsMax"] == 10 &&
@@ -612,4 +612,28 @@ function testOfflineMappingAndRetryBackoff(logger as Test.Logger) as Boolean {
             "auto-retry backs off 2, 5, then 10 minutes") &&
         check(logger, Model.sameString(Err.shortMessage(Err.PHONE_NOT_CONNECTED), "Phone not connected"),
             "the offline error has its Home text");
+}
+
+(:test)
+function testKgDefaultStepAndLegacyRoutines(logger as Test.Logger) as Boolean {
+    var reply = phase2ApiWorkout("Step", 1111111111111l, "Row", false, false, "stp");
+    var parsed = Catalog.parseRoutine(reply, 1, 1) as Dictionary;
+    var entry = (parsed["entries"] as Array)[0] as Dictionary;
+    var isWeight = Model.sameString(entry["loadType"], "weight");
+    var fresh = entry["increment100"];
+    // A routine cached by 0.4.1 or earlier stored the old 1 kg default.
+    entry["increment100"] = 100;
+    var legacy = Catalog.createSession(parsed["id"] as String, "lg-1", 1, 1790752141, null,
+        {"routines" => [parsed], "settings" => {"defaultRestSec" => 90}}) as Dictionary;
+    var legacyStep = ((legacy["exercises"] as Array)[0] as Dictionary)["weightIncrement100"];
+    // A stored per-exercise override of 1 kg is still applied.
+    var overrides = {};
+    overrides[entry["name"] as String] = 100;
+    var overridden = Catalog.createSession(parsed["id"] as String, "lg-2", 1, 1790752141, null,
+        {"routines" => [parsed], "settings" => {"defaultRestSec" => 90},
+         "incrementOverrides" => overrides}) as Dictionary;
+    var overrideStep = ((overridden["exercises"] as Array)[0] as Dictionary)["weightIncrement100"];
+    return check(logger, isWeight && fresh == 250, "a new kg routine defaults to a 2.5 kg step") &&
+        check(logger, legacyStep == 250, "a cached routine with the old 1 kg default gets 2.5 kg") &&
+        check(logger, overrideStep == 100, "a stored override is still read and applied");
 }

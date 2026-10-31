@@ -916,40 +916,6 @@ class SessionController {
         return canVibrate;
     }
 
-    // Persists a weight step for the exercise name (survives re-sync) and applies it to this
-    // workout's exercise. Config is written directly: the editable-configuration gate is closed
-    // during a workout.
-    public function setWeightStep(entryId as String, increment100 as Number) as Boolean {
-        if (!isWorkoutRunning() || !Model.inRange(increment100, 25, 10000, false) ||
-            increment100 % 25 != 0) {
-            return false;
-        }
-        var index = SessionLogic.exerciseIndex(_session as Dictionary, entryId);
-        var config = readConfig();
-        if (index < 0 || config == null) {
-            return false;
-        }
-        var exercise = ((_session as Dictionary)["exercises"] as Array)[index] as Dictionary;
-        if (!Model.sameString(exercise["loadType"], "weight")) {
-            return false;
-        }
-        var overrides = SessionLogic.copyDictionary(
-            (config as Dictionary)["incrementOverrides"] as Dictionary);
-        if (!overrides.hasKey(exercise["name"]) && overrides.size() >= 32) {
-            return false;
-        }
-        overrides[exercise["name"]] = increment100;
-        var next = SessionLogic.copyDictionary(config as Dictionary);
-        next["incrementOverrides"] = overrides;
-        if (!writeParts(next, null, true)) {
-            return false;
-        }
-        var state = SessionLogic.exerciseCandidate(_session as Dictionary, index);
-        var changed = state["exercise"] as Dictionary;
-        changed["weightIncrement100"] = increment100;
-        return commit(state["session"] as Dictionary);
-    }
-
     public function restAction(action as String, now as Number) as Boolean {
         if (!isWorkoutRunning() || !(_session["rest"] instanceof Dictionary)) {
             return false;

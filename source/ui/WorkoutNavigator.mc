@@ -4,21 +4,10 @@ import Toybox.WatchUi;
 // Workout menus and finish-flow entry points: the rest of the Navigator module (Monkey C merges
 // declarations of a module across files). Split out of Navigator.mc.
 module Navigator {
-    function actions() as Void {
-        var menu = new WatchUi.Menu2({:title=>"Workout"});
-        var session = getApp().controller().session();
-        if (session != null && SessionLogic.totals(session as Dictionary)["done"] > 0) {
-            menu.addItem(new WatchUi.MenuItem("Finish workout", null, "finish", null));
-        }
-        menu.addItem(new WatchUi.MenuItem("Cancel workout", null, "abort", null));
-        WatchUi.pushView(menu, new ActionsMenuDelegate(), WatchUi.SLIDE_UP);
-    }
-
-    // Key-only review of the finished workout (START saves, BACK opens Keep/Discard).
+    // Key-only review of the finished workout (START saves, BACK opens Keep/Discard). With no
+    // set logged START only says so; BACK still offers Discard.
     function review() as Void {
-        var session = getApp().controller().session();
-        if (session == null || SessionLogic.totals(session as Dictionary)["done"] == 0) {
-            feedback(Err.message(Err.LOG_A_SET_BEFORE_SAVING) as String);
+        if (getApp().controller().session() == null) {
             return;
         }
         WatchUi.pushView(new ReviewView(), new ReviewDelegate(), WatchUi.SLIDE_UP);
@@ -52,9 +41,14 @@ module Navigator {
         var next = SessionLogic.activeSlot(exercise);
         var lastEntry = SessionLogic.lastEditEntryId(session, entryId);
         if (next >= 0) {
-            // First: the editor for the next set (weight and reps, reps only, or the duration).
-            menu.addItem(new WatchUi.MenuItem("Edit set", UiFormat.draftLine(exercise, next),
-                "edit_next", null));
+            // First: the weight (or duration) of the next set in a one-field editor. Bodyweight
+            // reps are changed on the set screen.
+            var single = EditorLogic.singleField(exercise["loadType"] as String);
+            if (single != null) {
+                menu.addItem(new WatchUi.MenuItem(
+                    Model.sameString(single, "durationSec") ? "Change time" : "Change weight",
+                    UiFormat.draftLine(exercise, next), "edit_next", null));
+            }
         }
         // Then the set logged last, with its values (in a superset possibly the other member's).
         if (lastEntry != null) {
@@ -67,11 +61,6 @@ module Navigator {
         }
         if (SessionLogic.nextWarmupSlot(exercise) >= 0) {
             menu.addItem(new WatchUi.MenuItem("Skip warmups", null, "skip_warmups", null));
-        }
-        if (Model.sameString(exercise["loadType"], "weight")) {
-            menu.addItem(new WatchUi.MenuItem("Weight step",
-                UiFormat.load100(exercise["weightIncrement100"] as Number) + " " + UiFormat.unit(exercise),
-                "weight_step", null));
         }
         if ((exercise["slots"] as Array).size() < Model.MAX_SETS &&
             SessionLogic.totals(session)["planned"] < Model.MAX_SETS_PER_WORKOUT) {
@@ -99,21 +88,8 @@ module Navigator {
         if (exercise["closedEarly"] == true) {
             menu.addItem(new WatchUi.MenuItem("Reopen exercise", null, "reopen", null));
         }
-        menu.addItem(new WatchUi.MenuItem("Workout…", null, "workout", null));
+        menu.addItem(new WatchUi.MenuItem("Finish workout", null, "finish", null));
         WatchUi.pushView(menu, new ExerciseMenuDelegate(entryId, view, fromOverview), WatchUi.SLIDE_UP);
-    }
-
-    function weightStepMenu(entryId as String) as Void {
-        var menu = new WatchUi.Menu2({:title=>"Weight step"});
-        var session = getApp().controller().session();
-        var exercise = session == null ? null : UiFormat.exercise(session as Dictionary, entryId);
-        var unit = exercise == null ? "kg" : UiFormat.unit(exercise as Dictionary);
-        var steps = Model.sameString(unit, "lb") ? [100, 250, 500, 1000] : [50, 100, 250, 500];
-        for (var i = 0; i < steps.size(); i++) {
-            menu.addItem(new WatchUi.MenuItem(UiFormat.load100(steps[i]) + " " + unit, null,
-                steps[i].toString(), null));
-        }
-        WatchUi.pushView(menu, new WeightStepDelegate(entryId), WatchUi.SLIDE_UP);
     }
 
     // After skipping: when nothing is left to do and a set is logged, offer to save the workout.

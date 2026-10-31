@@ -138,6 +138,13 @@ module Model {
             (set["durationSec"] == null || set["reps"] == 1);
     }
 
+    // Automatic weight step in hundredths: 2.5 kg or 5 lb. The Liftosaur data NextSet reads has no
+    // rounding or increment field, so this is the default; stored per-exercise overrides
+    // (config.incrementOverrides) still win.
+    function defaultIncrement100(unit as String?) as Number {
+        return sameString(unit, "lb") ? 500 : 250;
+    }
+
     // Liftosaur weight strings: "100kg" or "225lb". The value stays in its own unit (load100 =
     // hundredths of that unit); weightUnit tells which.
     function weightLoad100(weight as Object?) as Number? {

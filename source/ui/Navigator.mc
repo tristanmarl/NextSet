@@ -132,8 +132,9 @@ module Navigator {
         WatchUi.pushView(view, new NumberEditDelegate(view), WatchUi.SLIDE_UP);
     }
 
-    function setEdit(entryId as String, slot as Number, correcting as Boolean) as Void {
-        var view = new SetEditView(entryId, slot, correcting);
+    function setEdit(entryId as String, slot as Number, correcting as Boolean,
+                     single as Boolean) as Void {
+        var view = new SetEditView(entryId, slot, correcting, single);
         WatchUi.pushView(view, new SetEditDelegate(view), WatchUi.SLIDE_UP);
     }
 
@@ -398,7 +399,7 @@ class HomeDelegate extends KeyDelegate {
 
     public function onBackKey() as Boolean {
         if (getApp().controller().hasActiveSession()) {
-            Navigator.actions();
+            Navigator.review();
             return true;
         }
         if (!getApp().controller().hasPendingFinalization()) {

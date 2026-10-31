@@ -21,6 +21,30 @@ module EditorLogic {
         return ["reps"];
     }
 
+    // The single field of the one-field editor ("Change weight" / "Change time"); null for
+    // bodyweight, whose reps are changed on the set screen.
+    function singleField(loadType as String?) as String? {
+        if (Model.sameString(loadType, "weight") || Model.sameString(loadType, "assistance")) {
+            return "load100";
+        }
+        return Model.sameString(loadType, "timed") ? "durationSec" : null;
+    }
+
+    // The one-field editor opens directly in EDIT; the two-level editor opens in SELECT.
+    function initialMode(single as Boolean) as Number {
+        return single ? MODE_EDIT : MODE_SELECT;
+    }
+
+    // One-field editor: START in EDIT saves and closes. Two-level editor: START toggles the level.
+    function startSaves(single as Boolean, mode as Number) as Boolean {
+        return single && mode == MODE_EDIT;
+    }
+
+    // One-field editor: BACK always cancels without saving. Two-level editor: BACK saves only in SELECT.
+    function backSaves(single as Boolean, mode as Number) as Boolean {
+        return !single && mode == MODE_SELECT;
+    }
+
     // The weight (first field) is preselected: reps can already be changed on the set screen.
     function initialSelection() as Number {
         return 0;

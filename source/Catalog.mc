@@ -116,9 +116,9 @@ module Catalog {
                 "unilateral" => isUnilateral,
                 "loadType" => type,
                 "unit" => Model.sameString(type, "weight") ? unit : null,
-                // Default step: 1 kg or 5 lb.
+                // Automatic step: 2.5 kg or 5 lb (the API has no rounding field).
                 "increment100" => Model.sameString(type, "weight") ?
-                    (Model.sameString(unit, "lb") ? 500 : 100) : null,
+                    Model.defaultIncrement100(unit) : null,
                 "workingSetCount" => sets.size(),
                 "restSec" => restSec,
                 "defaultRestSec" => restSec,
@@ -324,6 +324,11 @@ module Catalog {
             var rest = Model.inRange(entry["restSec"], 0, Model.MAX_REST_SEC, false) ?
                 entry["restSec"] as Number : defaultRest;
             var increment = entry["increment100"];
+            // A routine cached before 0.4.2 holds the old 1 kg default; it was never user-set
+            // (overrides live in config), so it becomes the 2.5 kg default.
+            if (loadable && increment == 100 && !Model.sameString(definition["unit"], "lb")) {
+                increment = Model.defaultIncrement100("kg");
+            }
             var incrementOverride = dictionaryValue(
                 incrementOverrides instanceof Dictionary ? incrementOverrides as Dictionary : null,
                 definition["name"] as String

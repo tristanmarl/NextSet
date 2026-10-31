@@ -7,28 +7,6 @@ import Toybox.Time;
 import Toybox.Timer;
 import Toybox.WatchUi;
 
-class ActionsMenuDelegate extends WatchUi.Menu2InputDelegate {
-    public function initialize() {
-        Menu2InputDelegate.initialize();
-    }
-
-    public function onSelect(item as MenuItem) as Void {
-        if (Navigator.staleWorkoutView()) {
-            return;
-        }
-        var id = item.getId() as String;
-        if (Model.sameString(id, "finish")) {
-            Navigator.review();
-        } else if (Model.sameString(id, "abort")) {
-            Navigator.confirmDiscard(false);
-        }
-    }
-
-    public function onBack() as Void {
-        WatchUi.popView(WatchUi.SLIDE_DOWN);
-    }
-}
-
 class ExerciseMenuDelegate extends WatchUi.Menu2InputDelegate {
     private var _entryId as String;
     private var _view as ExerciseView;
@@ -81,12 +59,7 @@ class ExerciseMenuDelegate extends WatchUi.Menu2InputDelegate {
                 return;
             }
             WatchUi.popView(WatchUi.SLIDE_DOWN);
-            Navigator.setEdit(target as String, lastSlot, true);
-            return;
-        }
-        if (Model.sameString(id, "weight_step")) {
-            WatchUi.popView(WatchUi.SLIDE_DOWN);
-            Navigator.weightStepMenu(_entryId);
+            Navigator.setEdit(target as String, lastSlot, true, false);
             return;
         }
         if (Model.sameString(id, "log_timed")) {
@@ -115,7 +88,7 @@ class ExerciseMenuDelegate extends WatchUi.Menu2InputDelegate {
             }
             getApp().markFocusHintSeen();
             WatchUi.popView(WatchUi.SLIDE_DOWN);
-            Navigator.setEdit(_entryId, slot, false);
+            Navigator.setEdit(_entryId, slot, false, true);
             return;
         }
         if (Model.sameString(id, "skip_warmups")) {
@@ -130,8 +103,8 @@ class ExerciseMenuDelegate extends WatchUi.Menu2InputDelegate {
             WatchUi.requestUpdate();
             return;
         }
-        if (Model.sameString(id, "workout")) {
-            Navigator.actions();
+        if (Model.sameString(id, "finish")) {
+            Navigator.review();
             return;
         }
         if (Model.sameString(id, "skip_today")) {
@@ -160,29 +133,6 @@ class ExerciseMenuDelegate extends WatchUi.Menu2InputDelegate {
         }
         WatchUi.popView(WatchUi.SLIDE_DOWN);
         WatchUi.requestUpdate();
-    }
-
-    public function onBack() as Void {
-        WatchUi.popView(WatchUi.SLIDE_DOWN);
-    }
-}
-
-class WeightStepDelegate extends WatchUi.Menu2InputDelegate {
-    private var _entryId as String;
-
-    public function initialize(entryId as String) {
-        _entryId = entryId;
-        Menu2InputDelegate.initialize();
-    }
-
-    public function onSelect(item as MenuItem) as Void {
-        var ok = getApp().controller().setWeightStep(_entryId, (item.getId() as String).toNumber() as Number);
-        WatchUi.popView(WatchUi.SLIDE_DOWN);
-        if (!ok) {
-            Navigator.feedback("Weight step not saved");
-        } else {
-            WatchUi.requestUpdate();
-        }
     }
 
     public function onBack() as Void {

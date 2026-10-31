@@ -27,6 +27,8 @@ class RapidPress {
     }
 }
 
+// The one-field mode ("Change weight" / "Change time", `single`) opens directly in EDIT on the one
+// field: UP/DOWN change it, START saves and closes, BACK closes without saving.
 // Editor of one set: the next set's draft or a logged set (correcting). Fields: weight and reps
 // (weight and assistance exercises), reps (bodyweight) or the duration (timed). Two levels
 // (EditorLogic): SELECT shows the fields big with the selected one framed (UP/DOWN move, START
@@ -39,6 +41,7 @@ class SetEditView extends WatchUi.View {
     private var _fields as Array<String> = ["reps"];
     private var _selected as Number = 0;
     private var _mode as Number = EditorLogic.MODE_SELECT;
+    private var _single as Boolean;
     private var _assistance as Boolean = false;
     private var _unit as String = "kg";
     // Current and opening values by field (index = position in _fields).
@@ -50,10 +53,13 @@ class SetEditView extends WatchUi.View {
     private var _ready as Boolean = false;
     private var _rapid as RapidPress;
 
-    public function initialize(entryId as String, slot as Number, correcting as Boolean) {
+    public function initialize(entryId as String, slot as Number, correcting as Boolean,
+                               single as Boolean) {
         _entryId = entryId;
         _slot = slot;
         _correcting = correcting;
+        _single = single;
+        _mode = EditorLogic.initialMode(single);
         _rapid = new RapidPress();
         View.initialize();
         loadValues();
@@ -161,12 +167,20 @@ class SetEditView extends WatchUi.View {
             _before = _values[_selected];
             _rapid = new RapidPress();
         }
+        if (EditorLogic.startSaves(_single, _mode)) {
+            close();
+            return;
+        }
         _mode = EditorLogic.modeAfterStart(_mode);
         WatchUi.requestUpdate();
     }
 
     // BACK: in EDIT restore the field and return to SELECT; in SELECT save and close.
     public function backPressed() as Void {
+        if (_single) {
+            WatchUi.popView(WatchUi.SLIDE_DOWN);
+            return;
+        }
         if (!EditorLogic.backClosesEditor(_mode)) {
             _values[_selected] = _before;
             _mode = EditorLogic.modeAfterBack(_mode);
@@ -241,8 +255,12 @@ class SetEditView extends WatchUi.View {
         _assistance = Model.sameString(exercise["loadType"], "assistance");
         _unit = UiFormat.unit(exercise);
         _fields = EditorLogic.fields(exercise["loadType"] as String);
+        var only = EditorLogic.singleField(exercise["loadType"] as String);
+        if (_single && only != null) {
+            _fields = [only as String];
+        }
         _increment100 = exercise["weightIncrement100"] instanceof Number ?
-            exercise["weightIncrement100"] as Number : 100;
+            exercise["weightIncrement100"] as Number : Model.defaultIncrement100(_unit);
         var current = [];
         for (var i = 0; i < _fields.size(); i++) {
             var value = values[_fields[i]];

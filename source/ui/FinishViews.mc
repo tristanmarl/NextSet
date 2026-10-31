@@ -42,7 +42,9 @@ class ReviewView extends WatchUi.View {
             Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
         UiFormat.drawBig(dc, [[UiFormat.clockText(stats["elapsedSec"] as Number), "num"]],
             h * 57 / 100, -1, Graphics.COLOR_WHITE);
-        Icons.startMarker(dc, "check");
+        if (stats["sets"] as Number > 0) {
+            Icons.startMarker(dc, "check");
+        }
         Icons.backMarker(dc);
     }
 }
@@ -58,6 +60,11 @@ class ReviewDelegate extends KeyDelegate {
     // START saves; the controller still refuses a workout without a logged set.
     public function onStartKey() as Boolean {
         if (Navigator.staleWorkoutView() || FinishGuard.tooSoon(_openedAt, System.getTimer())) {
+            return true;
+        }
+        var session = getApp().controller().session();
+        if (session != null && SessionLogic.totals(session as Dictionary)["done"] == 0) {
+            Navigator.feedback(Err.message(Err.LOG_A_SET_BEFORE_SAVING) as String);
             return true;
         }
         getApp().requestWorkoutFinish("completed");

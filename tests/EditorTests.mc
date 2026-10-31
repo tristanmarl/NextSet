@@ -53,3 +53,35 @@ function testSetCounterThreshold(logger as Test.Logger) as Boolean {
         check(logger, Model.sameString(EditorLogic.counterText(3, 8), "4/8"), "slot 3 of 8 reads 4/8") &&
         check(logger, Model.sameString(EditorLogic.counterText(-1, 8), "8/8"), "all done reads 8/8");
 }
+
+(:test)
+function testSingleFieldEditorRules(logger as Test.Logger) as Boolean {
+    var weight = EditorLogic.singleField("weight");
+    var assist = EditorLogic.singleField("assistance");
+    var timed = EditorLogic.singleField("timed");
+    var body = EditorLogic.singleField("bodyweight");
+    var fieldsOk = Model.sameString(weight, "load100") && Model.sameString(assist, "load100") &&
+        Model.sameString(timed, "durationSec");
+    var opens = EditorLogic.initialMode(true) == EditorLogic.MODE_EDIT &&
+        EditorLogic.initialMode(false) == EditorLogic.MODE_SELECT;
+    var startSavesSingle = EditorLogic.startSaves(true, EditorLogic.MODE_EDIT);
+    var startKeepsTwoLevel = !EditorLogic.startSaves(false, EditorLogic.MODE_EDIT) &&
+        !EditorLogic.startSaves(false, EditorLogic.MODE_SELECT);
+    var backCancelsSingle = !EditorLogic.backSaves(true, EditorLogic.MODE_EDIT);
+    var backSavesTwoLevel = EditorLogic.backSaves(false, EditorLogic.MODE_SELECT) &&
+        !EditorLogic.backSaves(false, EditorLogic.MODE_EDIT);
+    return check(logger, fieldsOk, "weight, assistance and timed have one field to change") &&
+        check(logger, body == null, "bodyweight has no one-field editor") &&
+        check(logger, opens, "the one-field editor opens in EDIT, the two-level one in SELECT") &&
+        check(logger, startSavesSingle && startKeepsTwoLevel, "START saves only in the one-field editor") &&
+        check(logger, backCancelsSingle && backSavesTwoLevel, "BACK never saves in the one-field editor");
+}
+
+(:test)
+function testAutomaticWeightStepDefault(logger as Test.Logger) as Boolean {
+    var kg = Model.defaultIncrement100("kg");
+    var lb = Model.defaultIncrement100("lb");
+    var none = Model.defaultIncrement100(null);
+    return check(logger, kg == 250 && none == 250, "the automatic step is 2.5 kg") &&
+        check(logger, lb == 500, "the automatic step is 5 lb");
+}

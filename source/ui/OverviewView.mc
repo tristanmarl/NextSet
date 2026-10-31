@@ -152,7 +152,7 @@ class OverviewDelegate extends KeyDelegate {
 
     public function onMenuKey() as Boolean {
         if (!Navigator.staleWorkoutView()) {
-            Navigator.actions();
+            Navigator.review();
         }
         return true;
     }
