@@ -85,7 +85,15 @@ module Icons {
         dc.fillCircle(x + s, y, s / 3 + 1);
     }
 
-    // Marker at a physical button: "play", "stop", "check", "back", "up", "down" or "menu".
+    function plus(dc as Dc, x as Number, y as Number, s as Number, color as Number) as Void {
+        dc.setColor(color, Graphics.COLOR_BLACK);
+        dc.setPenWidth(s / 3 + 1);
+        dc.drawLine(x - s, y, x + s, y);
+        dc.drawLine(x, y - s, x, y + s);
+        dc.setPenWidth(1);
+    }
+
+    // Marker at a physical button: "play", "stop", "check", "back", "up", "down", "plus" or "menu".
     function edge(dc as Dc, kind as String, angle as Number) as Void {
         var s = unit(dc);
         var radius = (dc.getWidth() < dc.getHeight() ? dc.getWidth() : dc.getHeight()) / 2 - s * 2;
@@ -104,6 +112,8 @@ module Icons {
             chevron(dc, x, y, s, 0, Graphics.COLOR_WHITE);
         } else if (Model.sameString(kind, "down")) {
             chevron(dc, x, y, s, 1, Graphics.COLOR_WHITE);
+        } else if (Model.sameString(kind, "plus")) {
+            plus(dc, x, y, s, Graphics.COLOR_WHITE);
         } else {
             dots(dc, x, y, s, Graphics.COLOR_WHITE);
         }
@@ -189,5 +199,10 @@ module Icons {
 
     function menuMarker(dc as Dc) as Void {
         edge(dc, "menu", ANGLE_MENU);
+    }
+
+    // Hold UP adds a set (Overview).
+    function addMarker(dc as Dc) as Void {
+        edge(dc, "plus", ANGLE_MENU);
     }
 }

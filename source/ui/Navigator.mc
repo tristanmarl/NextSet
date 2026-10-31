@@ -111,8 +111,10 @@ module Navigator {
         var session = getApp().controller().session();
         if (session != null) {
             var exercise = UiFormat.exercise(session as Dictionary, entryId);
-            if (exercise != null && SessionLogic.nextSlot(exercise as Dictionary) < 0) {
-                exerciseMenuForEntry(entryId, new ExerciseView(entryId), true);
+            // An exercise closed early by an older version is reopened by opening it.
+            if (exercise != null && (exercise as Dictionary)["closedEarly"] == true &&
+                !getApp().controller().closeExercise(entryId, false)) {
+                feedback("Could not reopen the exercise");
                 return;
             }
         }

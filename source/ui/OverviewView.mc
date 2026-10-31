@@ -6,6 +6,7 @@ import Toybox.WatchUi;
 class OverviewView extends WatchUi.View {
     private var _selectedIndex as Number = 0;
     private var _seenNextSetSequence as Number = 0;
+    private var _message as String? = null;
 
     public function initialize() {
         View.initialize();
@@ -90,10 +91,35 @@ class OverviewView extends WatchUi.View {
                 Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
             dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
         }
-        UiFormat.drawHrRow(dc, h * 79 / 100, null);
+        UiFormat.drawHrRow(dc, h * 79 / 100, _message);
         Icons.startMarker(dc, "play");
         Icons.backMarker(dc);
         Icons.browseMarkers(dc);
+        Icons.addMarker(dc);
+    }
+
+    // Hold UP: one more working set for the selected exercise, a short buzz as feedback. A
+    // refusal (set limit) or failed save shows a short error in the bottom row.
+    public function addSet() as Void {
+        var controller = getApp().controller();
+        var session = controller.session();
+        if (session == null) {
+            return;
+        }
+        var exercises = (session as Dictionary)["exercises"] as Array;
+        if (_selectedIndex >= exercises.size()) {
+            return;
+        }
+        var entryId = (exercises[_selectedIndex] as Dictionary)["entryId"] as String;
+        if (!SessionLogic.canAddSet(session as Dictionary, entryId)) {
+            _message = "Max sets reached";
+        } else if (controller.addSet(entryId)) {
+            _message = null;
+            getApp().buzz(false);
+        } else {
+            _message = "Could not add set";
+        }
+        WatchUi.requestUpdate();
     }
 
     public function moveSelection(direction as Number) as Void {
@@ -106,6 +132,7 @@ class OverviewView extends WatchUi.View {
             return;
         }
         _selectedIndex = (_selectedIndex + direction + count) % count;
+        _message = null;
         WatchUi.requestUpdate();
     }
 
@@ -152,12 +179,15 @@ class OverviewDelegate extends KeyDelegate {
 
     public function onMenuKey() as Boolean {
         if (!Navigator.staleWorkoutView()) {
-            Navigator.review();
+            _view.addSet();
         }
         return true;
     }
 
     public function onBackKey() as Boolean {
-        return onMenuKey();
+        if (!Navigator.staleWorkoutView()) {
+            Navigator.review();
+        }
+        return true;
     }
 }

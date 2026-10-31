@@ -84,7 +84,6 @@ class ExerciseView extends WatchUi.View {
             Icons.check(dc, dc.getWidth() / 2, valueY, s * 3, Graphics.COLOR_GREEN);
             UiFormat.drawHrRow(dc, hrY, _message);
             Icons.backMarker(dc);
-            Icons.menuMarker(dc);
             return;
         }
 
@@ -151,6 +150,73 @@ class ExerciseView extends WatchUi.View {
         if (editable && !isRunning) {
             Icons.focusMarkers(dc);
         }
+        // Hold UP changes the weight (or the time); bodyweight has no hold action.
+        if (editable && !Model.sameString(EditorLogic.holdUpAction(loadType), "none")) {
+            Icons.menuMarker(dc);
+        }
+    }
+
+    // Hold UP: opens the one-field editor on the next set's weight (Change weight) or duration
+    // (Change time; a running timer is paused and reset first). Nothing for bodyweight, and
+    // nothing while the centre shows another superset member's next set.
+    public function changeLoad() as Void {
+        var controller = getApp().controller();
+        var session = controller.session();
+        var found = session == null ? null : UiFormat.exercise(session as Dictionary, _entryId);
+        if (found == null) {
+            return;
+        }
+        var exercise = found as Dictionary;
+        var slot = SessionLogic.activeSlot(exercise);
+        if (slot < 0 || Model.sameString(EditorLogic.holdUpAction(exercise["loadType"] as String), "none")) {
+            return;
+        }
+        var rest = (session as Dictionary)["rest"];
+        if (rest instanceof Dictionary && (Model.sameString(rest["state"], "running") ||
+            Model.sameString(rest["state"], "expired"))) {
+            var next = SessionLogic.nextUp(session as Dictionary, rest["entryId"] as String);
+            if (next != null && !Model.sameString((next as Dictionary)["entryId"], _entryId)) {
+                return;
+            }
+        }
+        if (Model.sameString(exercise["loadType"], "timed")) {
+            var run = (session as Dictionary)["timedRun"];
+            if (run instanceof Dictionary && Model.sameString(run["entryId"], _entryId) &&
+                run["slot"] == slot && !controller.pauseTimed(_entryId, slot, Time.now().value())) {
+                showMessage("Save failed - timer still running");
+                return;
+            }
+            if (!controller.cancelTimed(_entryId, slot)) {
+                showMessage("Could not edit timed set");
+                return;
+            }
+        }
+        getApp().markFocusHintSeen();
+        Navigator.setEdit(_entryId, slot, false, true);
+    }
+
+    // BACK: the last logged set of this exercise in the two-level editor, or the Overview when
+    // none is logged. A running timed set on this exercise is paused first.
+    public function stepBack() as Void {
+        var controller = getApp().controller();
+        var session = controller.session();
+        if (session == null) {
+            return;
+        }
+        var run = (session as Dictionary)["timedRun"];
+        if (run instanceof Dictionary && Model.sameString(run["entryId"], _entryId) &&
+            !controller.pauseTimedForEntry(_entryId, Time.now().value())) {
+            Navigator.feedback("Timed set could not be paused");
+            return;
+        }
+        var exercise = UiFormat.exercise(session as Dictionary, _entryId);
+        var last = exercise == null ? -1 : SessionLogic.lastLoggedSlot(exercise as Dictionary);
+        if (EditorLogic.backOpensEditor(last)) {
+            Navigator.setEdit(_entryId, last, true, false);
+            return;
+        }
+        WatchUi.popView(WatchUi.SLIDE_DOWN);
+        WatchUi.requestUpdate();
     }
 
     // Working sets of the exercise that are logged.
@@ -425,7 +491,8 @@ class ExerciseDelegate extends KeyDelegate {
     }
 
     // START logs (one press per set: re-armed on release, 800 ms guard), UP/DOWN change the
-    // reps (duration for timed sets), hold UP (KEY_MENU) opens the menu, BACK returns.
+    // reps (duration for timed sets), hold UP (KEY_MENU) changes the weight (time), BACK steps
+    // back to the last logged set (Overview when there is none).
     public function onStartKey() as Boolean {
         if (Navigator.staleWorkoutView()) {
             return true;
@@ -465,28 +532,15 @@ class ExerciseDelegate extends KeyDelegate {
 
     public function onMenuKey() as Boolean {
         if (!Navigator.staleWorkoutView()) {
-            Navigator.exerciseMenu(_view.entryId(), _view);
+            _view.changeLoad();
         }
         return true;
     }
 
-    // BACK returns to Overview; a running timed set on this exercise is paused first.
     public function onBackKey() as Boolean {
-        if (Navigator.staleWorkoutView()) {
-            return true;
+        if (!Navigator.staleWorkoutView()) {
+            _view.stepBack();
         }
-        var controller = getApp().controller();
-        var session = controller.session();
-        if (session != null) {
-            var run = (session as Dictionary)["timedRun"];
-            if (run instanceof Dictionary && Model.sameString(run["entryId"], _view.entryId()) &&
-                !controller.pauseTimedForEntry(_view.entryId(), Time.now().value())) {
-                Navigator.feedback("Timed set could not be paused");
-                return true;
-            }
-        }
-        WatchUi.popView(WatchUi.SLIDE_DOWN);
-        WatchUi.requestUpdate();
         return true;
     }
 }

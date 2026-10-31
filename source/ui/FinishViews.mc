@@ -123,19 +123,18 @@ class DiscardWorkoutAction extends ConfirmAction {
     }
 }
 
+// Delete set N? from the editor of a logged set. Done: confirmation and editor close and the
+// set screen below shows the set as the next one to log. Failed: the editor stays with an error.
 class DeleteSetAction extends ConfirmAction {
     private var _entryId as String;
     private var _slot as Number;
-    private var _view as ExerciseView;
-    private var _fromOverview as Boolean;
+    private var _editor as SetEditView;
 
-    public function initialize(entryId as String, slot as Number, view as ExerciseView,
-                               fromOverview as Boolean) {
+    public function initialize(entryId as String, slot as Number, editor as SetEditView) {
         ConfirmAction.initialize();
         _entryId = entryId;
         _slot = slot;
-        _view = view;
-        _fromOverview = fromOverview;
+        _editor = editor;
     }
 
     public function isWorkout() as Boolean {
@@ -143,17 +142,14 @@ class DeleteSetAction extends ConfirmAction {
     }
 
     public function run() as Void {
-        if (!getApp().controller().undoSet(_entryId, _slot)) {
-            _view.showMessage("Set not deleted");
-        }
-        // The confirmation and the exercise menu below it.
+        var deleted = getApp().controller().undoSet(_entryId, _slot);
         WatchUi.popView(WatchUi.SLIDE_DOWN);
-        WatchUi.popView(WatchUi.SLIDE_DOWN);
-        if (_fromOverview && getApp().controller().errorMessage() != null) {
-            Navigator.home();
-        } else {
-            WatchUi.requestUpdate();
+        if (!deleted) {
+            _editor.showError("Not deleted");
+            return;
         }
+        WatchUi.popView(WatchUi.SLIDE_DOWN);
+        WatchUi.requestUpdate();
     }
 }
 

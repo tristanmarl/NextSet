@@ -29,16 +29,19 @@ class RapidPress {
 
 // The one-field mode ("Change weight" / "Change time", `single`) opens directly in EDIT on the one
 // field: UP/DOWN change it, START saves and closes, BACK closes without saving.
-// Editor of one set: the next set's draft or a logged set (correcting). Fields: weight and reps
-// (weight and assistance exercises), reps (bodyweight) or the duration (timed). Two levels
+// Editor of one set: the next set's draft or the last logged set (correcting). Fields: weight and
+// reps (weight and assistance exercises), reps (bodyweight) or the duration (timed). Two levels
 // (EditorLogic): SELECT shows the fields big with the selected one framed (UP/DOWN move, START
-// enters it, BACK saves what was confirmed and closes); EDIT shows the field yellow and underlined
-// (UP/DOWN change it, START keeps it, BACK restores it and returns to SELECT).
+// enters it, BACK saves what was confirmed and leaves for the Overview); EDIT shows the field
+// yellow and underlined (UP/DOWN change it, START keeps it, BACK restores it and returns to
+// SELECT). The editor of a logged set has a last row, Delete, whose START asks "Delete set N?".
 class SetEditView extends WatchUi.View {
     private var _entryId as String;
     private var _slot as Number;
     private var _correcting as Boolean;
     private var _fields as Array<String> = ["reps"];
+    // Selectable rows: the fields, plus Delete for a logged set.
+    private var _rows as Array<String> = ["reps"];
     private var _selected as Number = 0;
     private var _mode as Number = EditorLogic.MODE_SELECT;
     private var _single as Boolean;
@@ -77,21 +80,35 @@ class SetEditView extends WatchUi.View {
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
         dc.clear();
         var h = dc.getHeight();
-        var title = (_correcting ? "Edit " : "Next ") +
-            (_slot >= Model.WARMUP_BASE ? "warmup " : "set ") + UiFormat.slotLabel(_slot);
+        var number = UiFormat.slotLabel(_slot);
+        var title = _correcting ? (_slot >= Model.WARMUP_BASE ? "Warmup " + number.substring(1, number.length()) :
+            "Set " + number) : "Next " + (_slot >= Model.WARMUP_BASE ? "warmup " : "set ") + number;
         UiFormat.drawTitle(dc, title, h * 25 / 100);
         var count = _ready ? _fields.size() : 0;
         var editing = _mode == EditorLogic.MODE_EDIT;
+        // Fields big, then (logged set) the Delete row in medium text; the rows share 44..78 %.
+        var rowCount = _ready ? _rows.size() : 0;
         for (var i = 0; i < count; i++) {
-            var y = count == 1 ? h * 57 / 100 : (i == 0 ? h * 50 / 100 : h * 71 / 100);
+            var y = rowCount == 1 ? h * 57 / 100 : (rowCount == 2 ? (i == 0 ? h * 50 / 100 : h * 71 / 100) :
+                h * (44 + 17 * i) / 100);
             var box = UiFormat.drawBigFrom(dc, fieldParts(i), y, editing && i == _selected ? 0 : -1,
-                Graphics.COLOR_WHITE, count == 1 ? 0 : 1);
+                Graphics.COLOR_WHITE, rowCount == 1 ? 0 : 1);
             if (!editing && i == _selected) {
-                dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
-                dc.setPenWidth(3);
-                dc.drawRoundedRectangle(box[0] - 10, box[2] - 6, box[1] - box[0] + 20,
-                    box[3] - box[2] + 12, 10);
-                dc.setPenWidth(1);
+                frame(dc, box);
+            }
+        }
+        if (rowCount > count) {
+            var selectedDelete = !editing && EditorLogic.isDeleteRow(_rows, _selected);
+            var deleteY = h * (44 + 17 * count) / 100;
+            var font = Graphics.FONT_MEDIUM;
+            dc.setColor(selectedDelete ? Graphics.COLOR_WHITE : Graphics.COLOR_LT_GRAY, Graphics.COLOR_BLACK);
+            dc.drawText(dc.getWidth() / 2, deleteY, font, "Delete",
+                Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+            if (selectedDelete) {
+                var width = dc.getTextWidthInPixels("Delete", font);
+                var height = dc.getFontHeight(font);
+                frame(dc, [(dc.getWidth() - width) / 2, (dc.getWidth() + width) / 2,
+                    deleteY - height / 2 + 4, deleteY + height / 2 - 4]);
             }
         }
         if (_error != null) {
@@ -104,9 +121,16 @@ class SetEditView extends WatchUi.View {
         Icons.startMarker(dc, editing ? "check" : "play");
         if (editing) {
             Icons.focusMarkers(dc);
-        } else if (count > 1) {
+        } else if (rowCount > 1) {
             Icons.browseMarkers(dc);
         }
+    }
+
+    private function frame(dc as Dc, box as Array<Number>) as Void {
+        dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+        dc.setPenWidth(3);
+        dc.drawRoundedRectangle(box[0] - 10, box[2] - 6, box[1] - box[0] + 20, box[3] - box[2] + 12, 10);
+        dc.setPenWidth(1);
     }
 
     // Big-value parts of one field.
@@ -134,7 +158,7 @@ class SetEditView extends WatchUi.View {
     private function step(direction as Number) as Void {
         _error = null;
         if (_mode == EditorLogic.MODE_SELECT) {
-            _selected = EditorLogic.moveSelection(_selected, _fields.size(), -direction);
+            _selected = EditorLogic.moveSelection(_selected, _rows.size(), -direction);
         } else {
             adjust(direction);
         }
@@ -163,6 +187,12 @@ class SetEditView extends WatchUi.View {
             return;
         }
         _error = null;
+        if (_mode == EditorLogic.MODE_SELECT && EditorLogic.isDeleteRow(_rows, _selected)) {
+            var view = new ConfirmView("Delete set " + UiFormat.slotLabel(_slot) + "?", "Keep", "Delete");
+            WatchUi.pushView(view, new ConfirmDelegate(view, new DeleteSetAction(_entryId, _slot, self)),
+                WatchUi.SLIDE_UP);
+            return;
+        }
         if (_mode == EditorLogic.MODE_SELECT) {
             _before = _values[_selected];
             _rapid = new RapidPress();
@@ -178,7 +208,7 @@ class SetEditView extends WatchUi.View {
     // BACK: in EDIT restore the field and return to SELECT; in SELECT save and close.
     public function backPressed() as Void {
         if (_single) {
-            WatchUi.popView(WatchUi.SLIDE_DOWN);
+            leave();
             return;
         }
         if (!EditorLogic.backClosesEditor(_mode)) {
@@ -189,6 +219,20 @@ class SetEditView extends WatchUi.View {
             return;
         }
         close();
+    }
+
+    public function showError(message as String) as Void {
+        _error = message;
+        WatchUi.requestUpdate();
+    }
+
+    // Pops the editor. The editor of a logged set was opened from the set screen and leaves for
+    // the Overview, so it pops that screen too.
+    public function leave() as Void {
+        WatchUi.popView(WatchUi.SLIDE_DOWN);
+        if (_correcting) {
+            WatchUi.popView(WatchUi.SLIDE_DOWN);
+        }
     }
 
     private function changed() as Boolean {
@@ -205,7 +249,7 @@ class SetEditView extends WatchUi.View {
     private function close() as Void {
         var failedBefore = _error != null;
         if (!_ready || !changed() || failedBefore) {
-            WatchUi.popView(WatchUi.SLIDE_DOWN);
+            leave();
             return;
         }
         var controller = getApp().controller();
@@ -231,7 +275,7 @@ class SetEditView extends WatchUi.View {
             WatchUi.requestUpdate();
             return;
         }
-        WatchUi.popView(WatchUi.SLIDE_DOWN);
+        leave();
         if (_correcting) {
             var session = controller.session();
             var exercise = session == null ? null : UiFormat.exercise(session as Dictionary, _entryId);
@@ -255,9 +299,11 @@ class SetEditView extends WatchUi.View {
         _assistance = Model.sameString(exercise["loadType"], "assistance");
         _unit = UiFormat.unit(exercise);
         _fields = EditorLogic.fields(exercise["loadType"] as String);
+        _rows = _correcting ? EditorLogic.rows(exercise["loadType"] as String) : _fields;
         var only = EditorLogic.singleField(exercise["loadType"] as String);
         if (_single && only != null) {
             _fields = [only as String];
+            _rows = _fields;
         }
         _increment100 = exercise["weightIncrement100"] instanceof Number ?
             exercise["weightIncrement100"] as Number : Model.defaultIncrement100(_unit);
