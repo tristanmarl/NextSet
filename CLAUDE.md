@@ -55,6 +55,23 @@ The Liftosaur key is entered on the watch (Settings → Liftosaur key, `TextPick
 
 Prompt-variable answers are not collected by the watch. Unilateral `repsLeft` and timed-set progression have not been verified by a real Liftosaur workout write. Keep these limitations visible until the approved device check confirms behavior.
 
+## UI rules
+
+Every screen change follows these rules; check fr965 (454 px) and fenix7s (240 px) in the simulator.
+
+1. **One glance, one question.** Each screen answers one question: the set screen "what do I lift", the rest screen "when do I go and with what", the summary "how did it go". Everything else lives in a menu.
+2. **One meaning per colour.** Yellow = you are changing something (edit field, UP/DOWN arrows). Blue = resting (ring, rest time). Green = done or go (logged, rest over, uploaded). Red = something is wrong, and the heart. White = information. Gray = secondary text.
+3. **Fixed positions.** Weight and reps, HR, and the set position sit in the same place on every workout screen.
+4. **Fixed buttons.** START = the obvious next step, BACK = back and never destructive, UP/DOWN = change what is highlighted, hold UP = menu. No other holds.
+5. **Undo over confirm.** Confirm only what cannot be undone (discard a workout, clear the upload queue, clear the key). Everything else is fixable afterwards (Edit last set, Delete set).
+6. **Feel it without looking.** One single-profile vibration per event, told apart by length: set logged short, 10 s before rest end medium, rest over long.
+7. **Show progress, don't describe it.** Dots for sets instead of "2/14 SETS"; icons (check, clock, cross) for status.
+8. **Teach once.** No permanent button help in text: the edge icons show what each button does. A hint may show the first time a screen is used, then never again.
+9. **Readable in the worst case.** Sweat, motion, sunlight, 240 px MIP: high contrast, big numbers for weight, reps and time, at most one small line per screen, no dark blue on black.
+10. **One press per set.** Following the plan must stay one START per set; never add a step to that path.
+
+Words appear only when something is wrong; success is an icon. One clock per screen: rest countdown during rest, total time only on the summary.
+
 ## Icon
 
 `resources/icon/nextset.svg` is the source (an original T-rex with a barbell; NextSet is unofficial, so never reuse Liftosaur's logo, mascot or colours). Render with `qlmanage -t -s 500 -o <dir> resources/icon/nextset.svg` and `sips -z 65 65` / `sips -z 40 40`: `resources/drawables/launcher.png` (65 px, scaled by the compiler for other sizes), `resources-launcher40/drawables/launcher.png` (40 px, used by the 40 px launcher devices through per-product `resourcePath` lines in `monkey.jungle` and `monkey.beta.jungle`), `docs/store/icon-500.png` and `icon-500.jpg` (store, under 150 KB).
