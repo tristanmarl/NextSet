@@ -2,6 +2,9 @@
 
 NextSet is an unofficial companion for Liftosaur. It is not made or endorsed by Liftosaur and needs Liftosaur Premium for API access.
 
+## 0.4.4
+- The hold-UP icon sits beside the UP button, in an open ring that signals "hold" (dots on the set screen, plus on the Overview).
+
 ## 0.4.3
 - **BACK steps back in time.** On the set screen BACK opens the last set you logged for that exercise (**Set N**) with the weight and reps and a new **Delete** row; BACK again saves what you changed and shows the Overview; BACK on the Overview opens the Finish review. An exercise with nothing logged goes straight to the Overview. **Delete** asks "Delete set N?" (Keep is selected first) and returns to the set screen with that set open again.
 - **No more hold-UP menu on the set screen.** Hold UP now opens **Change weight** directly (**Change time** for a timed set; bodyweight sets have nothing to change, so no icon is drawn): UP/DOWN change it, START saves, BACK cancels. "Edit last set", "Delete set", "Add set", "Skip warmups", "Skip rest", "Log paused set", "Reopen exercise" and "Finish workout" are gone from the menu: finish with BACK on the Overview.
