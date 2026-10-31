@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- NextSet icon, source of truth. 100x100 units. Original design: a chunky T-rex with tiny arms holding a barbell.
+     Render: qlmanage -t -s 500 -o <dir> nextset.svg, then sips for 65/40 px. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="500" height="500" viewBox="0 0 100 100">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="40%" r="62%">
+      <stop offset="0" stop-color="#173A33"/>
+      <stop offset="1" stop-color="#07130F"/>
+    </radialGradient>
+    <linearGradient id="dino" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5CF0B0"/>
+      <stop offset="1" stop-color="#1FB878"/>
+    </linearGradient>
+  </defs>
+  <rect width="100" height="100" fill="#040A08"/>
+  <circle cx="50" cy="50" r="48" fill="url(#bg)"/>
+  <!-- tail, body, head and leg as one silhouette -->
+  <path fill="url(#dino)" stroke="url(#dino)" stroke-width="3" stroke-linejoin="round"
+        d="M47 22 Q49 15 58 15 L76 16 Q85 17 85 25 L85 31 Q85 35 81 35 L69 35 L69 38 Q69 42 65 42 L60 43
+           Q57 48 58 54 Q59 64 54 70 L57 79 L64 80 L64 85 L47 85 L45 74
+           Q38 74 32 70 L9 78 Q7 79 8 77 L27 60 Q33 50 39 42 Q43 37 45 31 Z"/>
+  <!-- eye, brow and nostril -->
+  <circle cx="65" cy="23" r="3" fill="#07130F"/>
+  <path d="M60 18.5 L69 17.5" stroke="#07130F" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="81" cy="21" r="1.3" fill="#07130F"/>
+  <!-- barbell held in the tiny arms -->
+  <g fill="#F2F7F5" stroke="#07130F" stroke-width="1.6">
+    <rect x="30" y="50.5" width="62" height="4" rx="2"/>
+    <rect x="34" y="41" width="7" height="23" rx="2"/>
+    <rect x="81" y="41" width="7" height="23" rx="2"/>
+  </g>
+  <!-- tiny arm gripping the bar -->
+  <path d="M57 46 Q62 46 64 51" fill="none" stroke="#07130F" stroke-width="7" stroke-linecap="round"/>
+  <path d="M57 46 Q62 46 64 51" fill="none" stroke="#3FD898" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="64.5" cy="52.5" r="3.4" fill="#3FD898" stroke="#07130F" stroke-width="1.5"/>
+</svg>

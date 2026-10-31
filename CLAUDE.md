@@ -50,6 +50,10 @@ The Liftosaur key is entered on the watch (Settings → Liftosaur key, `TextPick
 
 Prompt-variable answers are not collected by the watch. Unilateral `repsLeft` and timed-set progression have not been verified by a real Liftosaur workout write. Keep these limitations visible until the approved device check confirms behavior.
 
+## Icon
+
+`resources/icon/nextset.svg` is the source (an original T-rex with a barbell; NextSet is unofficial, so never reuse Liftosaur's logo, mascot or colours). Render with `qlmanage -t -s 500 -o <dir> resources/icon/nextset.svg` and `sips -z 65 65` / `sips -z 40 40`: `resources/drawables/launcher.png` (65 px, scaled by the compiler for other sizes), `resources-launcher40/drawables/launcher.png` (40 px, used by the 40 px launcher devices through per-product `resourcePath` lines in `monkey.jungle` and `monkey.beta.jungle`), `docs/store/icon-500.png` and `icon-500.jpg` (store, under 150 KB).
+
 ## Testing and evidence
 
 Keep long boolean chains in tests split into named variables and sequential `check` calls: a single huge `&&` expression of mixed-type calls made the compiler run out of memory (`OutOfMemoryError` in the typechecker). Pure logic tests are free functions marked `(:test)` in `tests/*.mc`, accepting `Test.Logger` and returning `Boolean`; `check()` is in `WorkoutTests.mc`. Keep fixtures sanitized under `tests/resources/`. Simulator, physical FR965, and Garmin Connect evidence are recorded separately in `docs/DEVICE_TESTS.md`. Device status (what is confirmed and what is pending) is in `docs/DEVICE_TESTS.md`.

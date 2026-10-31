@@ -1,3 +1,22 @@
 project.manifest = manifest.beta.xml
 base.sourcePath = source
 base.resourcePath = resources
+# 40 px launcher icon for the watches whose launcher size is 40 x 40 (others use the 65 px one).
+enduro3.resourcePath = $(base.resourcePath);resources-launcher40
+fenix7.resourcePath = $(base.resourcePath);resources-launcher40
+fenix7pro.resourcePath = $(base.resourcePath);resources-launcher40
+fenix7pronowifi.resourcePath = $(base.resourcePath);resources-launcher40
+fenix7s.resourcePath = $(base.resourcePath);resources-launcher40
+fenix7spro.resourcePath = $(base.resourcePath);resources-launcher40
+fenix7x.resourcePath = $(base.resourcePath);resources-launcher40
+fenix7xpro.resourcePath = $(base.resourcePath);resources-launcher40
+fenix7xpronowifi.resourcePath = $(base.resourcePath);resources-launcher40
+fenix8solar47mm.resourcePath = $(base.resourcePath);resources-launcher40
+fenix8solar51mm.resourcePath = $(base.resourcePath);resources-launcher40
+fenix9prosolar47mm.resourcePath = $(base.resourcePath);resources-launcher40
+fenix9prosolar51mm.resourcePath = $(base.resourcePath);resources-launcher40
+fr255.resourcePath = $(base.resourcePath);resources-launcher40
+fr255m.resourcePath = $(base.resourcePath);resources-launcher40
+fr255s.resourcePath = $(base.resourcePath);resources-launcher40
+fr255sm.resourcePath = $(base.resourcePath);resources-launcher40
+fr955.resourcePath = $(base.resourcePath);resources-launcher40
