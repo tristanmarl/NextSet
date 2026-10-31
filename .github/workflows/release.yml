@@ -88,7 +88,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.build.outputs.tag }}
         run: |
-          notes="$(git tag -l --format='%(contents)' "$TAG" 2>/dev/null || true)"
+          # Notes: docs/release-notes/X.Y.Z.md when it exists, else the annotated tag's message
+          # (checkout does not fetch tag objects, so fetch the tag itself first).
+          if [ -f "docs/release-notes/${TAG#v}.md" ]; then
+            notes="$(cat "docs/release-notes/${TAG#v}.md")"
+          else
+            git fetch --force origin "refs/tags/$TAG:refs/tags/$TAG" 2>/dev/null || true
+            notes="$(git tag -l --format='%(contents)' "$TAG" 2>/dev/null || true)"
+          fi
           [ -n "$notes" ] || notes="NextSet ${TAG#v}: .iq packages, NextSet-${TAG#v}.prg for the Forerunner 965 and NextSet-${TAG#v}-sideload.zip with one .prg per supported watch."
           gh release create "$TAG" dist/*.iq dist/*.prg dist/*.zip --latest --title "NextSet ${TAG#v}" --notes "$notes" \
             --target "$GITHUB_SHA"
