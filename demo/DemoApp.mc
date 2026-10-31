@@ -38,10 +38,11 @@ class DemoApp extends NextSetApp {
     }
 
     public function nextScreen() as Void {
-        _screen = (_screen + 1) % 5;
+        _screen = (_screen + 1) % 10;
         var view = null;
+        var row = demoEntry("Seated Row");
         if (_screen == 0) {
-            view = new ExerciseView(demoEntry("Seated Row"));
+            view = new ExerciseView(row);
         } else if (_screen == 1) {
             var press = new ExerciseView(demoEntry("Chest Press"));
             press.toggleFocus();
@@ -49,11 +50,20 @@ class DemoApp extends NextSetApp {
         } else if (_screen == 2) {
             view = new OverviewView();
         } else if (_screen == 3) {
-            var row = demoEntry("Seated Row");
             var exercise = UiFormat.exercise(controller().session() as Dictionary, row) as Dictionary;
             view = new SetEditView(row, UiFormat.lastSlot(exercise), true, true);
-        } else {
+        } else if (_screen == 4) {
             view = new HomeView();
+        } else if (_screen == 5) {
+            view = new ReviewView();
+        } else if (_screen == 6) {
+            view = new ConfirmView("Discard?", "Keep working", "Discard");
+        } else if (_screen == 7) {
+            view = new SummaryView("completed");
+        } else if (_screen == 8) {
+            view = new HistoryView();
+        } else {
+            view = new NumberEditView(row, 0, "duration", false, null, null, null);
         }
         WatchUi.switchToView(view, new WatchUi.BehaviorDelegate(), WatchUi.SLIDE_IMMEDIATE);
     }
