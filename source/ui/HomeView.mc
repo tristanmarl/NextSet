@@ -149,8 +149,7 @@ class StartingWorkoutView extends WatchUi.View {
     public function onUpdate(dc as Dc) as Void {
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
         dc.clear();
-        var y = (dc.getHeight() - dc.getFontHeight(Graphics.FONT_MEDIUM)) / 2;
-        UiFormat.drawLine(dc, "Starting workout…", y, Graphics.FONT_MEDIUM);
+        UiFormat.drawTitle(dc, "Starting…", dc.getHeight() / 2);
     }
 }
 
@@ -161,38 +160,35 @@ class FinishingWorkoutView extends WatchUi.View {
         var error = getApp().controller().errorMessage();
         var session = getApp().controller().session();
         var cancelling = session != null && Model.sameString((session as Dictionary)["finishOutcome"], "aborted");
-        var message = error == null ? (cancelling ? "Cancelling workout…" : "Saving workout…") :
-            error as String;
-        var y = (dc.getHeight() - dc.getFontHeight(Graphics.FONT_SMALL)) / 2;
-        UiFormat.drawLine(dc, message, y, Graphics.FONT_SMALL);
+        var message = error == null ? (cancelling ? "Cancelling…" : "Saving…") : error as String;
+        // Wraps instead of cutting; with an error a retry hint sits below.
+        var h = dc.getHeight();
+        UiFormat.drawTitle(dc, message, error == null ? h / 2 : h * 42 / 100);
         if (error != null) {
-            UiFormat.drawLine(dc, "SELECT TO RETRY", y + dc.getFontHeight(Graphics.FONT_SMALL),
-                Graphics.FONT_XTINY);
+            dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_BLACK);
+            dc.drawText(dc.getWidth() / 2, h * 66 / 100, UiFormat.captionFont(), "START: retry",
+                Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+            Icons.startMarker(dc, "play");
         }
     }
 }
 
-class FinishingWorkoutDelegate extends WatchUi.BehaviorDelegate {
+// Consumes every key and touch while a workout starts or saves. After a failed save START (or
+// hold UP) retries; this was only reachable by a tap before.
+class FinishingWorkoutDelegate extends KeyDelegate {
     public function initialize() {
-        BehaviorDelegate.initialize();
+        KeyDelegate.initialize();
     }
 
-    public function onKey(event as KeyEvent) as Boolean {
-        return true;
-    }
-
-    public function onSelect() as Boolean {
+    public function onStartKey() as Boolean {
         if (getApp().controller().errorMessage() != null) {
             getApp().retryPendingFinalization();
         }
         return true;
     }
 
-    public function onMenu() as Boolean {
-        return onSelect();
-    }
-
-    public function onBack() as Boolean {
-        return true;
+    public function onMenuKey() as Boolean {
+        return onStartKey();
     }
 }

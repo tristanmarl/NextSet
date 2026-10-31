@@ -69,12 +69,27 @@ class OverviewView extends WatchUi.View {
         if (groupLabel != null) {
             focusTitle = (groupLabel as String) + " " + focusTitle;
         }
-        // Same positions as the set screen: name, set dots, heart rate.
+        // Same positions as the set screen: name, a small row (position in the list), the sets
+        // done big in the centre, the next set below it, heart rate.
         var h = dc.getHeight();
         UiFormat.drawTitle(dc, focusTitle, h * 25 / 100);
-        var nextSlot = SessionLogic.nextSlot(focused);
-        Icons.setDots(dc, h * 39 / 100, SessionLogic.completedCount(focused),
-            focused["plannedSetCount"] as Number, nextSlot >= 0 && nextSlot < Model.WARMUP_BASE ? nextSlot : -1);
+        dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_BLACK);
+        dc.drawText(dc.getWidth() / 2, h * 39 / 100, Graphics.FONT_SMALL,
+            "Exercise " + (_selectedIndex + 1).toString() + "/" + exercises.size().toString(),
+            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+        // Small screens use the next smaller number font so the next-set line fits above the heart rate.
+        var box = UiFormat.drawBigFrom(dc, [[SessionLogic.completedCount(focused).toString() + "/" +
+            (focused["plannedSetCount"] as Number).toString(), "num"], ["sets", "unit"]],
+            h * 55 / 100, -1, Graphics.COLOR_WHITE, h < 300 ? 1 : 0);
+        var nextSlot = SessionLogic.activeSlot(focused);
+        if (nextSlot >= 0) {
+            dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_BLACK);
+            var captionY = box[3] - 2 + dc.getFontHeight(UiFormat.captionFont()) / 2;
+            dc.drawText(dc.getWidth() / 2, captionY, UiFormat.captionFont(),
+                (nextSlot >= Model.WARMUP_BASE ? "Warmup " : "") + UiFormat.draftLine(focused, nextSlot),
+                Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+        }
         UiFormat.drawHrRow(dc, h * 79 / 100, null);
         Icons.startMarker(dc, "play");
         Icons.backMarker(dc);
@@ -106,51 +121,43 @@ class OverviewView extends WatchUi.View {
     }
 }
 
-class OverviewDelegate extends WatchUi.BehaviorDelegate {
+class OverviewDelegate extends KeyDelegate {
     private var _view as OverviewView;
 
     public function initialize(view as OverviewView) {
         _view = view;
-        BehaviorDelegate.initialize();
+        KeyDelegate.initialize();
     }
 
-    public function onKey(event as KeyEvent) as Boolean {
-        if (Navigator.staleWorkoutView()) {
-            return true;
-        }
-        var key = event.getKey();
-        if (key == KEY_UP) {
+    public function onUpKey() as Boolean {
+        if (!Navigator.staleWorkoutView()) {
             _view.moveSelection(-1);
-            return true;
         }
-        if (key == KEY_DOWN) {
+        return true;
+    }
+
+    public function onDownKey() as Boolean {
+        if (!Navigator.staleWorkoutView()) {
             _view.moveSelection(1);
-            return true;
         }
-        if (key == KEY_ENTER) {
+        return true;
+    }
+
+    public function onStartKey() as Boolean {
+        if (!Navigator.staleWorkoutView()) {
             _view.openSelection();
-            return true;
         }
-        return false;
-    }
-
-    public function onSelect() as Boolean {
-        if (Navigator.staleWorkoutView()) {
-            return true;
-        }
-        _view.openSelection();
         return true;
     }
 
-    public function onMenu() as Boolean {
-        if (Navigator.staleWorkoutView()) {
-            return true;
+    public function onMenuKey() as Boolean {
+        if (!Navigator.staleWorkoutView()) {
+            Navigator.actions();
         }
-        Navigator.actions();
         return true;
     }
 
-    public function onBack() as Boolean {
-        return onMenu();
+    public function onBackKey() as Boolean {
+        return onMenuKey();
     }
 }

@@ -1,5 +1,6 @@
 import Toybox.Graphics;
 import Toybox.Lang;
+import Toybox.Math;
 import Toybox.Time;
 import Toybox.WatchUi;
 
@@ -10,6 +11,7 @@ class HistoryView extends WatchUi.View {
     private var _detailLines as Array = [];
     private var _detailOffset as Number = 0;
     private var _detailVisible as Number = 5;
+    private var _detailChars as Number = 0;
     private var _uploads as Dictionary;
 
     public function initialize() {
@@ -116,21 +118,20 @@ class HistoryView extends WatchUi.View {
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
     }
 
+    // Detail page: all lines scroll (workout name, date, sets, then the exercises). The lines are
+    // wrapped to what fits the narrowest row of the band, so drawLine never has to cut text.
     private function drawDetail(dc as Dc) as Void {
         var height = dc.getHeight();
         var caption = UiFormat.captionFont();
         var record = _sessions[_selected] as Dictionary;
-        var unavailable = record["unavailable"] == true || !(record["exercises"] instanceof Array);
-        var title = unavailable ? "Workout unavailable" :
-            shortText(record["templateName"], 30, "Workout");
-        var y = UiFormat.drawLine(dc, title, height * 12 / 100, Graphics.FONT_SMALL) + 4;
-        if (!unavailable) {
-            var totals = SessionLogic.totals(record);
-            y = UiFormat.drawLine(dc, dateAndElapsed(record) + "  " + totals["done"].toString() + "/" +
-                totals["planned"].toString() + " sets", y, caption) + 8;
-        }
+        var y = height * 20 / 100;
         var footerY = height - 28;
         var rowHeight = dc.getFontHeight(caption) + 4;
+        var chars = fitChars(dc, caption, y, footerY - rowHeight);
+        if (chars != _detailChars) {
+            _detailChars = chars;
+            _detailLines = detailLines(record, chars);
+        }
         _detailVisible = (footerY - y) / rowHeight;
         if (_detailVisible < 1) {
             _detailVisible = 1;
@@ -149,6 +150,28 @@ class HistoryView extends WatchUi.View {
         }
     }
 
+    // Characters of the caption font that fit the screen circle at both ends of the text band.
+    private function fitChars(dc as Dc, font as Graphics.FontType, top as Number,
+                              bottom as Number) as Number {
+        var width = dc.getWidth();
+        var height = dc.getHeight();
+        var radius = (width < height ? width : height) / 2 - 12;
+        var fontHeight = dc.getFontHeight(font);
+        var narrow = width;
+        var edges = [top, bottom + fontHeight];
+        for (var i = 0; i < 2; i++) {
+            var offset = ((edges[i] as Number) - height / 2).abs();
+            var remaining = radius * radius - offset * offset;
+            var chord = remaining <= 0 ? 0 : (2 * Math.sqrt(remaining) - 16).toNumber();
+            if (chord < narrow) {
+                narrow = chord;
+            }
+        }
+        var average = dc.getTextWidthInPixels("0123456789abcdefghij", font) / 20;
+        var chars = average > 0 ? narrow / average : 20;
+        return chars < 12 ? 12 : chars;
+    }
+
     // "cancelled" or "partial", null for a full workout (no word when all is well).
     private function statusLabel(record as Dictionary, totals as Dictionary) as String? {
         if (Model.sameString(record["status"], "aborted")) {
@@ -161,12 +184,20 @@ class HistoryView extends WatchUi.View {
         return "partial";
     }
 
-    private function detailLines(record as Dictionary) as Array {
+    private function detailLines(record as Dictionary, chars as Number) as Array {
         var lines = [];
         if (record["unavailable"] == true || !(record["exercises"] instanceof Array)) {
-            lines.add("Saved workout details unavailable");
+            lines.add("Workout unavailable");
+            lines.add("Details unavailable");
             return lines;
         }
+        var totals = SessionLogic.totals(record);
+        lines.add(shortText(record["templateName"], chars, "Workout"));
+        var when = dateAndElapsed(record);
+        if (when.length() > 0) {
+            lines.add(when);
+        }
+        lines.add(totals["done"].toString() + "/" + totals["planned"].toString() + " sets");
         if (!Model.sameString(record["fitState"], "saved") && !Model.sameString(record["status"], "aborted")) {
             lines.add(fitStatusLabel(record));
         }
@@ -183,8 +214,9 @@ class HistoryView extends WatchUi.View {
             var slots = exercise["slots"] as Array;
             var done = SessionLogic.completedCount(exercise);
             var planned = exercise["plannedSetCount"] as Number;
-            var name = shortText(exercise["name"], 28, "Exercise");
-            lines.add(name + "  " + done.toString() + "/" + planned.toString());
+            var count = "  " + done.toString() + "/" + planned.toString();
+            var name = shortText(exercise["name"], chars - count.length(), "Exercise");
+            lines.add(name + count);
             var warmupLine = "";
             var warmups = exercise["warmupSlots"];
             for (var w = 0; warmups instanceof Array && w < (warmups as Array).size(); w++) {
@@ -193,7 +225,7 @@ class HistoryView extends WatchUi.View {
                     continue;
                 }
                 var entry = "W" + (w + 1).toString() + " " + setValue(exercise, warmupDone as Dictionary);
-                if (warmupLine.length() > 0 && warmupLine.length() + entry.length() > 32) {
+                if (warmupLine.length() > 0 && warmupLine.length() + entry.length() > chars - 2) {
                     lines.add("  " + warmupLine);
                     warmupLine = entry;
                 } else {
@@ -215,7 +247,7 @@ class HistoryView extends WatchUi.View {
                 var value = setValue(exercise, completed as Dictionary);
                 var separator = valueLine.length() == 0 ? "" : "  ";
                 if (valueLine.length() > 0 &&
-                    valueLine.length() + separator.length() + value.length() > 34) {
+                    valueLine.length() + separator.length() + value.length() > chars - 2) {
                     lines.add("  " + valueLine);
                     valueLine = value;
                 } else {
@@ -325,7 +357,7 @@ class HistoryView extends WatchUi.View {
             _detail = false;
             _detailOffset = 0;
         } else {
-            _detailLines = detailLines(_sessions[_selected] as Dictionary);
+            _detailChars = 0;
             _detail = true;
             _detailOffset = 0;
         }
@@ -343,42 +375,35 @@ class HistoryView extends WatchUi.View {
     }
 }
 
-class HistoryDelegate extends WatchUi.BehaviorDelegate {
+class HistoryDelegate extends KeyDelegate {
     private var _view as HistoryView;
 
     public function initialize(view as HistoryView) {
         _view = view;
-        BehaviorDelegate.initialize();
+        KeyDelegate.initialize();
     }
 
-    public function onKey(event as KeyEvent) as Boolean {
-        var key = event.getKey();
-        if (key == KEY_UP) {
-            _view.move(-1);
-            return true;
-        }
-        if (key == KEY_DOWN) {
-            _view.move(1);
-            return true;
-        }
-        if (key == KEY_ENTER) {
-            _view.select();
-            return true;
-        }
-        return false;
+    public function onUpKey() as Boolean {
+        _view.move(-1);
+        return true;
     }
 
-    public function onSelect() as Boolean {
+    public function onDownKey() as Boolean {
+        _view.move(1);
+        return true;
+    }
+
+    public function onStartKey() as Boolean {
         _view.select();
         return true;
     }
 
-    public function onBack() as Boolean {
+    public function onBackKey() as Boolean {
         _view.back();
         return true;
     }
 
-    public function onMenu() as Boolean {
+    public function onMenuKey() as Boolean {
         _view.back();
         return true;
     }
