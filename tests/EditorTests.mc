@@ -44,17 +44,6 @@ function testEditorSelectionMoves(logger as Test.Logger) as Boolean {
 }
 
 (:test)
-function testSetCounterThreshold(logger as Test.Logger) as Boolean {
-    var six = EditorLogic.useDots(6);
-    var seven = EditorLogic.useDots(7);
-    var one = EditorLogic.useDots(1);
-    return check(logger, six && one, "up to 6 planned sets are dots") &&
-        check(logger, !seven, "more than 6 planned sets are a number") &&
-        check(logger, Model.sameString(EditorLogic.counterText(3, 8), "4/8"), "slot 3 of 8 reads 4/8") &&
-        check(logger, Model.sameString(EditorLogic.counterText(-1, 8), "8/8"), "all done reads 8/8");
-}
-
-(:test)
 function testSingleFieldEditorRules(logger as Test.Logger) as Boolean {
     var weight = EditorLogic.singleField("weight");
     var assist = EditorLogic.singleField("assistance");

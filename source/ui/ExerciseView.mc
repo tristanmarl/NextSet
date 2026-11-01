@@ -79,7 +79,8 @@ class ExerciseView extends WatchUi.View {
 
         if (slot < 0) {
             var count = current["plannedSetCount"] as Number;
-            Icons.setProgress(dc, rowY, count, count, -1);
+            Icons.setProgress(dc, rowY, SessionLogic.warmupCount(current), SessionLogic.completedWarmups(current),
+                count, count, -1);
             var s = Icons.unit(dc);
             Icons.check(dc, dc.getWidth() / 2, valueY, s * 3, Graphics.COLOR_GREEN);
             UiFormat.drawHrRow(dc, hrY, _message);
@@ -95,33 +96,23 @@ class ExerciseView extends WatchUi.View {
             // The set dots stay visible during the rest (sets still to go); the rest time sits
             // just below them and the next set moves down a little.
             var dotsY = h * 35 / 100;
-            if (shownSlot >= Model.WARMUP_BASE) {
-                dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_BLACK);
-                dc.drawText(dc.getWidth() / 2, dotsY, Graphics.FONT_XTINY, "Warmup " +
-                    (shownSlot - Model.WARMUP_BASE + 1).toString() + "/" +
-                    SessionLogic.warmupCount(shown).toString(),
-                    Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
-            } else {
-                Icons.setProgress(dc, dotsY, doneSets(shown), shown["plannedSetCount"] as Number, shownSlot);
-            }
+            Icons.setProgress(dc, dotsY, SessionLogic.warmupCount(shown), SessionLogic.completedWarmups(shown),
+                shown["plannedSetCount"] as Number, doneSets(shown), shownSlot);
             dc.setColor(running ? Graphics.COLOR_BLUE : Graphics.COLOR_GREEN, Graphics.COLOR_BLACK);
             dc.drawText(dc.getWidth() / 2, h * 45 / 100, Graphics.FONT_MEDIUM, text,
                 Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
             valueY = h * 62 / 100;
-        } else if (Model.sameString(loadType, "timed") && current["unilateral"] == true) {
-            var sideDraft = (Model.slotAt(current, slot) as Dictionary)["draft"] as Dictionary;
-            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
-            dc.drawText(dc.getWidth() / 2, rowY, Graphics.FONT_SMALL,
-                sideDraft["leftSec"] instanceof Number ? "Right side" : "Left side",
-                Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
-        } else if (slot >= Model.WARMUP_BASE) {
-            dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_BLACK);
-            dc.drawText(dc.getWidth() / 2, rowY, Graphics.FONT_SMALL, "Warmup " +
-                (slot - Model.WARMUP_BASE + 1).toString() + "/" +
-                SessionLogic.warmupCount(current).toString(),
-                Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
         } else {
-            Icons.setProgress(dc, rowY, doneSets(current), current["plannedSetCount"] as Number, slot);
+            Icons.setProgress(dc, rowY, SessionLogic.warmupCount(current), SessionLogic.completedWarmups(current),
+                current["plannedSetCount"] as Number, doneSets(current), slot);
+            if (Model.sameString(loadType, "timed") && current["unilateral"] == true) {
+                // One-sided timed set: which side, in a small line just under the dots.
+                var sideDraft = (Model.slotAt(current, slot) as Dictionary)["draft"] as Dictionary;
+                dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_BLACK);
+                dc.drawText(dc.getWidth() / 2, h * 47 / 100, Graphics.FONT_XTINY,
+                    sideDraft["leftSec"] instanceof Number ? "Right side" : "Left side",
+                    Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+            }
         }
 
         var timedNow = null;

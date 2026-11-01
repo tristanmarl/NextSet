@@ -174,44 +174,62 @@ module Icons {
         dc.fillPolygon([[x - 2 * r, y - r / 3], [x + 2 * r, y - r / 3], [x, y + 2 * r - 1]]);
     }
 
-    // One dot per working set: done green and filled, the current one white and filled with an
-    // outline, the rest open with a light-gray thick outline.
-    function setDots(dc as Dc, y as Number, done as Number, planned as Number, current as Number) as Void {
+    // Width the dots row may use at height y: the chord of the round screen, kept clear of the
+    // hold-UP ring beside the UP button (the widest of the edge icons at this height).
+    function dotsWidth(dc as Dc, y as Number, radius as Number) as Number {
         var s = unit(dc);
-        var r = s + 3;
-        var gap = r * 3;
-        var x = dc.getWidth() / 2 - (planned - 1) * gap / 2;
-        for (var i = 0; i < planned; i++) {
-            if (i == current) {
+        var screen = (dc.getWidth() < dc.getHeight() ? dc.getWidth() : dc.getHeight()) / 2;
+        var dy = (y - dc.getHeight() / 2).abs() + radius + DotsLogic.RING;
+        var chordHalf = Math.sqrt((screen * screen - dy * dy).toFloat()).toNumber() - s * 2;
+        var ringInner = ((screen - s * 6) * Math.cos(ANGLE_HOLD * Math.PI / 180.0)).abs().toNumber() - (s * 5 / 2 + 2) - 3;
+        var half = chordHalf < ringInner ? chordHalf : ringInner;
+        return half < 0 ? 0 : 2 * half;
+    }
+
+    // The set-progress row: one dot per warmup (smaller, gray: done filled gray, the current one
+    // filled white, open a gray outline), then one per working set (done green, the current one
+    // white with a ring, open a light-gray thick outline). `current` is the slot up next
+    // (Model.WARMUP_BASE + i for a warmup, -1 none). Long rows shrink their gap, then the dots.
+    function setProgress(dc as Dc, y as Number, warmups as Number, doneWarmups as Number, planned as Number,
+                         doneSets as Number, current as Number) as Void {
+        var r0 = unit(dc) + 3;
+        var kinds = DotsLogic.kinds(warmups, doneWarmups, planned, doneSets, current);
+        var box = DotsLogic.layout(warmups, planned, dotsWidth(dc, y, r0), r0);
+        var r = box["radius"] as Number;
+        var rw = box["warmRadius"] as Number;
+        var gap = box["gap"] as Number;
+        var x = dc.getWidth() / 2 - (box["width"] as Number) / 2;
+        for (var i = 0; i < kinds.size(); i++) {
+            var kind = kinds[i];
+            var warm = kind <= DotsLogic.WARM_OPEN;
+            var d = warm ? rw : r;
+            x += d;
+            if (kind == DotsLogic.WARM_DONE) {
+                dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_BLACK);
+                dc.fillCircle(x, y, d);
+            } else if (kind == DotsLogic.WARM_CURRENT) {
+                dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+                dc.fillCircle(x, y, d);
+            } else if (kind == DotsLogic.WARM_OPEN) {
+                dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_BLACK);
+                dc.drawCircle(x, y, d - 1);
+            } else if (kind == DotsLogic.SET_CURRENT) {
                 dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
                 dc.setPenWidth(2);
-                dc.drawCircle(x, y, r + 2);
+                dc.drawCircle(x, y, d + 2);
                 dc.setPenWidth(1);
-                dc.fillCircle(x, y, r - 1);
-            } else if (i < done) {
+                dc.fillCircle(x, y, d - 1);
+            } else if (kind == DotsLogic.SET_DONE) {
                 dc.setColor(Graphics.COLOR_GREEN, Graphics.COLOR_BLACK);
-                dc.fillCircle(x, y, r);
+                dc.fillCircle(x, y, d);
             } else {
                 dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_BLACK);
                 dc.setPenWidth(3);
-                dc.drawCircle(x, y, r - 1);
+                dc.drawCircle(x, y, d - 1);
                 dc.setPenWidth(1);
             }
-            x += gap;
+            x += d + gap;
         }
-        dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
-    }
-
-    // Set position row: dots up to EditorLogic.MAX_DOTS planned sets, else the number "4/8"
-    // (current < 0: all done).
-    function setProgress(dc as Dc, y as Number, done as Number, planned as Number, current as Number) as Void {
-        if (EditorLogic.useDots(planned)) {
-            setDots(dc, y, done, planned, current);
-            return;
-        }
-        dc.setColor(current < 0 ? Graphics.COLOR_GREEN : Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
-        dc.drawText(dc.getWidth() / 2, y, Graphics.FONT_SMALL, EditorLogic.counterText(current, planned),
-            Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
     }
 

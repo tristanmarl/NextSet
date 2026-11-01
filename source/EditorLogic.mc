@@ -7,8 +7,6 @@ import Toybox.Lang;
 module EditorLogic {
     const MODE_SELECT = 0;
     const MODE_EDIT = 1;
-    // More planned sets than this are shown as "4/8" instead of one dot each.
-    const MAX_DOTS = 6;
 
     // Draft or completed-set fields the editor offers for an exercise's load type, in screen order.
     function fields(loadType as String?) as Array<String> {
@@ -131,15 +129,5 @@ module EditorLogic {
 
     function backClosesEditor(mode as Number) as Boolean {
         return mode == MODE_SELECT;
-    }
-
-    function useDots(planned as Number) as Boolean {
-        return planned <= MAX_DOTS;
-    }
-
-    // "4/8": position of the set being done out of the planned sets (slot is 0-based).
-    function counterText(slot as Number, planned as Number) as String {
-        var position = slot < 0 ? planned : slot + 1;
-        return position.toString() + "/" + planned.toString();
     }
 }
