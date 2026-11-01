@@ -34,7 +34,8 @@ class RapidPress {
 // (EditorLogic): SELECT shows the fields big with the selected one framed (UP/DOWN move, START
 // enters it, BACK saves what was confirmed and leaves for the Overview); EDIT shows the field
 // yellow and underlined (UP/DOWN change it, START keeps it, BACK restores it and returns to
-// SELECT). The editor of a logged set has a last row, Delete, whose START asks "Delete set N?".
+// SELECT). The editor of a logged set has a first row, Continue (preselected; START saves any change and
+// returns to the set screen), and a last row, Delete, whose START asks "Delete set N?".
 class SetEditView extends WatchUi.View {
     private var _entryId as String;
     private var _slot as Number;
@@ -86,30 +87,28 @@ class SetEditView extends WatchUi.View {
         UiFormat.drawTitle(dc, title, h * 25 / 100);
         var count = _ready ? _fields.size() : 0;
         var editing = _mode == EditorLogic.MODE_EDIT;
-        // Fields big, then (logged set) the Delete row in medium text; three rows share 43..75 %.
+        // Rows share the screen below the title: [Continue], the fields (big), [Delete]. Four rows
+        // (weight and assistance, logged set) use the MEDIUM number font, three the LARGE one.
         var rowCount = _ready ? _rows.size() : 0;
+        var offset = _ready ? EditorLogic.fieldOffset(_rows) : 0;
+        var fieldFont = rowCount >= 4 ? 3 : (rowCount == 3 ? 2 : (rowCount == 2 ? 1 : 0));
         for (var i = 0; i < count; i++) {
-            var y = rowCount == 1 ? h * 57 / 100 : (rowCount == 2 ? (i == 0 ? h * 50 / 100 : h * 71 / 100) :
-                h * (43 + 16 * i) / 100);
-            var box = UiFormat.drawBigFrom(dc, fieldParts(i), y, editing && i == _selected ? 0 : -1,
-                Graphics.COLOR_WHITE, rowCount == 1 ? 0 : (rowCount == 2 ? 1 : 2));
-            if (!editing && i == _selected) {
+            var row = i + offset;
+            var box = UiFormat.drawBigFrom(dc, fieldParts(i), rowY(h, rowCount, row),
+                editing && row == _selected ? 0 : -1, Graphics.COLOR_WHITE, fieldFont);
+            if (!editing && row == _selected) {
                 frame(dc, box);
             }
         }
-        if (rowCount > count) {
+        if (_ready && offset == 1) {
+            var selectedContinue = !editing && _selected == 0;
+            drawTextRow(dc, "Continue", rowY(h, rowCount, 0), selectedContinue,
+                selectedContinue ? Graphics.COLOR_GREEN : Graphics.COLOR_LT_GRAY);
+        }
+        if (rowCount > count + offset) {
             var selectedDelete = !editing && EditorLogic.isDeleteRow(_rows, _selected);
-            var deleteY = rowCount == 2 ? h * 71 / 100 : h * (43 + 16 * count) / 100;
-            var font = Graphics.FONT_MEDIUM;
-            dc.setColor(selectedDelete ? Graphics.COLOR_WHITE : Graphics.COLOR_LT_GRAY, Graphics.COLOR_BLACK);
-            dc.drawText(dc.getWidth() / 2, deleteY, font, "Delete",
-                Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
-            if (selectedDelete) {
-                var width = dc.getTextWidthInPixels("Delete", font);
-                var height = dc.getFontHeight(font);
-                frame(dc, [(dc.getWidth() - width) / 2, (dc.getWidth() + width) / 2,
-                    deleteY - height / 2 + 4, deleteY + height / 2 - 4]);
-            }
+            drawTextRow(dc, "Delete", rowY(h, rowCount, rowCount - 1), selectedDelete,
+                selectedDelete ? Graphics.COLOR_WHITE : Graphics.COLOR_LT_GRAY);
         }
         if (_error != null) {
             UiFormat.drawHrRow(dc, h * 88 / 100, _error);
@@ -118,11 +117,40 @@ class SetEditView extends WatchUi.View {
         if (!_ready) {
             return;
         }
-        Icons.startMarker(dc, editing ? "check" : "play");
+        Icons.startMarker(dc, EditorLogic.startIcon(_rows, _selected, _mode));
         if (editing) {
             Icons.focusMarkers(dc);
         } else if (rowCount > 1) {
             Icons.browseMarkers(dc);
+        }
+    }
+
+    // Centre height of row `row` of `rowCount`: one row 57 %, two 50 / 71 %, three 43 / 59 / 75 %,
+    // four 41 / 55 / 69 / 83 % of the screen height.
+    private function rowY(h as Number, rowCount as Number, row as Number) as Number {
+        if (rowCount <= 1) {
+            return h * 57 / 100;
+        }
+        if (rowCount == 2) {
+            return row == 0 ? h * 50 / 100 : h * 71 / 100;
+        }
+        if (rowCount == 3) {
+            return h * (43 + 16 * row) / 100;
+        }
+        return h * (41 + 14 * row) / 100;
+    }
+
+    // A text row (Continue, Delete) in medium text, framed in white when selected.
+    private function drawTextRow(dc as Dc, text as String, y as Number, selected as Boolean,
+                                 color as Number) as Void {
+        var font = Graphics.FONT_MEDIUM;
+        dc.setColor(color, Graphics.COLOR_BLACK);
+        dc.drawText(dc.getWidth() / 2, y, font, text, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+        if (selected) {
+            var width = dc.getTextWidthInPixels(text, font);
+            var height = dc.getFontHeight(font);
+            frame(dc, [(dc.getWidth() - width) / 2, (dc.getWidth() + width) / 2,
+                y - height / 2 + 4, y + height / 2 - 4]);
         }
     }
 
@@ -166,8 +194,9 @@ class SetEditView extends WatchUi.View {
     }
 
     private function adjust(direction as Number) as Void {
-        var field = _fields[_selected];
-        var value = _values[_selected];
+        var index = _selected - EditorLogic.fieldOffset(_rows);
+        var field = _fields[index];
+        var value = _values[index];
         if (Model.sameString(field, "load100")) {
             value += direction * _increment100 * _rapid.multiplier(direction);
             value = value < 0 ? 0 : (value > Model.MAX_LOAD100 ? Model.MAX_LOAD100 : value);
@@ -178,7 +207,7 @@ class SetEditView extends WatchUi.View {
             value += direction;
             value = value < 1 ? 1 : (value > Model.MAX_REPS ? Model.MAX_REPS : value);
         }
-        _values[_selected] = value;
+        _values[index] = value;
     }
 
     // START: enter the selected field, or keep the edited value.
@@ -193,12 +222,16 @@ class SetEditView extends WatchUi.View {
                 WatchUi.SLIDE_UP);
             return;
         }
+        if (_mode == EditorLogic.MODE_SELECT && EditorLogic.isContinueRow(_rows, _selected)) {
+            close(true);
+            return;
+        }
         if (_mode == EditorLogic.MODE_SELECT) {
-            _before = _values[_selected];
+            _before = _values[_selected - EditorLogic.fieldOffset(_rows)];
             _rapid = new RapidPress();
         }
         if (EditorLogic.startSaves(_single, _mode)) {
-            close();
+            close(false);
             return;
         }
         _mode = EditorLogic.modeAfterStart(_mode);
@@ -208,17 +241,17 @@ class SetEditView extends WatchUi.View {
     // BACK: in EDIT restore the field and return to SELECT; in SELECT save and close.
     public function backPressed() as Void {
         if (_single) {
-            leave();
+            leave(false);
             return;
         }
         if (!EditorLogic.backClosesEditor(_mode)) {
-            _values[_selected] = _before;
+            _values[_selected - EditorLogic.fieldOffset(_rows)] = _before;
             _mode = EditorLogic.modeAfterBack(_mode);
             _error = null;
             WatchUi.requestUpdate();
             return;
         }
-        close();
+        close(false);
     }
 
     public function showError(message as String) as Void {
@@ -228,9 +261,10 @@ class SetEditView extends WatchUi.View {
 
     // Pops the editor. The editor of a logged set was opened from the set screen and leaves for
     // the Overview, so it pops that screen too.
-    public function leave() as Void {
+    // Continue pops the editor only, back to the set screen.
+    public function leave(continueOnly as Boolean) as Void {
         WatchUi.popView(WatchUi.SLIDE_DOWN);
-        if (_correcting) {
+        if (_correcting && !continueOnly) {
             WatchUi.popView(WatchUi.SLIDE_DOWN);
         }
     }
@@ -246,10 +280,10 @@ class SetEditView extends WatchUi.View {
 
     // Saves the confirmed values (next set: draft, logged set: correction) and pops the editor.
     // A second BACK after a failed save leaves without saving.
-    private function close() as Void {
+    private function close(continueOnly as Boolean) as Void {
         var failedBefore = _error != null;
         if (!_ready || !changed() || failedBefore) {
-            leave();
+            leave(continueOnly);
             return;
         }
         var controller = getApp().controller();
@@ -275,7 +309,7 @@ class SetEditView extends WatchUi.View {
             WatchUi.requestUpdate();
             return;
         }
-        leave();
+        leave(continueOnly);
         if (_correcting) {
             var session = controller.session();
             var exercise = session == null ? null : UiFormat.exercise(session as Dictionary, _entryId);

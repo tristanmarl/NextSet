@@ -24,15 +24,41 @@ module EditorLogic {
     // Row id after the fields in the two-level editor of a logged set: START opens Delete set N?.
     const ROW_DELETE = "delete";
 
-    // Rows of the two-level editor of a logged set: the fields, then Delete.
+    // First row of the two-level editor of a logged set: START saves any change and returns to the
+    // set screen (the editor opens preselected on it, so BACK then START just continues).
+    const ROW_CONTINUE = "continue";
+
+    // Rows of the two-level editor of a logged set: Continue, the fields, then Delete.
     function rows(loadType as String?) as Array<String> {
         var list = fields(loadType);
-        var all = [] as Array<String>;
+        var all = [ROW_CONTINUE] as Array<String>;
         for (var i = 0; i < list.size(); i++) {
             all.add(list[i]);
         }
         all.add(ROW_DELETE);
         return all;
+    }
+
+    function isContinueRow(rows as Array<String>, selected as Number) as Boolean {
+        return selected >= 0 && selected < rows.size() && Model.sameString(rows[selected], ROW_CONTINUE);
+    }
+
+    // Number of rows before the first field (1 with the Continue row, else 0): row index minus this
+    // is the field index.
+    function fieldOffset(rows as Array<String>) as Number {
+        return isContinueRow(rows, 0) ? 1 : 0;
+    }
+
+    // The START edge icon in the two-level editor: play on Continue, check on every other row and
+    // while a field is edited. The next-set editor (no Continue row) keeps play in SELECT.
+    function startIcon(rows as Array<String>, selected as Number, mode as Number) as String {
+        if (mode == MODE_EDIT) {
+            return "check";
+        }
+        if (isContinueRow(rows, selected)) {
+            return "play";
+        }
+        return fieldOffset(rows) == 1 ? "check" : "play";
     }
 
     function isDeleteRow(rows as Array<String>, selected as Number) as Boolean {
@@ -79,7 +105,8 @@ module EditorLogic {
         return !single && mode == MODE_SELECT;
     }
 
-    // The weight (first field) is preselected: reps can already be changed on the set screen.
+    // The first row is preselected: Continue in the last-set editor, else the weight (reps can
+    // already be changed on the set screen).
     function initialSelection() as Number {
         return 0;
     }

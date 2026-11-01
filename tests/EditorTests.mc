@@ -16,7 +16,7 @@ function testEditorFieldsPerLoadType(logger as Test.Logger) as Boolean {
         check(logger, assistOk, "assistance exercises edit assistance then reps") &&
         check(logger, bodyOk, "bodyweight exercises edit reps only") &&
         check(logger, timedOk, "timed exercises edit the duration only") &&
-        check(logger, EditorLogic.initialSelection() == 0, "the weight is preselected");
+        check(logger, EditorLogic.initialSelection() == 0, "the first row is preselected");
 }
 
 (:test)
@@ -92,22 +92,46 @@ function testLastSetEditorRowsPerLoadType(logger as Test.Logger) as Boolean {
     var assistance = EditorLogic.rows("assistance");
     var bodyweight = EditorLogic.rows("bodyweight");
     var timed = EditorLogic.rows("timed");
-    var weightOk = weight.size() == 3 && Model.sameString(weight[0], "load100") &&
-        Model.sameString(weight[1], "reps") && Model.sameString(weight[2], "delete");
-    var assistOk = assistance.size() == 3 && Model.sameString(assistance[2], "delete");
-    var bodyOk = bodyweight.size() == 2 && Model.sameString(bodyweight[0], "reps") &&
-        Model.sameString(bodyweight[1], "delete");
-    var timedOk = timed.size() == 2 && Model.sameString(timed[0], "durationSec") &&
-        Model.sameString(timed[1], "delete");
-    var deleteRow = EditorLogic.isDeleteRow(weight, 2) && !EditorLogic.isDeleteRow(weight, 1) &&
-        !EditorLogic.isDeleteRow(weight, 3) && !EditorLogic.isDeleteRow(timed, -1);
+    var weightOk = weight.size() == 4 && Model.sameString(weight[0], "continue") &&
+        Model.sameString(weight[1], "load100") && Model.sameString(weight[2], "reps") &&
+        Model.sameString(weight[3], "delete");
+    var assistOk = assistance.size() == 4 && Model.sameString(assistance[0], "continue") &&
+        Model.sameString(assistance[3], "delete");
+    var bodyOk = bodyweight.size() == 3 && Model.sameString(bodyweight[0], "continue") &&
+        Model.sameString(bodyweight[1], "reps") && Model.sameString(bodyweight[2], "delete");
+    var timedOk = timed.size() == 3 && Model.sameString(timed[0], "continue") &&
+        Model.sameString(timed[1], "durationSec") && Model.sameString(timed[2], "delete");
+    var deleteRow = EditorLogic.isDeleteRow(weight, 3) && !EditorLogic.isDeleteRow(weight, 1) &&
+        !EditorLogic.isDeleteRow(weight, 4) && !EditorLogic.isDeleteRow(timed, -1);
+    var continueRow = EditorLogic.isContinueRow(weight, 0) && !EditorLogic.isContinueRow(weight, 1) &&
+        !EditorLogic.isContinueRow(timed, 3) && !EditorLogic.isContinueRow(timed, -1);
     var fieldsUnchanged = EditorLogic.fields("weight").size() == 2 && EditorLogic.fields("timed").size() == 1;
-    return check(logger, weightOk, "weight rows: weight, reps, Delete") &&
-        check(logger, assistOk, "assistance rows end with Delete") &&
-        check(logger, bodyOk, "bodyweight rows: reps, Delete") &&
-        check(logger, timedOk, "timed rows: duration, Delete") &&
+    var offsets = EditorLogic.fieldOffset(weight) == 1 && EditorLogic.fieldOffset(EditorLogic.fields("weight")) == 0;
+    return check(logger, weightOk, "weight rows: Continue, weight, reps, Delete") &&
+        check(logger, assistOk, "assistance rows start with Continue and end with Delete") &&
+        check(logger, bodyOk, "bodyweight rows: Continue, reps, Delete") &&
+        check(logger, timedOk, "timed rows: Continue, duration, Delete") &&
         check(logger, deleteRow, "only the last row is Delete") &&
-        check(logger, fieldsUnchanged, "Delete is not a stored field");
+        check(logger, continueRow, "only the first row is Continue") &&
+        check(logger, offsets, "the Continue row shifts the field index by one") &&
+        check(logger, fieldsUnchanged, "Continue and Delete are not stored fields");
+}
+
+(:test)
+function testLastSetEditorPreselectsContinue(logger as Test.Logger) as Boolean {
+    var weight = EditorLogic.rows("weight");
+    var timed = EditorLogic.rows("timed");
+    var first = EditorLogic.initialSelection();
+    var playOnContinue = Model.sameString(EditorLogic.startIcon(weight, 0, EditorLogic.MODE_SELECT), "play");
+    var checkOnField = Model.sameString(EditorLogic.startIcon(weight, 1, EditorLogic.MODE_SELECT), "check");
+    var checkOnDelete = Model.sameString(EditorLogic.startIcon(timed, 2, EditorLogic.MODE_SELECT), "check");
+    var checkInEdit = Model.sameString(EditorLogic.startIcon(weight, 1, EditorLogic.MODE_EDIT), "check");
+    var nextSet = Model.sameString(EditorLogic.startIcon(EditorLogic.fields("weight"), 0, EditorLogic.MODE_SELECT), "play");
+    return check(logger, EditorLogic.isContinueRow(weight, first), "the last-set editor opens on Continue") &&
+        check(logger, EditorLogic.isContinueRow(timed, first), "timed sets open on Continue too") &&
+        check(logger, playOnContinue, "START shows play on Continue") &&
+        check(logger, checkOnField && checkOnDelete && checkInEdit, "START shows a check on the other rows") &&
+        check(logger, nextSet, "the next-set editor keeps the play icon");
 }
 
 (:test)
