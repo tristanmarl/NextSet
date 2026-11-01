@@ -16,6 +16,7 @@ class DemoApp extends NextSetApp {
     public function initialize() {
         Application.Storage.clearValues();
         seed();
+        UiFormat.demoHeartRate = 128;
         NextSetApp.initialize();
         _cycle = new Timer.Timer();
         _adder = new Timer.Timer();

@@ -160,8 +160,14 @@ module UiFormat {
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
     }
 
+    // Demo build only (screenshots; the simulator has no heart rate): a fixed value when above 0.
+    var demoHeartRate as Number = 0;
+
     // Current heart rate in bpm from the recording activity, 0 when there is none.
     function heartRate() as Number {
+        if (demoHeartRate > 0) {
+            return demoHeartRate;
+        }
         var info = Activity.getActivityInfo();
         var hr = info == null ? null : info.currentHeartRate;
         return hr instanceof Number && hr >= 30 && hr <= 250 ? hr as Number : 0;
