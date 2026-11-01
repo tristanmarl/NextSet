@@ -2,6 +2,11 @@
 
 NextSet is an unofficial companion for Liftosaur. It is not made or endorsed by Liftosaur and needs Liftosaur Premium for API access.
 
+## 0.4.5
+- **Resume / Save / Discard.** BACK on the Overview, BACK on Home during a workout and the prompt after the last set open one screen like a native Garmin activity: **Resume** (selected first), **Save**, **Discard** (UP/DOWN move, START confirms, BACK resumes). It shows the workout time and sets in a small line. **Save** finishes the workout ("Log a set before saving" when nothing is logged); **Discard** asks "Discard workout?" (Keep / Discard) first. The old "Finish?" review is gone.
+- **Hold-UP icon shows what it changes.** On the set screen the ring holds a small dumbbell (Change weight) or a clock (Change time); the Overview keeps the plus and Home the dots.
+- **Sync to Liftosaur from the summary.** While the saved workout's upload is waiting or failed, the summary shows "START: Sync to Liftosaur" (green, bottom) and START uploads now; the Liftosaur row shows an arrow while uploading, a check when done and a red short error on failure. Once uploaded START exits; BACK always exits. Nothing is shown without a Liftosaur key. If the Garmin activity needs its retry choice, that comes first (START opens it) and it has a **Sync to Liftosaur** item too.
+
 ## 0.4.4
 - The hold-UP icon sits beside the UP button, in an open ring that signals "hold" (dots on the set screen, plus on the Overview).
 

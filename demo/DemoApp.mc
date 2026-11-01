@@ -56,6 +56,7 @@ class DemoApp extends NextSetApp {
         var view = null;
         var row = demoEntry("Seated Row");
         var press = demoEntry("Chest Press");
+        var timed = demoEntry("Leg Press");
         if (_screen == 0) {
             view = new ExerciseView(row);
         } else if (_screen == 1) {
@@ -63,34 +64,33 @@ class DemoApp extends NextSetApp {
             controller().restAction("skip", Time.now().value());
             view = new ExerciseView(press);
         } else if (_screen == 2) {
+            // Timed set: hold UP changes the time (clock icon).
+            view = new ExerciseView(timed);
+        } else if (_screen == 3) {
+            view = new FinishChoiceView();
+        } else if (_screen == 4) {
+            var choice = new FinishChoiceView();
+            choice.selected = FinishLogic.DISCARD;
+            view = choice;
+        } else if (_screen == 5) {
+            view = new ConfirmView("Discard workout?", "Keep", "Discard");
+        } else if (_screen == 6) {
+            view = new OverviewView();
+        } else if (_screen == 7) {
+            // Saved, Garmin fine, the Liftosaur upload still pending (queued, never sent here).
+            var session = controller().session() as Dictionary;
+            session["fitState"] = "saved";
+            controller().saveKey("lftsk_demo_not_a_real_key_000000");
+            new Store().saveUploadQueue([session["id"]]);
+            view = new SummaryView("completed");
+        } else if (_screen == 8) {
             // "Change weight": the one-field editor, directly in EDIT.
             var exercise = UiFormat.exercise(controller().session() as Dictionary, press) as Dictionary;
             view = new SetEditView(press, SessionLogic.activeSlot(exercise), false, true);
-        } else if (_screen == 3) {
+        } else if (_screen == 9) {
             // "Edit last set": the two-level editor.
             var exercise = UiFormat.exercise(controller().session() as Dictionary, row) as Dictionary;
             view = new SetEditView(row, UiFormat.lastSlot(exercise), true, false);
-        } else if (_screen == 4) {
-            // The last-set editor with the Delete row selected.
-            var exercise = UiFormat.exercise(controller().session() as Dictionary, row) as Dictionary;
-            var editor = new SetEditView(row, UiFormat.lastSlot(exercise), true, false);
-            editor.up();
-            view = editor;
-        } else if (_screen == 5) {
-            view = new ConfirmView("Delete set 2?", "Keep", "Delete");
-        } else if (_screen == 6) {
-            var exercise = UiFormat.exercise(controller().session() as Dictionary, row) as Dictionary;
-            var editor = new SetEditView(row, UiFormat.lastSlot(exercise), true, false);
-            editor.startPressed();
-            view = editor;
-        } else if (_screen == 7) {
-            view = new OverviewView();
-        } else if (_screen == 8) {
-            view = new SummaryView("completed");
-        } else if (_screen == 9) {
-            var history = new HistoryView();
-            history.select();
-            view = history;
         } else {
             view = new HomeView();
         }
