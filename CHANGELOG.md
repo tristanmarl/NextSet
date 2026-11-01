@@ -2,6 +2,9 @@
 
 NextSet is an unofficial companion for Liftosaur. It is not made or endorsed by Liftosaur and needs Liftosaur Premium for API access.
 
+## 0.4.7
+- **Set dots on the exercise list.** The Overview shows the same dots row as the set screen for the shown exercise (warmups small and gray, then the sets) instead of the big "2/3 sets"; "Exercise 2/8" moves below it and the next set ("55 kg × 9") is a little larger.
+
 ## 0.4.6
 - **Continue in the last-set editor.** BACK on the set screen opens the last set with a new first row, **Continue** (green when selected, preselected on opening). START on it saves anything you changed and returns to the set screen, so an accidental BACK costs one press: BACK, START. The other rows are unchanged (weight, reps, Delete; BACK still saves and goes to the Overview). The START icon is a play triangle on Continue and a check on the other rows.
 - The set dots stay visible during the rest, with the rest time below them.
