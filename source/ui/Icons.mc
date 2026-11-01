@@ -94,6 +94,23 @@ module Icons {
         dc.setPenWidth(1);
     }
 
+    // Small dumbbell: a handle between two plates, each a tall inner plate and a shorter outer one.
+    // Half width is about 1.6 s, so it fits the hold-UP ring (radius 2.5 s) with a clear margin.
+    function dumbbell(dc as Dc, x as Number, y as Number, s as Number, color as Number) as Void {
+        dc.setColor(color, Graphics.COLOR_BLACK);
+        var pw = s / 2 < 2 ? 2 : s / 2;
+        var inner = s / 2 + 1;
+        var tall = s * 5 / 4;
+        var shortHalf = s * 3 / 4;
+        dc.setPenWidth(s / 3 + 1);
+        dc.drawLine(x - inner - pw, y, x + inner + pw, y);
+        dc.setPenWidth(1);
+        dc.fillRectangle(x - inner - pw, y - tall, pw, tall * 2);
+        dc.fillRectangle(x + inner, y - tall, pw, tall * 2);
+        dc.fillRectangle(x - inner - pw * 2 - 1, y - shortHalf, pw, shortHalf * 2);
+        dc.fillRectangle(x + inner + pw + 1, y - shortHalf, pw, shortHalf * 2);
+    }
+
     // Marker at a physical button: "play", "stop", "check", "back", "up", "down", "plus" or "menu".
     function edge(dc as Dc, kind as String, angle as Number) as Void {
         var s = unit(dc);
@@ -214,10 +231,19 @@ module Icons {
         dc.setPenWidth(1);
         if (Model.sameString(kind, "plus")) {
             plus(dc, x, y, s, Graphics.COLOR_WHITE);
+        } else if (Model.sameString(kind, "weight")) {
+            dumbbell(dc, x, y, s, Graphics.COLOR_WHITE);
+        } else if (Model.sameString(kind, "time")) {
+            clock(dc, x, y, s * 5 / 4, Graphics.COLOR_WHITE);
         } else {
             dots(dc, x, y, s, Graphics.COLOR_WHITE);
         }
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+    }
+
+    // Hold UP on a workout set screen: a dumbbell (Change weight) or a clock (Change time).
+    function loadMarker(dc as Dc, action as String) as Void {
+        holdMarker(dc, Model.sameString(action, "time") ? "time" : "weight");
     }
 
     function menuMarker(dc as Dc) as Void {

@@ -151,8 +151,9 @@ class ExerciseView extends WatchUi.View {
             Icons.focusMarkers(dc);
         }
         // Hold UP changes the weight (or the time); bodyweight has no hold action.
-        if (editable && !Model.sameString(EditorLogic.holdUpAction(loadType), "none")) {
-            Icons.menuMarker(dc);
+        var holdAction = EditorLogic.holdUpAction(loadType);
+        if (editable && !Model.sameString(holdAction, "none")) {
+            Icons.loadMarker(dc, holdAction);
         }
     }
 
