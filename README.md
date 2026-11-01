@@ -64,7 +64,7 @@ The Connect IQ Store is the only way to install NextSet; GitHub releases carry t
 2. **Sync.** With the phone nearby, choose **Menu → Settings → Sync routines**, or press START on Home when nothing is synced yet. Home shows "Synced N days" when done.
 3. **Train.** Choose the day with UP/DOWN on Home and press START.
 
-The small icons at the screen edge show what each button does. Every workout screen keeps the same places: the exercise at the top, set dots (with the rest time below them during a rest), weight and reps in the middle, heart rate at the bottom. Yellow and underlined is what UP/DOWN change. **BACK steps back in time:** set screen, then the last set you logged (START there continues), then the Overview, then Resume / Save / Discard (see below). There is no menu during a workout; hold UP is a single shortcut on the set screen and on the Overview.
+The small icons at the screen edge show what each button does. Every workout screen keeps the same places: the exercise at the top, set dots (warmups first as small gray dots, then the working sets; the rest time sits below them during a rest), weight and reps in the middle, heart rate at the bottom. Yellow and underlined is what UP/DOWN change. **BACK steps back in time:** set screen, then the last set you logged (START there continues), then the Overview, then Resume / Save / Discard (see below). There is no menu during a workout; hold UP is a single shortcut on the set screen and on the Overview.
 
 ## Using NextSet
 

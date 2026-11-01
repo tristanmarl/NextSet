@@ -5,6 +5,7 @@ NextSet is an unofficial companion for Liftosaur. It is not made or endorsed by 
 ## 0.4.6
 - **Continue in the last-set editor.** BACK on the set screen opens the last set with a new first row, **Continue** (green when selected, preselected on opening). START on it saves anything you changed and returns to the set screen, so an accidental BACK costs one press: BACK, START. The other rows are unchanged (weight, reps, Delete; BACK still saves and goes to the Overview). The START icon is a play triangle on Continue and a check on the other rows.
 - The set dots stay visible during the rest, with the rest time below them.
+- **Set progress is always dots.** Warmups are their own small gray dots in front of the working sets (done gray, up next white, open an outline); the "Warmup 1/2" text and the "4/8" counter for long exercises are gone. Long rows shrink their gaps and dots to fit the round screen. A one-sided timed set shows its side in a small line under the dots.
 
 ## 0.4.5
 - **Resume / Save / Discard.** BACK on the Overview, BACK on Home during a workout and the prompt after the last set open one screen like a native Garmin activity: **Resume** (selected first), **Save**, **Discard** (UP/DOWN move, START confirms, BACK resumes). It shows the workout time and sets in a small line. **Save** finishes the workout ("Log a set before saving" when nothing is logged); **Discard** asks "Discard workout?" (Keep / Discard) first. The old "Finish?" review is gone.
