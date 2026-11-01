@@ -1,5 +1,6 @@
 import Toybox.Graphics;
 import Toybox.Lang;
+import Toybox.Math;
 import Toybox.WatchUi;
 
 class SummaryView extends WatchUi.View {
@@ -43,9 +44,27 @@ class SummaryView extends WatchUi.View {
             dc.drawText(dc.getWidth() / 2, h * 70 / 100, caption, text,
                 Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
         }
-        drawStatus(dc, current, h * 81 / 100, caption);
-        // START exits, or opens the retry choice for an unresolved Garmin activity.
-        Icons.startMarker(dc, hasUnresolvedActivity() ? "play" : "check");
+        var unresolved = hasUnresolvedActivity();
+        var sync = !unresolved && getApp().controller().syncActionable();
+        drawStatus(dc, current, h * (sync ? 78 : 81) / 100, caption);
+        if (sync) {
+            // The one place where words for an action earn their place.
+            dc.setColor(Graphics.COLOR_GREEN, Graphics.COLOR_BLACK);
+            var y = h * 89 / 100;
+            var label = "START: Sync to Liftosaur";
+            // The long text only where the round screen is wide enough at this height.
+            var dy = y - h / 2;
+            var half = Math.sqrt((h * h / 4 - dy * dy).toFloat()).toNumber();
+            if (dc.getTextWidthInPixels(label, caption) + 8 > half * 2) {
+                label = "START: Sync";
+            }
+            dc.drawText(dc.getWidth() / 2, y, caption, label,
+                Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+        }
+        // START exits, syncs to Liftosaur, or opens the retry choice for an unresolved Garmin
+        // activity (that choice comes first).
+        Icons.startMarker(dc, (unresolved || sync) ? "play" : "check");
     }
 
     // "✓ Garmin  ✓ Liftosaur" when both are fine; otherwise the first problem in words (red).
@@ -130,18 +149,34 @@ class SummaryDelegate extends KeyDelegate {
         KeyDelegate.initialize();
     }
 
-    public function onStartKey() as Boolean {
+    private function unresolvedActivity() as Boolean {
         var session = getApp().controller().session();
-        if (session != null && (Model.sameString((session as Dictionary)["fitState"], "failed") ||
-            Model.sameString((session as Dictionary)["fitState"], "unknown"))) {
+        return session != null && (Model.sameString((session as Dictionary)["fitState"], "failed") ||
+            Model.sameString((session as Dictionary)["fitState"], "unknown"));
+    }
+
+    // Order: an unresolved Garmin activity first (its choice offers the Liftosaur sync too), then
+    // "Sync to Liftosaur" while the upload is not done, else exit. Nothing while it is uploading.
+    public function onStartKey() as Boolean {
+        var controller = getApp().controller();
+        if (unresolvedActivity()) {
             Navigator.activityResultActions();
-        } else {
+        } else if (controller.syncActionable()) {
+            controller.retryUploads();
+            WatchUi.requestUpdate();
+        } else if (!controller.uploading()) {
             Navigator.exitApp();
         }
         return true;
     }
 
+    // BACK leaves (or opens the Garmin retry choice); it never starts a sync.
     public function onBackKey() as Boolean {
-        return onStartKey();
+        if (unresolvedActivity()) {
+            Navigator.activityResultActions();
+        } else {
+            Navigator.exitApp();
+        }
+        return true;
     }
 }

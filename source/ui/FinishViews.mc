@@ -4,9 +4,9 @@ import Toybox.System;
 import Toybox.Time;
 import Toybox.WatchUi;
 
-// Key-only finish flow: ReviewView (elapsed time, sets and exercises done) -> START saves,
-// BACK opens the Keep/Discard ConfirmView. The same ConfirmView (with a ConfirmAction) guards
-// the other destructive choices. No Menu2: menus accept taps.
+// Key-only finish flow: FinishChoiceView (Resume / Save / Discard) -> Discard opens the
+// Keep/Discard ConfirmView. The same ConfirmView (with a ConfirmAction) guards the other
+// destructive choices. No Menu2: menus accept taps.
 
 // START presses this soon after a screen opened are ignored (the set-logging press that opened
 // the end-of-workout prompt must not also confirm it).
@@ -18,7 +18,12 @@ module FinishGuard {
     }
 }
 
-class ReviewView extends WatchUi.View {
+// The end of the BACK chain, like a native Garmin activity: Resume (selected first), Save,
+// Discard. UP/DOWN move, START confirms, BACK resumes. A small caption shows the workout time
+// and sets so far.
+class FinishChoiceView extends WatchUi.View {
+    public var selected as Number = FinishLogic.RESUME;
+
     public function initialize() {
         View.initialize();
     }
@@ -31,52 +36,87 @@ class ReviewView extends WatchUi.View {
             UiFormat.drawLine(dc, "No active workout", dc.getHeight() / 2 - 10, Graphics.FONT_SMALL);
             return;
         }
-        // Same places as the set screen: title, a small row, the big value (workout time).
         var stats = UiFormat.reviewStats(session as Dictionary, Time.now().value());
         var h = dc.getHeight();
-        UiFormat.drawTitle(dc, "Finish?", h * 25 / 100);
+        UiFormat.drawTitle(dc, "Workout", h * 20 / 100);
+        var sets = stats["sets"] as Number;
         dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_BLACK);
-        dc.drawText(dc.getWidth() / 2, h * 39 / 100, Graphics.FONT_SMALL,
-            UiFormat.plural(stats["sets"] as Number, "set") + " · " +
-                UiFormat.plural(stats["exercises"] as Number, "exercise"),
+        dc.drawText(dc.getWidth() / 2, h * 33 / 100, UiFormat.captionFont(),
+            UiFormat.clockText(stats["elapsedSec"] as Number) + " · " + UiFormat.plural(sets, "set"),
             Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
-        UiFormat.drawBig(dc, [[UiFormat.clockText(stats["elapsedSec"] as Number), "num"]],
-            h * 57 / 100, -1, Graphics.COLOR_WHITE);
-        if (stats["sets"] as Number > 0) {
-            Icons.startMarker(dc, "check");
+        var font = Graphics.FONT_MEDIUM;
+        for (var i = 0; i < FinishLogic.CHOICE_COUNT; i++) {
+            var active = i == selected;
+            var label = FinishLogic.label(i);
+            var y = h * (50 + 15 * i) / 100;
+            dc.setColor(active ? Graphics.COLOR_YELLOW : Graphics.COLOR_LT_GRAY, Graphics.COLOR_BLACK);
+            dc.drawText(dc.getWidth() / 2, y, font, label,
+                Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+            if (active) {
+                var width = dc.getTextWidthInPixels(label, font);
+                dc.setPenWidth(3);
+                dc.drawLine((dc.getWidth() - width) / 2, y + dc.getFontHeight(font) / 2,
+                    (dc.getWidth() + width) / 2, y + dc.getFontHeight(font) / 2);
+                dc.setPenWidth(1);
+            }
         }
+        dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+        Icons.startMarker(dc, "check");
         Icons.backMarker(dc);
+        Icons.browseMarkers(dc);
     }
 }
 
-class ReviewDelegate extends KeyDelegate {
+class FinishChoiceDelegate extends KeyDelegate {
+    private var _view as FinishChoiceView;
     private var _openedAt as Number;
 
-    public function initialize() {
+    public function initialize(view as FinishChoiceView) {
         KeyDelegate.initialize();
+        _view = view;
         _openedAt = System.getTimer();
     }
 
-    // START saves; the controller still refuses a workout without a logged set.
+    public function onUpKey() as Boolean {
+        return moveSelection(-1);
+    }
+
+    public function onDownKey() as Boolean {
+        return moveSelection(1);
+    }
+
+    private function moveSelection(delta as Number) as Boolean {
+        if (!Navigator.staleWorkoutView()) {
+            _view.selected = FinishLogic.move(_view.selected, delta);
+            WatchUi.requestUpdate();
+        }
+        return true;
+    }
+
     public function onStartKey() as Boolean {
         if (Navigator.staleWorkoutView() || FinishGuard.tooSoon(_openedAt, System.getTimer())) {
             return true;
         }
         var session = getApp().controller().session();
-        if (session != null && SessionLogic.totals(session as Dictionary)["done"] == 0) {
+        var done = session == null ? 0 : SessionLogic.totals(session as Dictionary)["done"] as Number;
+        var action = FinishLogic.actionFor(_view.selected, done);
+        if (Model.sameString(action, FinishLogic.ACT_SAVE)) {
+            getApp().requestWorkoutFinish("completed");
+        } else if (Model.sameString(action, FinishLogic.ACT_NEED_SET)) {
             Navigator.feedback(Err.message(Err.LOG_A_SET_BEFORE_SAVING) as String);
-            return true;
+        } else if (Model.sameString(action, FinishLogic.ACT_CONFIRM_DISCARD)) {
+            Navigator.confirmDiscard();
+        } else {
+            WatchUi.popView(WatchUi.SLIDE_DOWN);
         }
-        getApp().requestWorkoutFinish("completed");
         return true;
     }
 
-    // BACK: Keep working / Discard choice (BACK there returns here).
+    // BACK resumes the workout.
     public function onBackKey() as Boolean {
-        if (Navigator.staleWorkoutView()) {
-            return true;
+        if (!Navigator.staleWorkoutView()) {
+            WatchUi.popView(WatchUi.SLIDE_DOWN);
         }
-        Navigator.confirmDiscard(true);
         return true;
     }
 }
@@ -102,19 +142,17 @@ class ConfirmAction {
 }
 
 class DiscardWorkoutAction extends ConfirmAction {
-    private var _fromReview as Boolean;
-
-    public function initialize(fromReview as Boolean) {
+    public function initialize() {
         ConfirmAction.initialize();
-        _fromReview = fromReview;
     }
 
     public function isWorkout() as Boolean {
         return true;
     }
 
+    // Keep: back to the workout (the confirmation and the choice screen close).
     public function keepPops() as Number {
-        return _fromReview ? 2 : 1;
+        return 2;
     }
 
     // Replaces the confirmation with the "Finishing" screen like a normal finish.
@@ -292,6 +330,10 @@ class ActivityResultDelegate extends WatchUi.Menu2InputDelegate {
             } else {
                 Navigator.feedback("Garmin save failed; local log is safe");
             }
+        } else if (Model.sameString(item.getId(), "sync")) {
+            WatchUi.popView(WatchUi.SLIDE_DOWN);
+            getApp().controller().retryUploads();
+            WatchUi.requestUpdate();
         } else if (Model.sameString(item.getId(), "exit")) {
             if (getApp().controller().keepLocalLogAndCloseActivity()) {
                 Navigator.exitApp();

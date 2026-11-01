@@ -379,6 +379,17 @@ class SessionController {
             _errorCode >= Err.LIFTOSAUR_KEY_REQUIRED ? Err.shortMessage(_errorCode) : null);
     }
 
+    // True when the summary should offer "Sync to Liftosaur" for the current workout.
+    public function syncActionable() as Boolean {
+        if (_session == null) {
+            return false;
+        }
+        var id = (_session as Dictionary)["id"];
+        var state = id instanceof String ? uploadStatuses()[id] : null;
+        return LiftosaurLogic.syncActionable(state instanceof String ? state as String : null,
+            _sync.activityLabel() != null, _sync.hasKey());
+    }
+
     public function uploading() as Boolean {
         return _sync.activityLabel() != null;
     }

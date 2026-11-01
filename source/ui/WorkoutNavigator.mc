@@ -4,19 +4,20 @@ import Toybox.WatchUi;
 // Workout menus and finish-flow entry points: the rest of the Navigator module (Monkey C merges
 // declarations of a module across files). Split out of Navigator.mc.
 module Navigator {
-    // Key-only review of the finished workout (START saves, BACK opens Keep/Discard). With no
-    // set logged START only says so; BACK still offers Discard.
+    // End of the BACK chain: Resume / Save / Discard (Resume selected). With no set logged Save
+    // only says so; Discard still works.
     function review() as Void {
         if (getApp().controller().session() == null) {
             return;
         }
-        WatchUi.pushView(new ReviewView(), new ReviewDelegate(), WatchUi.SLIDE_UP);
+        var view = new FinishChoiceView();
+        WatchUi.pushView(view, new FinishChoiceDelegate(view), WatchUi.SLIDE_UP);
     }
 
-    // Key-only Keep/Discard choice for the workout; Keep is selected first.
-    function confirmDiscard(fromReview as Boolean) as Void {
-        var view = new ConfirmView("Discard?", "Keep working", "Discard");
-        WatchUi.pushView(view, new ConfirmDelegate(view, new DiscardWorkoutAction(fromReview)),
+    // Key-only Keep/Discard question; Keep is selected first. Keep returns to the workout.
+    function confirmDiscard() as Void {
+        var view = new ConfirmView("Discard workout?", "Keep", "Discard");
+        WatchUi.pushView(view, new ConfirmDelegate(view, new DiscardWorkoutAction()),
             WatchUi.SLIDE_UP);
     }
 
@@ -41,6 +42,9 @@ module Navigator {
         var menu = new WatchUi.Menu2({:title=>"Workout saved"});
         if (getApp().controller().canRetryActivitySave()) {
             menu.addItem(new WatchUi.MenuItem("Retry Garmin save", null, "retry", null));
+        }
+        if (getApp().controller().syncActionable()) {
+            menu.addItem(new WatchUi.MenuItem("Sync to Liftosaur", null, "sync", null));
         }
         menu.addItem(new WatchUi.MenuItem("Keep local log and exit", null, "exit", null));
         WatchUi.pushView(menu, new ActivityResultDelegate(), WatchUi.SLIDE_UP);

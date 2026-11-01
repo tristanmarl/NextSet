@@ -105,6 +105,13 @@ module LiftosaurLogic {
             {"icon" => "clock", "text" => "Pending · next launch"};
     }
 
+    // The summary offers "Sync to Liftosaur" (START uploads now) while this workout's upload is
+    // waiting or failed: pending in the queue, not uploading right now, and a key is set. Not
+    // when it is done, skipped, uploading, or has no job; nothing without a key.
+    function syncActionable(state as String?, uploading as Boolean, hasKey as Boolean) as Boolean {
+        return hasKey && !uploading && Model.sameString(state, Liftosaur.STATUS_PENDING);
+    }
+
     // "lftsk_…ab12": prefix and last four characters only.
     function maskKey(key as String) as String {
         if (key.length() <= 10) {

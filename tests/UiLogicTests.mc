@@ -100,3 +100,39 @@ function testFinishGuardIgnoresEarlyStart(logger as Test.Logger) as Boolean {
     return check(logger, early && !later && !clockWrap,
         "a START right after a screen opens is ignored, later ones are not");
 }
+
+(:test)
+function testFinishChoices(logger as Test.Logger) as Boolean {
+    var labels = FinishLogic.label(0) + FinishLogic.label(1) + FinishLogic.label(2);
+    var okLabels = Model.sameString(labels, "ResumeSaveDiscard");
+    var okMove = FinishLogic.move(0, 1) == 1 && FinishLogic.move(1, 1) == 2 &&
+        FinishLogic.move(2, 1) == 0 && FinishLogic.move(0, -1) == 2 && FinishLogic.move(2, -1) == 1;
+    var resume = FinishLogic.actionFor(FinishLogic.RESUME, 0);
+    var saveNone = FinishLogic.actionFor(FinishLogic.SAVE, 0);
+    var saveSome = FinishLogic.actionFor(FinishLogic.SAVE, 3);
+    var discard = FinishLogic.actionFor(FinishLogic.DISCARD, 3);
+    var okResume = Model.sameString(resume, FinishLogic.ACT_RESUME);
+    var okSave = Model.sameString(saveNone, FinishLogic.ACT_NEED_SET) &&
+        Model.sameString(saveSome, FinishLogic.ACT_SAVE);
+    var okDiscard = Model.sameString(discard, FinishLogic.ACT_CONFIRM_DISCARD) &&
+        Model.sameString(FinishLogic.actionFor(FinishLogic.DISCARD, 0), FinishLogic.ACT_CONFIRM_DISCARD);
+    var okBack = Model.sameString(FinishLogic.backAction(), FinishLogic.ACT_RESUME);
+    return check(logger, okLabels && okMove, "Resume, Save, Discard in order; UP/DOWN wrap") &&
+        check(logger, okResume && okBack, "Resume is first; BACK resumes") &&
+        check(logger, okSave, "Save needs a logged set") &&
+        check(logger, okDiscard, "Discard asks for confirmation");
+}
+
+(:test)
+function testSyncActionByUploadState(logger as Test.Logger) as Boolean {
+    var pending = LiftosaurLogic.syncActionable(Liftosaur.STATUS_PENDING, false, true);
+    var uploading = LiftosaurLogic.syncActionable(Liftosaur.STATUS_PENDING, true, true);
+    var done = LiftosaurLogic.syncActionable(Liftosaur.STATE_DONE, false, true);
+    var skipped = LiftosaurLogic.syncActionable(Liftosaur.STATUS_SKIPPED, false, true);
+    var noJob = LiftosaurLogic.syncActionable(null, false, true);
+    var noKey = LiftosaurLogic.syncActionable(Liftosaur.STATUS_PENDING, false, false);
+    return check(logger, pending, "pending or failed upload offers sync") &&
+        check(logger, !uploading, "no sync label while uploading") &&
+        check(logger, !done && !skipped && !noJob, "no sync label when done, skipped or without a job") &&
+        check(logger, !noKey, "no sync label without a Liftosaur key");
+}
