@@ -130,6 +130,42 @@
        "timer": 60,
        "setTimer": null,
        "completed": null
+      },
+      {
+       "setId": "cw01",
+       "index": 1,
+       "isWarmup": true,
+       "reps": 6,
+       "minReps": null,
+       "isAmrap": false,
+       "weight": "60kg",
+       "originalWeight": "60kg",
+       "plates": [],
+       "rpe": null,
+       "logRpe": false,
+       "askWeight": false,
+       "isUnilateral": false,
+       "timer": 60,
+       "setTimer": null,
+       "completed": null
+      },
+      {
+       "setId": "cw02",
+       "index": 2,
+       "isWarmup": true,
+       "reps": 3,
+       "minReps": null,
+       "isAmrap": false,
+       "weight": "70kg",
+       "originalWeight": "70kg",
+       "plates": [],
+       "rpe": null,
+       "logRpe": false,
+       "askWeight": false,
+       "isUnilateral": false,
+       "timer": 60,
+       "setTimer": null,
+       "completed": null
       }
      ],
      "sets": [

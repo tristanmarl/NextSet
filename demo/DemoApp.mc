@@ -22,10 +22,9 @@ class DemoApp extends NextSetApp {
         _adder = new Timer.Timer();
     }
 
-    // Seven planned sets show the "1/7" counter instead of dots; one set per tick (watchdog).
+    // Chest Press: three warmups and seven working sets, all dots; one set per tick (watchdog).
     public function addDemoSet() as Void {
         controller().addSet(demoEntry("Chest Press"));
-        controller().skipWarmups(demoEntry("Chest Press"));
         _added++;
         if (_added >= 4) {
             _adder.stop();
@@ -61,7 +60,7 @@ class DemoApp extends NextSetApp {
         if (_screen == 0) {
             view = new ExerciseView(row);
         } else if (_screen == 1) {
-            // Plain set screen (seven sets: counter); the rest is skipped for the next ones.
+            // Plain set screen (first warmup up next, seven sets); the rest is skipped for the next ones.
             controller().restAction("skip", Time.now().value());
             view = new ExerciseView(press);
         } else if (_screen == 2) {
