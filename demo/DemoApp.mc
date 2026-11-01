@@ -5,7 +5,7 @@ import Toybox.Timer;
 import Toybox.WatchUi;
 
 // Screenshot build (monkey.demo.jungle, separate app id): fills the simulator with a made-up
-// program, starts a workout with two logged sets and shows the main screens in turn, 8 s each,
+// program, starts a workout with two logged sets and shows the main screens in turn, 3 s each,
 // so they can be captured without button input. Never shipped.
 class DemoApp extends NextSetApp {
     private var _cycle as Timer.Timer;
@@ -43,7 +43,7 @@ class DemoApp extends NextSetApp {
             controller.completeDraft(row, 1, now);
         }
         NextSetApp.onStart(state);
-        _cycle.start(method(:nextScreen), 8000, true);
+        _cycle.start(method(:nextScreen), 3000, true);
         _adder.start(method(:addDemoSet), 700, true);
     }
 

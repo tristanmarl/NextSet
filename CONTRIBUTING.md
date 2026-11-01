@@ -47,7 +47,7 @@ Before a pull request:
 
 ## Screenshots
 
-`monkey.demo.jungle` builds a demo app (separate app id, `manifest.demo.xml`, never shipped) that fills the simulator with a made-up program from `demo/resources/data/demo.xml`, starts a workout with two logged sets and switches between the set screens, the editors (Change weight, last set with Delete), the delete confirmation, the Overview and Home every 8 s, so screens can be captured without button input:
+`monkey.demo.jungle` builds a demo app (separate app id, `manifest.demo.xml`, never shipped) that fills the simulator with a made-up program from `demo/resources/data/demo.xml`, starts a workout with two logged sets and switches between the set screens, the editors (Change weight, last set with Delete), the delete confirmation, the Overview and Home every 3 s, so screens can be captured without button input:
 
 ```sh
 monkeyc -f monkey.demo.jungle -d fr965 -o bin/NextSet-demo.prg -y "$KEY"

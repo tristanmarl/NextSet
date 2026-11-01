@@ -26,6 +26,8 @@ scripts/test.sh
 
 The runner has previously exited 1 after reporting all tests passed; inspect its PASS/FAIL summary and record the result in `docs/DEVICE_TESTS.md`. A build or simulator result is not a physical-watch result.
 
+While iterating, build only `fr965` (454 px) and `fenix7s` (240 px, small screen); build `fr255s` (MIP, no vector fonts) once before committing. Every release also gets the local store `.iq` (`monkeyc -e -r -f monkey.jungle -o bin/release-X.Y.Z/NextSet-X.Y.Z.iq -y "$KEY"`). The demo build (`monkey.demo.jungle`) switches screens every 3 s for screenshots.
+
 ## Architecture
 
 Liftosaur is the source of routines and progression. The watch talks directly to `https://www.liftosaur.com/api/v1` through `Communications.makeWebRequest`; there is no NAS HTTP transport.
