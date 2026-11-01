@@ -92,9 +92,22 @@ class ExerciseView extends WatchUi.View {
             var now = Time.now().value();
             var text = running ? UiFormat.clockText(RestClock.remaining(rest as Dictionary, now)) :
                 "+" + UiFormat.clockText(RestClock.overtime(rest as Dictionary, now));
+            // The set dots stay visible during the rest (sets still to go); the rest time sits
+            // just below them and the next set moves down a little.
+            var dotsY = h * 35 / 100;
+            if (shownSlot >= Model.WARMUP_BASE) {
+                dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_BLACK);
+                dc.drawText(dc.getWidth() / 2, dotsY, Graphics.FONT_XTINY, "Warmup " +
+                    (shownSlot - Model.WARMUP_BASE + 1).toString() + "/" +
+                    SessionLogic.warmupCount(shown).toString(),
+                    Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+            } else {
+                Icons.setProgress(dc, dotsY, doneSets(shown), shown["plannedSetCount"] as Number, shownSlot);
+            }
             dc.setColor(running ? Graphics.COLOR_BLUE : Graphics.COLOR_GREEN, Graphics.COLOR_BLACK);
-            dc.drawText(dc.getWidth() / 2, rowY, Graphics.FONT_LARGE, text,
+            dc.drawText(dc.getWidth() / 2, h * 45 / 100, Graphics.FONT_MEDIUM, text,
                 Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+            valueY = h * 62 / 100;
         } else if (Model.sameString(loadType, "timed") && current["unilateral"] == true) {
             var sideDraft = (Model.slotAt(current, slot) as Dictionary)["draft"] as Dictionary;
             dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
