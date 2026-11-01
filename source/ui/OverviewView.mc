@@ -70,26 +70,23 @@ class OverviewView extends WatchUi.View {
         if (groupLabel != null) {
             focusTitle = (groupLabel as String) + " " + focusTitle;
         }
-        // Same positions as the set screen: name, a small row (position in the list), the sets
-        // done big in the centre, the next set below it, heart rate.
+        // Same rows as the set screen: name (25 %), the shared dots row (39 %, this exercise's
+        // warmups and sets, the next open slot is the current one), "Exercise n/N" (small gray),
+        // the next set in a small line below it, heart rate (79 %).
         var h = dc.getHeight();
         UiFormat.drawTitle(dc, focusTitle, h * 25 / 100);
+        var nextSlot = SessionLogic.activeSlot(focused);
+        Icons.setProgress(dc, h * 39 / 100, SessionLogic.warmupCount(focused), SessionLogic.completedWarmups(focused),
+            focused["plannedSetCount"] as Number, SessionLogic.completedCount(focused), nextSlot);
         dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_BLACK);
-        dc.drawText(dc.getWidth() / 2, h * 39 / 100, Graphics.FONT_SMALL,
+        dc.drawText(dc.getWidth() / 2, h * 51 / 100, Graphics.FONT_XTINY,
             "Exercise " + (_selectedIndex + 1).toString() + "/" + exercises.size().toString(),
             Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
-        // Small screens use the next smaller number font so the next-set line fits above the heart rate.
-        var box = UiFormat.drawBigFrom(dc, [[SessionLogic.completedCount(focused).toString() + "/" +
-            (focused["plannedSetCount"] as Number).toString(), "num"], ["sets", "unit"]],
-            h * 55 / 100, -1, Graphics.COLOR_WHITE, h < 300 ? 1 : 0);
-        var nextSlot = SessionLogic.activeSlot(focused);
         if (nextSlot >= 0) {
-            dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_BLACK);
-            var captionY = box[3] - 2 + dc.getFontHeight(UiFormat.captionFont()) / 2;
-            dc.drawText(dc.getWidth() / 2, captionY, UiFormat.captionFont(),
+            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+            dc.drawText(dc.getWidth() / 2, h * 64 / 100, Graphics.FONT_SMALL,
                 (nextSlot >= Model.WARMUP_BASE ? "Warmup " : "") + UiFormat.draftLine(focused, nextSlot),
                 Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
-            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
         }
         UiFormat.drawHrRow(dc, h * 79 / 100, _message);
         Icons.startMarker(dc, "play");
