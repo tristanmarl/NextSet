@@ -16,10 +16,25 @@ module Catalog {
         return "sync-" + syncSeq.toString() + "-d" + ordinal.toString();
     }
 
+    // Why the last parseRoutine returned null (short text), else null. Built only on failure.
+    var lastProblem as String? = null;
+
+    // Records "W1 D2 Name: text" (name only when an exercise is given) and returns null.
+    function reject(workout as Dictionary, source as Dictionary?, text as String) as Dictionary? {
+        var day = workout["dayData"] as Dictionary;
+        lastProblem = Model.fit("W" + day["week"].toString() + " D" + day["dayInWeek"].toString() +
+            (source == null ? ": " : " " + Model.nameTag(source["name"]) + ": ") + text, 60);
+        return null;
+    }
+
     function parseRoutine(reply as Object?, syncSeq as Number, ordinal as Number) as Dictionary? {
-        if (!Model.validLiftosaurWorkout(reply) ||
-            !Model.inRange(syncSeq, 1, 2147483647, false) ||
+        lastProblem = Model.liftosaurWorkoutProblem(reply);
+        if (lastProblem != null) {
+            return null;
+        }
+        if (!Model.inRange(syncSeq, 1, 2147483647, false) ||
             !Model.inRange(ordinal, 1, Model.MAX_TEMPLATES, false)) {
+            lastProblem = "Day number out of range";
             return null;
         }
         var workout = workoutFromReply(reply) as Dictionary;
@@ -35,19 +50,21 @@ module Catalog {
                 }
             }
             if (sets.size() == 0 || sets.size() > Model.MAX_SETS) {
-                return null;
+                return reject(workout, source, sets.size() == 0 ? "only warmup sets" :
+                    sets.size().toString() + " sets (max " + Model.MAX_SETS.toString() + ")");
             }
             var firstSet = sets[0] as Dictionary;
-            var timed = firstSet["setTimer"] instanceof Number;
+            var timed = Model.timedSet(firstSet);
             // kg or lb as Liftosaur sends it; one exercise never mixes units.
             var unit = Model.weightUnit(firstSet["weight"]);
             var bodyweight = true;
             var isUnilateral = false;
             for (var s = 0; s < sets.size(); s++) {
                 var sourceSet = sets[s] as Dictionary;
-                if ((sourceSet["setTimer"] instanceof Number) != timed ||
+                if (Model.timedSet(sourceSet) != timed ||
                     !Model.sameString(Model.weightUnit(sourceSet["weight"]), unit)) {
-                    return null;
+                    return reject(workout, source, Model.timedSet(sourceSet) != timed ?
+                        "mixes timed and normal sets" : "mixes kg and lb");
                 }
                 isUnilateral = isUnilateral || sourceSet["isUnilateral"] == true;
                 if (Model.weightLoad100(sourceSet["weight"]) != 0) {
@@ -76,7 +93,7 @@ module Catalog {
                     "reps" => reps,
                     "minReps" => lowReps,
                     "load100" => Model.sameString(type, "weight") ? load100 : null,
-                    "durationSec" => sourceSet["setTimer"],
+                    "durationSec" => timed ? sourceSet["setTimer"] : null,
                     "logRpe" => sourceSet["logRpe"] == true ? true : null,
                     "rpe10" => rpe instanceof Number || rpe instanceof Float || rpe instanceof Double ?
                         clampRpe10(Math.round((rpe as Numeric) * 10.0).toNumber()) : null
@@ -89,20 +106,20 @@ module Catalog {
                     var warmup = (sourceWarmups as Array)[w] as Dictionary;
                     if (!Model.sameString(Model.weightUnit(warmup["weight"]), unit) &&
                         Model.weightLoad100(warmup["weight"]) != 0) {
-                        return null;
+                        return reject(workout, source, "warmup unit differs");
                     }
                     var warmupReps = warmup["reps"] instanceof Number ?
                         warmup["reps"] : warmup["minReps"];
                     warmups.add({
                         "reps" => warmupReps,
                         "load100" => Model.weightLoad100(warmup["weight"]),
-                        "durationSec" => warmup["setTimer"],
+                        "durationSec" => timed ? warmup["setTimer"] : null,
                         "restSec" => warmup["timer"] instanceof Number ? warmup["timer"] : null
                     });
                 }
             }
             if (targets.size() == 0) {
-                return null;
+                return reject(workout, source, "no sets");
             }
             var firstTarget = targets[0] as Dictionary;
             var restSec = firstSet["timer"];
@@ -126,7 +143,7 @@ module Catalog {
                 "warmups" => warmups,
                 "targetRepsMin" => timed ? null : firstTarget["reps"],
                 "targetRepsMax" => timed ? null : firstTarget["reps"],
-                "targetDurationSec" => firstSet["setTimer"],
+                "targetDurationSec" => timed ? firstSet["setTimer"] : null,
                 "prompts" => promptsOf(source["promptedVars"]),
                 "startingLoad100" => Model.sameString(type, "weight") ?
                     Model.weightLoad100(firstSet["weight"]) : null
@@ -142,17 +159,47 @@ module Catalog {
             "dayInWeek" => dayData["dayInWeek"],
             "entries" => entries
         };
-        return validRoutine(routine) ? routine : null;
+        if (!validRoutine(routine)) {
+            return reject(workout, null, "routine rejected");
+        }
+        return routine;
     }
 
-    function nextRoutineCoordinates(reply as Object?) as Dictionary? {
-        if (!Model.validLiftosaurWorkout(reply)) {
+    // Program, week, day and name of a /workout/next reply whose envelope is well formed,
+    // whatever its exercises (none, or ones NextSet cannot run), else null. The sync uses it to
+    // tell a reply for the wrong day (stop) from a day it skips (empty or unsupported).
+    function dayCoordinates(reply as Object?) as Dictionary? {
+        var workout = workoutFromReply(reply);
+        if (workout == null) {
             return null;
         }
-        var workout = workoutFromReply(reply) as Dictionary;
-        var day = workout["dayData"] as Dictionary;
-        return {"programId" => workout["programId"], "week" => day["week"],
-            "dayInWeek" => day["dayInWeek"]};
+        var day = workout["dayData"];
+        if (!(workout["entries"] instanceof Array) ||
+            !Model.validProgramId(workout["programId"]) ||
+            !Model.validNonblankText(workout["dayName"], 64) || !(day instanceof Dictionary) ||
+            !Model.inRange((day as Dictionary)["week"], 1, 1000, false) ||
+            !Model.inRange((day as Dictionary)["dayInWeek"], 1, 1000, false)) {
+            return null;
+        }
+        return {"programId" => workout["programId"], "name" => workout["dayName"],
+            "week" => (day as Dictionary)["week"], "dayInWeek" => (day as Dictionary)["dayInWeek"],
+            "exercises" => (workout["entries"] as Array).size()};
+    }
+
+    // The routine to offer next: Liftosaur's next day, or when that day was skipped (no
+    // exercises) the next synced day after it in the week, else the first synced day.
+    function nextRoutineId(routines as Array, week as Number, dayInWeek as Number) as String? {
+        var exact = findRoutineId(routines, week, dayInWeek);
+        if (exact != null || routines.size() == 0) {
+            return exact;
+        }
+        for (var i = 0; i < routines.size(); i++) {
+            var routine = routines[i] as Dictionary;
+            if (routine["week"] == week && (routine["dayInWeek"] as Number) > dayInWeek) {
+                return routine["id"] as String;
+            }
+        }
+        return (routines[0] as Dictionary)["id"] as String;
     }
 
     function findRoutineId(routines as Array, week as Number, dayInWeek as Number) as String? {

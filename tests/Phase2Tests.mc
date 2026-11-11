@@ -63,27 +63,23 @@ function phase2UploadSession(type as String, unilateral as Boolean,
 function testLiftoscriptDaysAndLimits(logger as Test.Logger) as Boolean {
     var parsed = LiftosaurLogic.parseDays(
         "# Week 1\r\n## Upper\r\n// ignored\r\n## Lower\r\n# Week 2\r\n## Upper\r\n");
-    var days = parsed as Array;
-    var tooMany = "# Week 1\n";
-    for (var i = 0; i < 9; i++) {
-        tooMany += "## Day " + i.toString() + "\n";
-    }
+    var weeks = parsed as Array;
     var opaqueIdReply = phase2ApiWorkout("Opaque", "1790752141000".toLong(),
         "Row", false, false, "opaque");
     var opaqueData = opaqueIdReply["data"] as Dictionary;
     var opaqueWorkout = opaqueData["workout"] as Dictionary;
     opaqueWorkout["programId"] = "Program_A1";
     var opaqueRoutine = Catalog.parseRoutine(opaqueIdReply, 1, 1);
-    return check(logger, parsed != null && days.size() == 3 && days[1]["dayInWeek"] == 2 &&
-            days[2]["week"] == 2 && Model.sameString(days[2]["name"], "Upper"),
-            "Liftoscript headers parse CRLF, comments, repeated day names and per-week coordinates") &&
-        check(logger, LiftosaurLogic.parseDays("## Upper\n# Week 1\n") == null &&
-            LiftosaurLogic.parseDays("# Week nope\n## Upper\n") == null &&
-            LiftosaurLogic.parseDays("# Week 1\n## Upper\n# Week 1\n## Lower\n") == null,
-            "headers before a week, malformed weeks, and duplicate week blocks are rejected") &&
-        check(logger, LiftosaurLogic.parseDays(tooMany) == null &&
-            LiftosaurLogic.parseDays("# Week 1001\n## Upper\n") == null,
-            "routine count and week bounds are enforced while parsing") &&
+    var shape = parsed != null && weeks.size() == 2 && (weeks[0] as Array).size() == 2 &&
+        (weeks[1] as Array).size() == 1;
+    var names = shape && Model.sameString((weeks[0] as Array)[1], "Lower") &&
+        Model.sameString((weeks[1] as Array)[0], "Upper");
+    var implicitThenHeader = LiftosaurLogic.parseDays("## Upper\n# Week 1\n");
+    var noDays = LiftosaurLogic.parseDays("# Week 1\n");
+    return check(logger, names,
+            "Liftoscript headers parse CRLF, comments, repeated day names into weeks of names") &&
+        check(logger, implicitThenHeader == null && noDays == null,
+            "a week header after implicit days, and a program without days, are rejected") &&
         check(logger, opaqueRoutine != null &&
             Model.sameString((opaqueRoutine as Dictionary)["programId"], "Program_A1"),
             "external Liftosaur program IDs remain opaque bounded text");
@@ -97,6 +93,7 @@ function testDirectLiftosaurFixtureConversion(logger as Test.Logger) as Boolean 
     var program = WatchUi.loadResource(Rez.JsonData.LiftosaurProgram) as Dictionary;
     var programData = program["data"] as Dictionary;
     var days = LiftosaurLogic.parseDays(programData["text"] as String) as Array;
+    days = LiftosaurLogic.weekDayRows(days, 1) as Array;
     var upperReply = WatchUi.loadResource(Rez.JsonData.LiftosaurUpper) as Dictionary;
     var lowerReply = WatchUi.loadResource(Rez.JsonData.LiftosaurLower) as Dictionary;
     var afterLoad = System.getSystemStats();
@@ -179,7 +176,7 @@ function testDirectLiftosaurFixtureConversion(logger as Test.Logger) as Boolean 
     var lastSets = (exercise["last"] as Dictionary)["sets"] as Array;
     var lastFirstSet = lastSets[0] as Array;
     var lastFirstLoad = lastFirstSet[1];
-    var next = Catalog.nextRoutineCoordinates(lowerReply) as Dictionary;
+    var next = Catalog.dayCoordinates(lowerReply) as Dictionary;
     var startOk = Model.epochMillis(rawStart) != null;
     var millisOk = exactDouble != null && fractionalDouble == null;
     var repliesOk = Model.validLiftosaurWorkout(upperReply) &&
@@ -379,32 +376,6 @@ function testUploadTimedUnilateralAndAssistance(logger as Test.Logger) as Boolea
         check(logger, Model.validLiftosaurWorkout(invalidTimedUnilateral) &&
             Catalog.parseRoutine(invalidTimedUnilateral, 1, 1) != null,
             "one-sided timed workouts sync: the watch records both holds");
-}
-
-(:test)
-function testLiftoscriptImplicitWeekMultiWeekAndFilter(logger as Test.Logger) as Boolean {
-    var implicit = LiftosaurLogic.parseDays("## Upper\n## Lower\n") as Array;
-    var multi = "";
-    for (var w = 1; w <= 3; w++) {
-        multi += "# Week " + w.toString() + "\n";
-        for (var d = 0; d < 6; d++) {
-            multi += "## Day " + d.toString() + "\n";
-        }
-    }
-    var parsed = LiftosaurLogic.parseDays(multi);
-    var weekTwo = parsed == null ? [] : LiftosaurLogic.daysForWeek(parsed as Array, 2);
-    var nineInWeek = "# Week 1\n";
-    for (var d = 0; d < 9; d++) {
-        nineInWeek += "## Day " + d.toString() + "\n";
-    }
-    return check(logger, implicit.size() == 2 && implicit[0]["week"] == 1 &&
-            implicit[1]["dayInWeek"] == 2,
-            "days without a week header belong to an implicit week 1") &&
-        check(logger, parsed != null && (parsed as Array).size() == 18 && weekTwo.size() == 6 &&
-            weekTwo[0]["week"] == 2 && weekTwo[5]["dayInWeek"] == 6,
-            "multi-week programs parse past eight total days and filter to one week") &&
-        check(logger, LiftosaurLogic.parseDays(nineInWeek) == null,
-            "the eight-day cap applies per week");
 }
 
 (:test)

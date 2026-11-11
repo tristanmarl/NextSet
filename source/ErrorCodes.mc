@@ -125,7 +125,7 @@ module Err {
             case LIFTOSAUR_UNAUTHORIZED:
                 return "Liftosaur key was rejected";
             case ROUTINE_SYNC_INVALID_RESPONSE:
-                return "Liftosaur routine data is invalid";
+                return "Routine not supported; see Settings > Diagnostics";
             case ROUTINE_SYNC_SAVE_FAILED:
                 return "Could not save routines";
             case ROUTINE_SYNC_RESPONSE_TOO_LARGE:
@@ -171,6 +171,8 @@ module Err {
                 return "Update app to resume";
             case ROUTINE_NOT_FOUND:
                 return "Routine not found";
+            case ROUTINE_SYNC_INVALID_RESPONSE:
+                return "Sync failed: see Diagnostics";
             case WORKOUT_CANNOT_START:
                 return "Workout cannot start";
             case COULD_NOT_RESERVE_WORKOUT_ID:

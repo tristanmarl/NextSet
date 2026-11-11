@@ -4,7 +4,9 @@ import Toybox.Math;
 module Model {
     const MAX_EXERCISES = 32;
     const MAX_TEMPLATES = 8;
-    const MAX_PROGRAM_DAYS = 48;
+    // Total days over all weeks of a program (only the current week is ever synced).
+    const MAX_PROGRAM_DAYS = 160;
+    const MAX_PROGRAM_WEEKS = 104;
     // Warmup slots are addressed as WARMUP_BASE + index so one slot number identifies either kind.
     const WARMUP_BASE = 100;
     const MAX_WARMUP_SLOTS = 4;
@@ -208,85 +210,157 @@ module Model {
         return sameString(unit, "lb") ? amount * 0.45359237 : amount;
     }
 
-    function validLiftosaurSet(set as Object?) as Boolean {
+    // Cuts text to at most max characters (whole characters).
+    function fit(text as String, max as Number) as String {
+        return text.length() <= max ? text : text.substring(0, max) as String;
+    }
+
+    // Short name for a problem text; works for any value.
+    function nameTag(value as Object?) as String {
+        return value instanceof String && (value as String).length() > 0 ?
+            fit(value as String, 20) : "Exercise";
+    }
+
+    // Why a Liftosaur set is not usable, or null. Strings are built only on failure.
+    function liftosaurSetProblem(set as Object?) as String? {
         if (!(set instanceof Dictionary)) {
-            return false;
+            return "set is not an object";
         }
         var item = set as Dictionary;
         var reps = item["reps"] instanceof Number ? item["reps"] : item["minReps"];
         var timer = item["setTimer"];
-        return validNonblankText(item["setId"], 64) &&
-            (item["isWarmup"] == null || item["isWarmup"] instanceof Boolean) &&
-            inRange(reps, 1, MAX_REPS, false) && weightLoad100(item["weight"]) != null &&
-            inRange(item["timer"], 0, MAX_REST_SEC, true) &&
-            inRange(timer, 1, MAX_DURATION_SEC, true) &&
-            (timer == null || reps == 1) &&
-            (item["isUnilateral"] == null || item["isUnilateral"] instanceof Boolean);
+        if (!validNonblankText(item["setId"], 64)) {
+            return "set has no id";
+        }
+        if (!(item["isWarmup"] == null || item["isWarmup"] instanceof Boolean)) {
+            return "bad isWarmup";
+        }
+        if (!inRange(reps, 1, MAX_REPS, false)) {
+            return reps == null ? "set has no reps" : "reps out of range";
+        }
+        if (weightLoad100(item["weight"]) == null) {
+            return "no weight";
+        }
+        if (!inRange(item["timer"], 0, MAX_REST_SEC, true)) {
+            return "rest out of range";
+        }
+        if (!inRange(timer, 1, MAX_DURATION_SEC, true)) {
+            return "timer out of range";
+        }
+        if (!(item["isUnilateral"] == null || item["isUnilateral"] instanceof Boolean)) {
+            return "bad isUnilateral";
+        }
+        return null;
     }
 
-    function validLiftosaurEntry(entry as Object?) as Boolean {
+    // A Liftosaur set NextSet runs as a timed hold: a set timer and one rep. A set timer with more
+    // reps (EMOM: "5x5 135lb 60s|0s auto") is a work window; it is logged as a weight/reps set.
+    function timedSet(set as Dictionary) as Boolean {
+        var reps = set["reps"] instanceof Number ? set["reps"] : set["minReps"];
+        return set["setTimer"] instanceof Number && reps == 1;
+    }
+
+    function validLiftosaurSet(set as Object?) as Boolean {
+        return liftosaurSetProblem(set) == null;
+    }
+
+    // Why a Liftosaur exercise entry is not usable, or null ("Name: reason").
+    function liftosaurEntryProblem(entry as Object?) as String? {
         if (!(entry instanceof Dictionary)) {
-            return false;
+            return "exercise is not an object";
         }
         var item = entry as Dictionary;
         var sets = item["sets"];
         var warmups = item["warmupSets"];
-        if (!validNonblankText(item["entryId"], 64) ||
-            (item["exerciseId"] != null && !validNonblankText(item["exerciseId"], 64)) ||
-            !validNonblankText(item["name"], 64) ||
-            !validText(item["equipment"], 48, true) ||
-            !validText(item["superset"], 24, true) ||
-            !(sets instanceof Array) || (sets as Array).size() < 1 ||
-            (sets as Array).size() > MAX_SETS ||
-            (warmups != null && (!(warmups instanceof Array) ||
-                (warmups as Array).size() > MAX_SETS))) {
-            return false;
+        var tag = nameTag(item["name"]);
+        var reason = null;
+        if (!validNonblankText(item["entryId"], 64)) {
+            reason = "no entry id";
+        } else if (item["exerciseId"] != null && !validNonblankText(item["exerciseId"], 64)) {
+            reason = "bad exercise id";
+        } else if (!validNonblankText(item["name"], 64)) {
+            reason = "bad exercise name";
+        } else if (!validText(item["equipment"], 48, true) ||
+            !validText(item["superset"], 24, true)) {
+            reason = "bad equipment or superset";
+        } else if (!(sets instanceof Array) || (sets as Array).size() < 1) {
+            reason = "no sets";
+        } else if ((sets as Array).size() > MAX_SETS) {
+            reason = (sets as Array).size().toString() + " sets (max " + MAX_SETS.toString() + ")";
+        } else if (warmups != null && !(warmups instanceof Array)) {
+            reason = "bad warmups";
+        } else if (warmups != null && (warmups as Array).size() > MAX_SETS) {
+            reason = (warmups as Array).size().toString() + " warmups (max " +
+                MAX_SETS.toString() + ")";
+        }
+        if (reason != null) {
+            return tag + ": " + reason;
         }
         var values = sets as Array;
         var timed = null;
         for (var i = 0; i < values.size(); i++) {
-            if (!validLiftosaurSet(values[i])) {
-                return false;
+            var problem = liftosaurSetProblem(values[i]);
+            if (problem != null) {
+                return tag + ": " + problem;
             }
-            var isTimed = (values[i] as Dictionary)["setTimer"] instanceof Number;
+            var isTimed = timedSet(values[i] as Dictionary);
             if (timed != null && timed != isTimed) {
-                return false;
+                return tag + ": mixes timed and normal sets";
             }
             timed = isTimed;
         }
         if (warmups instanceof Array) {
             values = warmups as Array;
             for (var i = 0; i < values.size(); i++) {
-                if (!validLiftosaurSet(values[i])) {
-                    return false;
+                var problem = liftosaurSetProblem(values[i]);
+                if (problem != null) {
+                    return tag + ": warmup " + problem;
                 }
             }
         }
-        return true;
+        return null;
     }
 
-    function validLiftosaurWorkout(reply as Object?) as Boolean {
+    function validLiftosaurEntry(entry as Object?) as Boolean {
+        return liftosaurEntryProblem(entry) == null;
+    }
+
+    // Why a Liftosaur workout reply is not usable, or null ("W1 D2 Squat: reason").
+    function liftosaurWorkoutProblem(reply as Object?) as String? {
         if (!(reply instanceof Dictionary)) {
-            return false;
+            return "Reply is not an object";
         }
         var envelope = reply as Dictionary;
         var data = envelope["data"] instanceof Dictionary ? envelope["data"] as Dictionary : envelope;
         var workout = data["workout"] instanceof Dictionary ? data["workout"] as Dictionary : data;
         var day = workout["dayData"];
         var entries = workout["entries"];
-        if (!validProgramId(workout["programId"]) || !validNonblankText(workout["dayName"], 64) ||
-            !(day instanceof Dictionary) || !inRange((day as Dictionary)["week"], 1, 1000, false) ||
-            !inRange((day as Dictionary)["dayInWeek"], 1, 1000, false) ||
-            !(entries instanceof Array) || (entries as Array).size() < 1 ||
-            (entries as Array).size() > MAX_ENTRIES) {
-            return false;
+        if (!validProgramId(workout["programId"])) {
+            return "Reply has no valid program id";
+        }
+        if (!(day instanceof Dictionary) || !inRange((day as Dictionary)["week"], 1, 1000, false) ||
+            !inRange((day as Dictionary)["dayInWeek"], 1, 1000, false)) {
+            return "Reply has no week or day";
+        }
+        var prefix = "W" + (day as Dictionary)["week"].toString() + " D" +
+            (day as Dictionary)["dayInWeek"].toString();
+        if (!validNonblankText(workout["dayName"], 64)) {
+            return prefix + ": day has no name";
+        }
+        if (!(entries instanceof Array) || (entries as Array).size() < 1) {
+            return prefix + ": no exercises";
+        }
+        if ((entries as Array).size() > MAX_ENTRIES) {
+            return prefix + ": " + (entries as Array).size().toString() + " exercises (max " +
+                MAX_ENTRIES.toString() + ")";
         }
         var totalSets = 0;
         var setIds = [];
         var values = entries as Array;
         for (var i = 0; i < values.size(); i++) {
-            if (!validLiftosaurEntry(values[i])) {
-                return false;
+            var problem = liftosaurEntryProblem(values[i]);
+            if (problem != null) {
+                return fit(prefix + " " + problem, 60);
             }
             var entry = values[i] as Dictionary;
             totalSets += (entry["sets"] as Array).size();
@@ -303,14 +377,22 @@ module Model {
                     var setId = (sourceSets[s] as Dictionary)["setId"];
                     for (var prior = 0; prior < setIds.size(); prior++) {
                         if (sameString(setIds[prior], setId)) {
-                            return false;
+                            return prefix + ": duplicate set id";
                         }
                     }
                     setIds.add(setId);
                 }
             }
         }
-        return totalSets <= MAX_SETS_PER_WORKOUT;
+        if (totalSets > MAX_SETS_PER_WORKOUT) {
+            return prefix + ": " + totalSets.toString() + " sets (max " +
+                MAX_SETS_PER_WORKOUT.toString() + ")";
+        }
+        return null;
+    }
+
+    function validLiftosaurWorkout(reply as Object?) as Boolean {
+        return liftosaurWorkoutProblem(reply) == null;
     }
 
     function validTemplate(template as Object?) as Boolean {

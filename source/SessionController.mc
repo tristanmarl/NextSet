@@ -505,7 +505,7 @@ class SessionController {
             }
             nextRoutines.add(routine);
         }
-        var nextId = Catalog.findRoutineId(nextRoutines,
+        var nextId = Catalog.nextRoutineId(nextRoutines,
             journal["nextWeek"] as Number, journal["nextDay"] as Number);
         if (nextId == null) {
             _errorCode = Err.ROUTINE_SYNC_INVALID_RESPONSE;
@@ -1354,9 +1354,11 @@ class SessionController {
 
     // Settings → Diagnostics text.
     public function diagnostics() as String {
+        var problem = LiftosaurLogic.loadSyncProblem();
         return "Max commit " + _maxCommitMs.toString() + " ms · Last sync parse " +
             (_syncMs < 0 ? "n/a" : _syncMs.toString() + " ms") + " · Free " +
-            (System.getSystemStats().freeMemory / 1024).toString() + " KB";
+            (System.getSystemStats().freeMemory / 1024).toString() + " KB" +
+            (problem == null ? "" : " · Last sync: " + problem);
     }
 
     public function completeDraft(entryId as String, slot as Number, now as Number) as Boolean {

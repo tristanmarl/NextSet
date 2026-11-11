@@ -9,7 +9,7 @@ Base URL `https://www.liftosaur.com/api/v1`, header `Authorization: Bearer <key>
 | Purpose | Request |
 | --- | --- |
 | Test key | `GET /programs/current` (read-only) |
-| Program text | `GET /programs/current` → `{id, name, text}`; `text` is Liftoscript (`# Week N`, `## Day`, one line per exercise) |
+| Program text | `GET /programs/current` → `{id, name, text}`; `text` is Liftoscript (`# <week name>`, `## Day`, one line per exercise); weeks are numbered by position, not by the digits in the name. A rejected sync, or a day skipped because it has no exercises NextSet can run, keeps a short reason (Settings → Diagnostics → "Last sync") |
 | Day to sync | `GET /workout/next[?programId&week&dayInWeek]` |
 | Upload check | `GET /workout/next` for the job's day (no write) |
 | Upload | `POST /workout/start`, `POST /workout/sets`, `POST /workout/finish` |
@@ -19,7 +19,7 @@ Base URL `https://www.liftosaur.com/api/v1`, header `Authorization: Bearer <key>
 
 - `GET /workout/next` → `{workout: {programId, programName, dayName, dayData: {day, week, dayInWeek}, startTime, entries: [...]}}`. `startTime` is "now" and every `setId` is regenerated on each GET, so preview ids are only illustrative; the upload takes the ids from the `/workout/start` reply.
 - Entry: `{entryId, exerciseId, equipment, name, superset, notes, description, hasUpdateScript, promptedVars, warmupSets: [...], sets: [...]}`. `name` is the display name without equipment (`"Leg Press"`); a custom exercise has a random id and `equipment: null`.
-- Set: `{setId, index, isWarmup, reps, minReps, isAmrap, weight: "100kg", isUnilateral, timer (rest s), setTimer (timed set s or null), completed}`. A timed set is `reps: 1, weight: "0kg", setTimer: 35`; bodyweight is `weight: "0kg"`. Weights arrive already rounded to the gym's plates. Warmups are in `warmupSets`.
+- Set: `{setId, index, isWarmup, reps, minReps, isAmrap, weight: "100kg", isUnilateral, timer (rest s), setTimer (timed set s or null), completed}`. A timed set is `reps: 1, weight: "0kg", setTimer: 35`; a set timer with more than one rep (EMOM, `5x5 60kg 60s|0s auto`) is synced and uploaded as a weight/reps set without `setTimer` (not yet confirmed by a real write); bodyweight is `weight: "0kg"`. Weights arrive already rounded to the gym's plates. Warmups are in `warmupSets`.
 - `GET /history` returns Liftohistory text: `// note` lines, then `date / program: "…" / dayName: "…" / week / dayInWeek / duration: Ns / exercises: {`, one line per exercise, `}`.
 
 ## Upload rules

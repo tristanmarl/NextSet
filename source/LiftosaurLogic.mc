@@ -1,3 +1,4 @@
+import Toybox.Application;
 import Toybox.Lang;
 
 module LiftosaurLogic {
@@ -18,26 +19,6 @@ module LiftosaurLogic {
     function isSpace(character as String) as Boolean {
         return Model.sameString(character, " ") || Model.sameString(character, "\t") ||
             Model.sameString(character, "\r");
-    }
-
-    function weekNumber(header as String) as Number? {
-        if (header.length() < 8 ||
-            !Model.sameString(header.substring(0, 7) as String, "# Week ")) {
-            return null;
-        }
-        var digits = header.substring(7, header.length()) as String;
-        if (digits.length() < 1 || digits.length() > 4) {
-            return null;
-        }
-        var value = 0;
-        var bytes = digits.toUtf8Array();
-        for (var i = 0; i < bytes.size(); i++) {
-            if (bytes[i] < 48 || bytes[i] > 57) {
-                return null;
-            }
-            value = value * 10 + bytes[i] - 48;
-        }
-        return Model.inRange(value, 1, 1000, false) ? value : null;
     }
 
     // Entered key: trimmed, non-empty, at most 128 bytes, printable ASCII without inner spaces.
@@ -124,18 +105,32 @@ module LiftosaurLogic {
         return character == ' ' || character == '\t' || character == '\r';
     }
 
-    // Single pass over the characters; only header lines are turned into substrings.
+    // Why the last parseDays returned null (short text), else null. Built only on failure.
+    var parseProblem as String? = null;
+
+    function lineProblem(source as String, from as Number, to as Number, text as String) as Null {
+        var shown = to - from > 24 ? 24 : to - from;
+        parseProblem = "Line \"" + source.substring(from, from + shown) + "\": " + text;
+        return null;
+    }
+
+    // Weeks of day names: Array of Arrays of Strings, index 0 = week 1. Liftoscript numbers weeks
+    // by position: every line starting with a single "#" opens the next week, whatever its text.
+    // "## Name" is a day. Days before any week header form an implicit week 1 (a "#" line after
+    // them is ambiguous and rejected). Single pass; only day names become substrings.
     function parseDays(programText as String) as Array? {
+        parseProblem = null;
         // ponytail: Liftoscript scan is capped at 16 KiB; raise if larger programs are supported.
         if (Model.byteLength(programText) > MAX_PROGRAM_BYTES) {
+            parseProblem = "Program over 16 KB";
             return null;
         }
         var chars = programText.toCharArray();
         var count = chars.size();
-        var days = [];
-        var seenWeeks = {};
-        var week = null;
-        var dayInWeek = 0;
+        var weeks = [];
+        var current = null;
+        var implicit = false;
+        var total = 0;
         var start = 0;
         for (var i = 0; i <= count; i++) {
             if (i < count && chars[i] != '\n') {
@@ -153,36 +148,83 @@ module LiftosaurLogic {
             if (from >= to || chars[from] != '#') {
                 continue;
             }
-            var line = programText.substring(from, to) as String;
-            if (line.find("# Week") == 0) {
-                var parsedWeek = weekNumber(line);
-                if (parsedWeek == null || seenWeeks.hasKey(parsedWeek.toString())) {
-                    return null;
+            if (to - from >= 2 && chars[from + 1] == '#') {
+                if (to - from < 3 || chars[from + 2] != ' ') {
+                    return lineProblem(programText, from, to, "day header needs a space");
                 }
-                week = parsedWeek as Number;
-                seenWeeks[week.toString()] = true;
-                dayInWeek = 0;
-            } else if (line.find("##") == 0) {
-                if (line.find("## ") != 0) {
-                    return null;
-                }
-                var name = trim(line.substring(3, line.length()) as String);
+                var name = trim(programText.substring(from + 3, to) as String);
                 if (!Model.validNonblankText(name, 64)) {
+                    return lineProblem(programText, from, to, "bad day name");
+                }
+                if (current == null) {
+                    current = [];
+                    weeks.add(current);
+                    implicit = true;
+                }
+                (current as Array).add(name);
+                total++;
+                if (total > Model.MAX_PROGRAM_DAYS) {
+                    parseProblem = "Program over " + Model.MAX_PROGRAM_DAYS.toString() + " days";
                     return null;
                 }
-                if (!(week instanceof Number)) {
-                    // Days before any "# Week" header belong to an implicit week 1.
-                    week = 1;
-                    seenWeeks["1"] = true;
+            } else {
+                if (implicit) {
+                    return lineProblem(programText, from, to, "week header after days");
                 }
-                dayInWeek++;
-                days.add({"week" => week, "dayInWeek" => dayInWeek, "name" => name});
-                if (dayInWeek > Model.MAX_TEMPLATES || days.size() > Model.MAX_PROGRAM_DAYS) {
+                if (weeks.size() >= Model.MAX_PROGRAM_WEEKS) {
+                    parseProblem = "Program over " + Model.MAX_PROGRAM_WEEKS.toString() + " weeks";
                     return null;
                 }
+                current = [];
+                weeks.add(current);
             }
         }
-        return days.size() == 0 ? null : days;
+        if (total == 0) {
+            parseProblem = "No days (## Name) in program";
+            return null;
+        }
+        return weeks;
+    }
+
+    // Day rows [{week, dayInWeek, name}] of one week of a parseDays result (at most eight), or
+    // null when the program has no such week or it has no days (reason in parseProblem).
+    function weekDayRows(weeks as Array, week as Number) as Array? {
+        if (week < 1 || week > weeks.size()) {
+            parseProblem = "Week " + week.toString() + " not in program text";
+            return null;
+        }
+        var names = weeks[week - 1] as Array;
+        if (names.size() == 0) {
+            parseProblem = "Week " + week.toString() + " has no days";
+            return null;
+        }
+        // Over eight days: the first eight are synced, the caller notes the rest as skipped.
+        var rows = [];
+        for (var i = 0; i < names.size() && i < Model.MAX_TEMPLATES; i++) {
+            rows.add({"week" => week, "dayInWeek" => i + 1, "name" => names[i]});
+        }
+        return rows;
+    }
+
+    // Reason of the last rejected sync, kept in the small storage key "diag.sync" (null = none).
+    function saveSyncProblem(text as String?) as Void {
+        try {
+            if (text != null) {
+                Application.Storage.setValue("diag.sync", text);
+            } else if (Application.Storage.getValue("diag.sync") != null) {
+                Application.Storage.deleteValue("diag.sync");
+            }
+        } catch (error) {
+        }
+    }
+
+    function loadSyncProblem() as String? {
+        try {
+            var value = Application.Storage.getValue("diag.sync");
+            return value instanceof String ? Model.fit(value as String, 80) : null;
+        } catch (error) {
+        }
+        return null;
     }
 
     // The days of one week, in program order; the sync fetches only the current week.

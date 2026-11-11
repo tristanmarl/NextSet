@@ -256,7 +256,7 @@ module UploadLogic {
         var bodyweight = true;
         for (var i = 0; i < sets.size(); i++) {
             var set = sets[i] as Dictionary;
-            timed = timed || set["setTimer"] instanceof Number;
+            timed = timed || Model.timedSet(set);
             if (Model.weightLoad100(set["weight"]) != 0) {
                 bodyweight = false;
             }
@@ -298,7 +298,7 @@ module UploadLogic {
     // timed sets. A value the lifter did not give falls back to the program's own suggestion.
     function mappedCompleted(exercise as Dictionary, set as Dictionary,
                              plan as Dictionary, prompted as Object?) as Dictionary? {
-        var timedPlan = plan["setTimer"] instanceof Number;
+        var timedPlan = Model.timedSet(plan);
         var timedSession = set["timeSec"] instanceof Number;
         if (timedPlan != timedSession) {
             return null;

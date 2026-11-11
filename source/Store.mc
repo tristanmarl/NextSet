@@ -113,6 +113,7 @@ class Store {
     private function validRoutineSync(payload as Dictionary) as Boolean {
         var phase = payload["phase"];
         var days = payload["days"];
+        var weeks = payload["weeks"];
         var routineIds = payload["routineIds"];
         if (!Model.inRange(payload["sequence"], 1, 2147483647, false) ||
             !(phase instanceof String) ||
@@ -130,6 +131,29 @@ class Store {
                 (!Model.validNonblankText(payload["programId"], 64) ||
                  !Model.validNonblankText(payload["programName"], 64)))) {
             return false;
+        }
+        if (weeks != null) {
+            // Day names by week (index 0 = week 1); coordinates are implied by position.
+            if (!(weeks instanceof Array) || (weeks as Array).size() > Model.MAX_PROGRAM_WEEKS ||
+                !Model.sameString(phase, Liftosaur.PHASE_NEXT)) {
+                return false;
+            }
+            var total = 0;
+            for (var w = 0; w < (weeks as Array).size(); w++) {
+                var names = (weeks as Array)[w];
+                if (!(names instanceof Array)) {
+                    return false;
+                }
+                total += (names as Array).size();
+                if (total > Model.MAX_PROGRAM_DAYS) {
+                    return false;
+                }
+                for (var n = 0; n < (names as Array).size(); n++) {
+                    if (!Model.validNonblankText((names as Array)[n], 64)) {
+                        return false;
+                    }
+                }
+            }
         }
         if (days instanceof Array) {
             var rows = days as Array;
@@ -158,8 +182,13 @@ class Store {
                 return false;
             }
         }
+        if (!Model.inRange(payload["skipCount"], 0, Model.MAX_PROGRAM_DAYS, true) ||
+            !Model.validText(payload["skipNote"], 80, true)) {
+            return false;
+        }
+        // Skipped days (no exercises, or not supported) advance the index without a routine id.
         return (days == null || payload["index"] <= (days as Array).size()) &&
-            (routineIds as Array).size() == payload["index"];
+            (routineIds as Array).size() <= payload["index"];
     }
 
     private function validPayload(domain as String, payload as Dictionary) as Boolean {
