@@ -130,7 +130,7 @@ function testFinishBodySendsIntervalsAndNoRoutineNote(logger as Test.Logger) as 
     var first = intervals == null || intervals.size() != 1 ? null : intervals[0] as Array;
     var ok = check(logger, body["notes"] == null, "a workout with nothing to report sends no notes");
     return ok && check(logger, first != null && first.size() == 2 &&
-            (first[0] as Long).compareTo(job["startTime"] as Long) == 0 &&
-            (first[1] as Long).compareTo(job["endTime"] as Long) == 0,
+            (first[0] as Long) == (job["startTime"] as Long) &&
+            (first[1] as Long) == (job["endTime"] as Long),
         "finish sends one interval from the workout start to its end");
 }

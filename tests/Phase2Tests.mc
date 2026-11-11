@@ -283,7 +283,7 @@ function testUploadJobAndDurableSetMapping(logger as Test.Logger) as Boolean {
     var priorDuplicateSet = duplicateSets[0] as Dictionary;
     duplicateSet["setId"] = priorDuplicateSet["setId"];
     return check(logger, Model.validUpload(job) && job["startTime"] instanceof Long &&
-            (job["startTime"] as Long).compareTo(2147483647.toLong()) > 0,
+            (job["startTime"] as Long) > 2147483647.toLong(),
             "upload queue stores exact epoch milliseconds in 64-bit Long values") &&
         check(logger, mapped.size() == 2 && Model.sameString(first["setId"], "plan-two") &&
             completed["reps"] == 8 && Model.sameString(completed["weight"], "55.5kg"),

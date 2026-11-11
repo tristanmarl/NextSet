@@ -1,5 +1,5 @@
 #!/bin/bash
-# Builds the unit-test target and runs it in the FR965 simulator.
+# Builds the unit-test target and runs it in the simulator (FR965, or TEST_DEVICE, e.g. fenix6xpro).
 # Exit 0 only when the summary reads "PASSED (passed=N, failed=0, errors=0)".
 # monkeydo may exit 1 after a passing run, so the summary line, not its exit code, decides.
 # The script restarts the simulator itself (a stale one hangs monkeydo) and retries once.
@@ -8,11 +8,12 @@ cd "$(dirname "$0")/.."
 SDK="${CIQ_SDK:-$HOME/Library/Application Support/Garmin/ConnectIQ/Sdks/connectiq-sdk-mac-9.2.0-2026-06-09-92a1605b2}"
 KEY="${CIQ_KEY:-$HOME/.garmin-keys/NextSetDeveloperKey.der}"
 TIMEOUT="${TEST_TIMEOUT:-120}"
+DEVICE="${TEST_DEVICE:-fr965}"
 export PATH="$SDK/bin:$PATH"
 mkdir -p bin
 LOG="$(mktemp)"
 
-if ! monkeyc --unit-test -f tests.jungle -d fr965 -o bin/NextSet-tests.prg -y "$KEY" 2>&1 | tee "$LOG" | grep -q "BUILD SUCCESSFUL"; then
+if ! monkeyc --unit-test -f tests.jungle -d "$DEVICE" -o bin/NextSet-tests.prg -y "$KEY" 2>&1 | tee "$LOG" | grep -q "BUILD SUCCESSFUL"; then
     cat "$LOG"
     echo "test build failed" >&2
     exit 1
@@ -25,7 +26,7 @@ for attempt in 1 2; do
     sleep 2
     open "$SDK/bin/ConnectIQ.app"
     sleep 8
-    monkeydo bin/NextSet-tests.prg fr965 -t > "$LOG" 2>&1 &
+    monkeydo bin/NextSet-tests.prg "$DEVICE" -t > "$LOG" 2>&1 &
     PID=$!
     for ((i = 0; i < TIMEOUT; i++)); do
         grep -q "PASSED (\|FAILED (" "$LOG" && break

@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-NextSet is a Monkey C Connect IQ strength-training app for five-button Garmin watches on Connect IQ 5+ (53 products in `manifest.xml`, minimum API 5.0.0), developed and device-tested on the Forerunner 965 (`fr965`). Guard any API that some targets lack with `has` (MIP watches such as the fr255 family have no `Graphics.getVectorFont`); `scripts/pack-devices.sh` packs the device files CI needs. All jungles use `resources/` (the former `private/resources` copy is gone). Liftosaur API usage is in `docs/LIFTOSAUR_API.md`; contributor and release steps are in `CONTRIBUTING.md`. `AGENTS.md` contains repository rules; this file records build commands and current architecture.
+NextSet is a Monkey C Connect IQ strength-training app for five-button Garmin watches on Connect IQ 3.4+ (67 products in `manifest.xml`, minimum API 3.4.0 since 0.5.0, for the fenix 6 Pro / 6S Pro / 6X Pro, FR945 LTE, Descent Mk2 / Mk2S and MARQ Gen 1, all 1.28 MB app memory), developed and device-tested on the Forerunner 965 (`fr965`). Guard any API above 3.4 with `has` (MIP watches such as the fr255 family and the fenix 6 have no `Graphics.getVectorFont`), and do not call `Long.compareTo` (missing on CIQ 3.4: Symbol Not Found at runtime; compare Longs with `<`, `>`, `==`, `!=`). The 128 KB CIQ 3.4 watches (fenix 6 / 6S, Enduro, FR55, Instinct 2) are too small (NextSet uses about 254 KB); `scripts/pack-devices.sh` packs the device files CI needs. All jungles use `resources/` (the former `private/resources` copy is gone). Liftosaur API usage is in `docs/LIFTOSAUR_API.md`; contributor and release steps are in `CONTRIBUTING.md`. `AGENTS.md` contains repository rules; this file records build commands and current architecture.
 
 ## Commands
 
@@ -26,7 +26,7 @@ scripts/test.sh
 
 The runner has previously exited 1 after reporting all tests passed; inspect its PASS/FAIL summary and record the result in `docs/DEVICE_TESTS.md`. A build or simulator result is not a physical-watch result.
 
-While iterating, build only `fr965` (454 px) and `fenix7s` (240 px, small screen); build `fr255s` (MIP, no vector fonts) once before committing. Every release also gets the local store `.iq` (`monkeyc -e -r -f monkey.jungle -o bin/release-X.Y.Z/NextSet-X.Y.Z.iq -y "$KEY"`). The demo build (`monkey.demo.jungle`) switches screens every 3 s for screenshots. After a release run `scripts/clean-bin.sh`: it keeps only the newest store `.iq`, `ciq-devices.zip` and device logs in `bin/`.
+While iterating, build only `fr965` (454 px) and `fenix7s` (240 px, small screen); build `fr255s` (MIP, no vector fonts) and `fenix6xpro` (CIQ 3.4) once before committing. `TEST_DEVICE=fenix6xpro scripts/test.sh` runs the unit tests on a CIQ 3.4 watch. Every release also gets the local store `.iq` (`monkeyc -e -r -f monkey.jungle -o bin/release-X.Y.Z/NextSet-X.Y.Z.iq -y "$KEY"`). The demo build (`monkey.demo.jungle`) switches screens every 3 s for screenshots. After a release run `scripts/clean-bin.sh`: it keeps only the newest store `.iq`, `ciq-devices.zip` and device logs in `bin/`.
 
 ## Architecture
 

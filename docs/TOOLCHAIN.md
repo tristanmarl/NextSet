@@ -1,6 +1,6 @@
 # Toolchain
 
-- Connect IQ SDK 9.2.0 (`connectiq-sdk-mac-9.2.0-2026-06-09-92a1605b2`), 53 five-button targets in `manifest.xml` with `fr965` as the reference device (minimum API 5.0.0), Connect IQ Compiler 9.2.0, Device Simulator 9.2.0 (Forerunner 965).
+- Connect IQ SDK 9.2.0 (`connectiq-sdk-mac-9.2.0-2026-06-09-92a1605b2`), 67 five-button targets in `manifest.xml` with `fr965` as the reference device (minimum API 3.4.0 since 0.5.0), Connect IQ Compiler 9.2.0, Device Simulator 9.2.0 (Forerunner 965).
 - Host: macOS, Java 21.
 - Signing key: `~/.garmin-keys/NextSetDeveloperKey.der` (PEM beside it, mode 600), outside the repository, never committed. Every build, including simulator and test builds, needs `-y`. Reuse the same key for updates of an installed app and keep a backup.
 

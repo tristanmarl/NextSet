@@ -84,6 +84,8 @@ NextSet 0.3.4 syncs routines from Liftosaur, caches per-set targets and uploads 
 - [ ] **PENDING** (0.4.1) "Starting…" shows in full while a workout starts, "Saving…" / "Cancelling…" while it finishes; after a failed save the screen says "START: retry" and START retries.
 - [x] **FAILED** (0.3.5, 2026-10-29, user on FR965) Holds other than UP do not reach the app: hold DOWN opened the music controls and hold START did nothing. Only hold UP (menu) works. 0.3.6 drops all holds and puts the reps/load switch in the menu.
 
+- [ ] **SIMULATOR ONLY** (0.5.0, 2026-11-11) Connect IQ 3.4 watches: minimum API lowered to 3.4.0 and 14 products added (fenix6pro, fenix6spro, fenix6xpro, fr945lte, descentmk2, descentmk2s, eight MARQ Gen 1 editions); all 14 build. `Long.compareTo` (missing on CIQ 3.4) is replaced by `<`/`>`/`==`/`!=`. Unit tests `PASSED (passed=95, failed=0, errors=0)` on fr965, fenix6xpro and fenix6spro (simulator). Demo build on the fenix6xpro (280 px, 8-bit MIP) and fenix6spro (240 px) simulators: set screen (weight and timed), Overview with dots, finish choice, Discard confirm, summary ("START: Sync" on the 240 px screen), Change weight, last-set editor with Continue and Home render without overlap; about 254 of 1275 kB used. The rest ring was not captured in the demo cycle. Hold UP maps to KEY_MENU in the fenix6xpro device definition (`menu` key `onMenu`, `isHold`), the same as the fr965; not confirmed on a physical fenix 6. No physical CIQ 3.4 watch tested.
+
 ## General device checks (still open)
 
 - [ ] **PENDING** Install/update with the same app ID; confirm local records survive the update.

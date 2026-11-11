@@ -413,7 +413,7 @@ module UploadLogic {
             !Model.sameString(workout["dayName"], routine["name"]) ||
             day["week"] != routine["week"] || day["dayInWeek"] != routine["dayInWeek"] ||
             (exactStart && (returnedStart == null ||
-                (returnedStart as Long).compareTo(job["startTime"] as Long) != 0))) {
+                (returnedStart as Long) != (job["startTime"] as Long)))) {
             return null;
         }
         if (job["setsBody"] instanceof Dictionary) {

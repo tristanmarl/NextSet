@@ -34,17 +34,18 @@ No phone in your hand at the gym, no second app, no server in between.
 
 ## Supported watches
 
-Garmin watches with five buttons and Connect IQ 5 or newer:
+Garmin watches with five buttons and Connect IQ 3.4 or newer:
 
 | Family | Models |
 | --- | --- |
 | Forerunner | 165, 170, 255 (all variants), 265 / 265S, 570, 70, 955, 965, 970 |
-| fēnix | 7 / 7 Pro (S, X, Solar), 8 (43 / 47 / 51 mm, Pro, Solar), 9 (all), E |
-| Other | epix (Gen 2) and epix Pro, Enduro 3, MARQ (Gen 2), Instinct 3 AMOLED, Instinct Crossover AMOLED, D2 Mach 1 / 2 / 2 Pro, Descent Mk3 and G2 |
+| Forerunner (CIQ 3.4) | 945 LTE |
+| fēnix | 6 Pro / 6S Pro / 6X Pro (Sapphire, Solar), 7 / 7 Pro (S, X, Solar), 8 (43 / 47 / 51 mm, Pro, Solar), 9 (all), E |
+| Other | epix (Gen 2) and epix Pro, Enduro 3, MARQ (Gen 1 and Gen 2), Instinct 3 AMOLED, Instinct Crossover AMOLED, D2 Mach 1 / 2 / 2 Pro, Descent Mk2 / Mk2S, Mk3 and G2 |
 
-NextSet is developed and used daily on a **Forerunner 965**. All other models build and have the same button layout, and the Home screen has been started in the simulator on a sample of them (including Forerunner 255S, fēnix 7S and Instinct 3 AMOLED), but none has been tested on a real watch yet. Reports are welcome (see [Contributing](#contributing)).
+NextSet is developed and used daily on a **Forerunner 965**. All other models build and have the same button layout, and the Home screen has been started in the simulator on a sample of them (including Forerunner 255S, fēnix 7S and Instinct 3 AMOLED); on the fēnix 6X Pro and 6S Pro the unit tests pass and the workout screens were checked in the simulator. None has been tested on a real watch yet. Reports are welcome (see [Contributing](#contributing)).
 
-Not supported: two-button touch watches (Venu, vívoactive), Connect IQ 3 watches (fēnix 6, Forerunner 245/745/945, MARQ Gen 1) and small-memory watches such as Instinct 2 / 3 Solar and Instinct E.
+Not supported: two-button touch watches (Venu, vívoactive) and small-memory watches such as fēnix 6 / 6S (non-Pro), Enduro (Gen 1), Forerunner 55, Instinct 2 / 3 Solar and Instinct E. Forerunner 745 and 945 (non-LTE) are not in the build yet.
 
 ## What you need
 

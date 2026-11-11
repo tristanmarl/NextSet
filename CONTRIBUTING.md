@@ -63,7 +63,7 @@ The demo clears the simulator's app storage on every start. README images are in
 - Four-space indentation, typed parameters and returns, `UpperCamelCase` classes, `lowerCamelCase` functions, `UPPER_SNAKE_CASE` constants. Match the surrounding code.
 - Logic goes in `source/`, screens and navigation in `source/ui/`. Keep everything usable with buttons only (UP, DOWN, START, BACK, hold UP as the one shortcut on the set screen and the Overview).
 - **Callbacks passed to `method(:name)` (timers, web requests) must be public.** A private one compiles but fails on the watch.
-- **Guard APIs that some watches lack** with `has` (for example `Graphics has :getVectorFont`). The project targets Connect IQ 5.0+.
+- **Guard APIs that some watches lack** with `has` (for example `Graphics has :getVectorFont`). The project targets Connect IQ 3.4+ (fenix 6 Pro, MARQ Gen 1 and others), so also avoid `Long.compareTo` and run `TEST_DEVICE=fenix6xpro scripts/test.sh` for changes to logic.
 - Requests stay asynchronous and outside timing-sensitive work. Do not run storage writes, FIT laps or requests in the same timer tick as a vibration.
 - Persisted values (job states, journal phases, error codes in `source/Liftosaur.mc` and `source/ErrorCodes.mc`) never change: they are stored on users' watches. Add error codes in `source/ErrorCodes.mc` only, with both texts.
 - Changes to stored data must stay readable by the previous version's data and keep the two-generation commits in `source/Store.mc` intact.

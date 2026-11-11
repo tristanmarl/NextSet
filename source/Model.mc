@@ -473,8 +473,7 @@ module Model {
             return false;
         }
         var millis = value as Long;
-        return millis.compareTo("0".toLong()) >= 0 &&
-            millis.compareTo("4102444800000".toLong()) <= 0;
+        return !(millis < "0".toLong()) && !(millis > "4102444800000".toLong());
     }
 
     function epochMillis(value as Object?) as Long? {
@@ -585,7 +584,7 @@ module Model {
             !inRange(job["start"], 0, 2147483647, false) ||
             !inRange(job["end"], job["start"] as Number, 2147483647, false) ||
             !validEpochMillis(job["startTime"]) || !validEpochMillis(job["endTime"]) ||
-            (job["endTime"] as Long).compareTo(job["startTime"] as Long) < 0 ||
+            (job["endTime"] as Long) < (job["startTime"] as Long) ||
             !(sameString(state, Liftosaur.STATE_START) || sameString(state, Liftosaur.STATE_SETS) ||
                 sameString(state, Liftosaur.STATE_FINISH) || sameString(state, Liftosaur.STATE_BLOCKED) ||
                 sameString(state, Liftosaur.STATE_DONE)) ||
@@ -596,10 +595,8 @@ module Model {
                 (substitutions as Array).size() > MAX_ENTRIES))) {
             return false;
         }
-        if ((job["startTime"] as Long).compareTo(
-                ((job["start"] as Number).toLong() * 1000)) != 0 ||
-            (job["endTime"] as Long).compareTo(
-                ((job["end"] as Number).toLong() * 1000)) != 0) {
+        if ((job["startTime"] as Long) != (job["start"] as Number).toLong() * 1000 ||
+            (job["endTime"] as Long) != (job["end"] as Number).toLong() * 1000) {
             return false;
         }
         var totalSets = 0;
