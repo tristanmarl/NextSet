@@ -2,6 +2,13 @@
 
 NextSet is an unofficial companion for Liftosaur. It is not made or endorsed by Liftosaur and needs Liftosaur Premium for API access.
 
+## 0.5.0
+- **Connect IQ 3.4 watches.** The minimum is Connect IQ 3.4 instead of 5, adding the fēnix 6 Pro / 6S Pro / 6X Pro, Forerunner 945 LTE, Descent Mk2 / Mk2S and the eight MARQ Gen 1 editions (67 watches in all). Tested in the simulator only on these.
+- **Any Liftoscript week header.** Any `# …` line opens the next week, so programs with headers like "# Week 4 - Deload" or "# #29 Preparation - Week 1" (5/3/1 BBB, Juggernaut, Sheiko) sync instead of failing with "Liftosaur routine data is invalid".
+- **Long programs.** Up to 160 program days (was 48: Calgary 16-Week, Bullmastiff); the synced week is still capped at eight days, the rest count as skipped.
+- **Skipped days.** A day with no exercises or with exercises NextSet cannot run is skipped instead of failing the sync ("Synced N days, K skipped"); when Liftosaur's next day was skipped, the next synced day is offered. A set timer with more than one rep (EMOM) is a weight/reps set.
+- Settings → Diagnostics shows the reason of the last rejected or skipped sync.
+
 ## 0.4.7
 - **Set dots on the exercise list.** The Overview shows the same dots row as the set screen for the shown exercise (warmups small and gray, then the sets) instead of the big "2/3 sets"; "Exercise 2/8" moves below it and the next set ("55 kg × 9") is a little larger.
 
