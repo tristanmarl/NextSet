@@ -3,6 +3,7 @@
 NextSet is an unofficial companion for Liftosaur. It is not made or endorsed by Liftosaur and needs Liftosaur Premium for API access.
 
 ## Unreleased
+- **Fewer crashes on the Forerunner 255 sync.** A day reply is now handled in four short steps instead of one long one, which ended in "Watchdog Tripped: code executed too long" on heavy days.
 - **Routine sync uses much less memory.** Low-memory watches (Forerunner 255 family) no longer crash while syncing: a reply is converted and dropped before anything is saved, only the current week's days are kept, saves no longer read the old copies back, and the loaded routines are released while a sync runs. When free memory is still too low the sync stops with "Low memory · retry sync" and a reason under Settings → Diagnostics.
 
 ## 0.5.0

@@ -124,12 +124,17 @@ function testJournalResumesBeforeAnyCommit(logger as Test.Logger) as Boolean {
 
 (:test)
 function testJournalResumesAfterRoutineCommit(logger as Test.Logger) as Boolean {
-    return boundaryResume(logger, 1);
+    return boundaryResume(logger, 2);
 }
 
 (:test)
 function testJournalResumesAfterJournalCommit(logger as Test.Logger) as Boolean {
-    return boundaryResume(logger, 2);
+    return boundaryResume(logger, 3);
+}
+
+(:test)
+function testJournalResumesAfterProjection(logger as Test.Logger) as Boolean {
+    return boundaryResume(logger, 1);
 }
 
 function boundaryResume(logger as Test.Logger, boundary as Number) as Boolean {
@@ -148,10 +153,10 @@ function boundaryResume(logger as Test.Logger, boundary as Number) as Boolean {
         var routine = relaunched.loadPair("routine.sync-2-d1");
         var routineStored = routine != null;
         var pointsPast = journal["index"] == 1;
-        ok = check(logger, steps == 2, "a routine day reply stages two commits (boundary " +
+        ok = check(logger, steps == 3, "a routine day reply stages three steps (boundary " +
             boundary.toString() + ")") && ok;
-        ok = check(logger, routineStored == (boundary >= 1), "the routine is stored after step 1 only") && ok;
-        ok = check(logger, pointsPast == (boundary == 2), "the journal moves after step 2 only") && ok;
+        ok = check(logger, routineStored == (boundary >= 2), "the routine is stored from step 2 on") && ok;
+        ok = check(logger, pointsPast == (boundary == 3), "the journal moves after the last step only") && ok;
         ok = check(logger, !pointsPast || routineStored, "the journal never points past a missing routine") && ok;
         if (!pointsPast) {
             // Resume: the same day is asked again and the sync completes.
@@ -289,4 +294,32 @@ function testReleasedConfigReloadsLazily(logger as Test.Logger) as Boolean {
     var after = controller.routineTemplates().size();
     return check(logger, before == 1 && after == 1 && controller.errorCode() == Err.NONE,
         "the routines reload from storage after the cache is released");
+}
+
+(:test)
+function testPlanTargetKindsMatchTypeNames(logger as Test.Logger) as Boolean {
+    var weightSet = {"reps" => 5, "load100" => 10000};
+    var bodySet = {"reps" => 5, "load100" => null};
+    var timedSet = {"reps" => 1, "load100" => null, "durationSec" => 30};
+    var ok = check(logger, Model.loadKind("weight") == Model.KIND_WEIGHT &&
+        Model.loadKind("bodyweight") == Model.KIND_BODYWEIGHT &&
+        Model.loadKind("timed") == Model.KIND_TIMED && Model.loadKind("x") < 0, "load kinds");
+    ok = check(logger, Model.validPlanTarget(weightSet, "weight") &&
+        Model.validPlanTargetKind(weightSet, Model.KIND_WEIGHT) &&
+        !Model.validPlanTargetKind(weightSet, Model.KIND_BODYWEIGHT) &&
+        !Model.validPlanTargetKind(weightSet, Model.KIND_TIMED), "a weight set fits only weight") && ok;
+    ok = check(logger, Model.validPlanTargetKind(bodySet, Model.KIND_BODYWEIGHT) &&
+        Model.validPlanTargetKind(timedSet, Model.KIND_TIMED) &&
+        !Model.validPlanTargetKind(weightSet, -1), "bodyweight and timed sets; unknown kind fails") && ok;
+    return ok;
+}
+
+(:test)
+function testCommitPairCheckedSkipsValidation(logger as Test.Logger) as Boolean {
+    var store = new UploadMemoryStore();
+    var bad = {"id" => "sync-9-d1"};
+    var ok = check(logger, !store.commitPair("routine.sync-9-d1", bad), "commitPair validates");
+    ok = check(logger, store.commitPairChecked("routine.sync-9-d1", bad),
+        "commitPairChecked trusts a payload the caller validated") && ok;
+    return ok;
 }

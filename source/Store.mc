@@ -631,12 +631,21 @@ class Store {
     }
 
     public function commitPair(domain as String, payload as Dictionary) as Boolean {
+        if (!validPayload(domain, payload)) {
+            _badRecord = false;
+            _futureRecord = false;
+            _recoveredRecord = false;
+            return false;
+        }
+        return commitPairChecked(domain, payload);
+    }
+
+    // Commit of a payload the caller has just validated with the same rules (validPayload), so
+    // a heavy routine is not walked twice in one callback. Everything else is as commitPair.
+    public function commitPairChecked(domain as String, payload as Dictionary) as Boolean {
         _badRecord = false;
         _futureRecord = false;
         _recoveredRecord = false;
-        if (!validPayload(domain, payload)) {
-            return false;
-        }
         var a = revisionOf(domain, "a");
         var b = revisionOf(domain, "b");
         if (_futureRecord || (_badRecord && a == 0 && b == 0)) {

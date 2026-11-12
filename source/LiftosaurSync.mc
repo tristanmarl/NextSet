@@ -37,9 +37,12 @@ class LiftosaurSync {
     private var _stage as Number = 0;
     private var _pendingRoutine as Dictionary? = null;
     private var _pendingJournal as Dictionary? = null;
+    private var _pendingReply as Object? = null;
+    private var _pendingTag as String = "";
     const STAGE_NONE = 0;
     const STAGE_ROUTINE = 1;
     const STAGE_JOURNAL = 2;
+    const STAGE_PROJECT = 3;
 
     public function initialize(store as Store, host as SessionController) {
         _store = store;
@@ -291,24 +294,22 @@ class LiftosaurSync {
         _stage = STAGE_NONE;
         _pendingRoutine = null;
         _pendingJournal = null;
+        _pendingReply = null;
     }
 
     // Steps staged by a reply handler; the host (tests) may run them without the timer.
     public function pendingSteps() as Number {
-        return _stage == STAGE_ROUTINE ? 2 : (_stage == STAGE_JOURNAL ? 1 : 0);
+        return _stage == STAGE_PROJECT ? 3 : (_stage == STAGE_ROUTINE ? 2 :
+            (_stage == STAGE_JOURNAL ? 1 : 0));
     }
 
     // Runs the next staged commit (no request is sent). A failed commit ends the sync with
     // ROUTINE_SYNC_SAVE_FAILED; the journal in the store is then still the last committed one.
     public function runPendingStep() as Void {
-        if (_stage == STAGE_ROUTINE) {
-            var routine = _pendingRoutine as Dictionary;
-            _pendingRoutine = null;
-            if (!_store.commitPair("routine." + (routine["id"] as String), routine)) {
-                stageFailed();
-                return;
-            }
-            _stage = STAGE_JOURNAL;
+        if (_stage == STAGE_PROJECT) {
+            stepProjectRoutine();
+        } else if (_stage == STAGE_ROUTINE) {
+            stepValidateAndCommitRoutine();
         } else if (_stage == STAGE_JOURNAL) {
             var journal = _pendingJournal as Dictionary;
             dropStaged();
@@ -318,6 +319,56 @@ class LiftosaurSync {
             }
             _journal = journal;
         }
+    }
+
+    // Step one b (day replies with exercises): the projection of the checked reply into the
+    // compact routine; the raw reply is dropped here.
+    private function stepProjectRoutine() as Void {
+        var reply = _pendingReply;
+        _pendingReply = null;
+        var journal = _pendingJournal as Dictionary;
+        var routine = Catalog.projectChecked(reply, journal["sequence"] as Number,
+            journal["index"] as Number);
+        reply = null;
+        if (routine == null) {
+            // Exercises NextSet cannot run: the day is skipped, the reason goes to Diagnostics.
+            journal["skipCount"] = (journal["skipCount"] instanceof Number ?
+                journal["skipCount"] as Number : 0) + 1;
+            journal["skipNote"] = Catalog.lastProblem == null ? _pendingTag + ": not supported" :
+                Catalog.lastProblem as String;
+            _stage = STAGE_JOURNAL;
+            return;
+        }
+        var ids = (journal["routineIds"] as Array).slice(0, null);
+        ids.add((routine as Dictionary)["id"]);
+        journal["routineIds"] = ids;
+        _pendingRoutine = routine;
+        _stage = STAGE_ROUTINE;
+    }
+
+    // Step two: the single validation of the projected routine, then its commit. A routine
+    // NextSet cannot run is skipped like an unsupported day (the journal step records it).
+    private function stepValidateAndCommitRoutine() as Void {
+        var routine = _pendingRoutine as Dictionary;
+        _pendingRoutine = null;
+        if (!Catalog.validRoutine(routine) ||
+            !Model.validNonblankText(routine["name"], 64)) {
+            var journal = _pendingJournal as Dictionary;
+            // The id was appended by the reply step: drop it again.
+            var all = journal["routineIds"] as Array;
+            journal["routineIds"] = all.slice(0, all.size() - 1);
+            journal["skipCount"] = (journal["skipCount"] instanceof Number ?
+                journal["skipCount"] as Number : 0) + 1;
+            journal["skipNote"] = "W" + routine["week"].toString() + " D" +
+                routine["dayInWeek"].toString() + ": routine rejected";
+            _stage = STAGE_JOURNAL;
+            return;
+        }
+        if (!_store.commitPairChecked("routine." + (routine["id"] as String), routine)) {
+            stageFailed();
+            return;
+        }
+        _stage = STAGE_JOURNAL;
     }
 
     private function stageFailed() as Void {
@@ -784,25 +835,26 @@ class LiftosaurSync {
             return reject(tag + ": day name differs from API");
         }
         var hasExercises = (coordinates as Dictionary)["exercises"] != 0;
-        var routine = hasExercises ?
-            Catalog.parseRoutine(data, journal["sequence"] as Number, index + 1) : null;
         var next = SessionLogic.copyDictionary(journal);
         next["index"] = index + 1;
-        if (routine == null) {
-            // A day without exercises, or with exercises NextSet cannot run, is skipped: the
-            // other days still sync. The reason of an unsupported day goes to Diagnostics.
-            if (hasExercises) {
-                next["skipCount"] = (journal["skipCount"] instanceof Number ?
-                    journal["skipCount"] as Number : 0) + 1;
-                next["skipNote"] = Catalog.lastProblem == null ? tag + ": not supported" :
-                    Catalog.lastProblem as String;
-            }
-            return stageJournal(next, null);
+        if (hasExercises && Catalog.checkReply(data)) {
+            // The projection runs in the next step; the reply is kept until then.
+            _pendingReply = data;
+            _pendingTag = tag;
+            _pendingJournal = next;
+            _pendingRoutine = null;
+            _stage = STAGE_PROJECT;
+            return true;
         }
-        var ids = (journal["routineIds"] as Array).slice(0, null);
-        ids.add((routine as Dictionary)["id"]);
-        next["routineIds"] = ids;
-        return stageJournal(next, routine as Dictionary);
+        if (hasExercises) {
+            // A day with exercises NextSet cannot run is skipped: the other days still sync.
+            // The reason of an unsupported day goes to Diagnostics.
+            next["skipCount"] = (journal["skipCount"] instanceof Number ?
+                journal["skipCount"] as Number : 0) + 1;
+            next["skipNote"] = Catalog.lastProblem == null ? tag + ": not supported" :
+                Catalog.lastProblem as String;
+        }
+        return stageJournal(next, null);
     }
 
     private function findQueuedUpload(id as String) as Dictionary? {
@@ -1036,8 +1088,9 @@ class LiftosaurSync {
             }
             if (_stage != STAGE_NONE) {
                 // Defensive: finish an earlier reply's commits before taking this one.
-                runPendingStep();
-                runPendingStep();
+                while (_stage != STAGE_NONE) {
+                    runPendingStep();
+                }
             } else if (!_routineSyncRunning) {
                 _journal = null;
             }

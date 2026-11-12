@@ -27,11 +27,29 @@ module Catalog {
         return null;
     }
 
+    // The routine, checked with validRoutine.
     function parseRoutine(reply as Object?, syncSeq as Number, ordinal as Number) as Dictionary? {
-        lastProblem = Model.liftosaurWorkoutProblem(reply);
-        if (lastProblem != null) {
-            return null;
+        var routine = projectRoutine(reply, syncSeq, ordinal);
+        if (routine != null && !validRoutine(routine as Dictionary)) {
+            return reject(workoutFromReply(reply) as Dictionary, null, "routine rejected");
         }
+        return routine;
+    }
+
+    // Reply check and projection only: the sync validates the routine (validRoutine) in its own
+    // step, right before the commit, so one callback never walks a day four times.
+    function projectRoutine(reply as Object?, syncSeq as Number, ordinal as Number) as Dictionary? {
+        return checkReply(reply) ? projectChecked(reply, syncSeq, ordinal) : null;
+    }
+
+    // The walk over the raw reply alone (the reason is left in lastProblem).
+    function checkReply(reply as Object?) as Boolean {
+        lastProblem = Model.liftosaurWorkoutProblem(reply);
+        return lastProblem == null;
+    }
+
+    // Projection of a reply checkReply accepted, in its own sync step.
+    function projectChecked(reply as Object?, syncSeq as Number, ordinal as Number) as Dictionary? {
         if (!Model.inRange(syncSeq, 1, 2147483647, false) ||
             !Model.inRange(ordinal, 1, Model.MAX_TEMPLATES, false)) {
             lastProblem = "Day number out of range";
@@ -163,9 +181,6 @@ module Catalog {
             "dayInWeek" => dayData["dayInWeek"],
             "entries" => entries
         };
-        if (!validRoutine(routine)) {
-            return reject(workout, null, "routine rejected");
-        }
         return routine;
     }
 
