@@ -141,3 +141,23 @@ function testIssue2Week1RepliesParse(logger as Test.Logger) as Boolean {
     }
     return ok;
 }
+
+// The 0.6.0 report "W7 D1: day name differs from API": for this program Liftosaur's playground
+// names the day "Week 7 - Day 1" (week header + " - " + day header), the text gives "Day 1".
+(:test)
+function testIssue2Week7NamesMatchApi(logger as Test.Logger) as Boolean {
+    var text = issue2Program()["text"] as String;
+    var weeks = LiftosaurLogic.parseDaysFor(text, 7);
+    var rows = weeks == null ? null : LiftosaurLogic.weekDayRows(weeks as Array, 7);
+    var found = check(logger, rows != null && (rows as Array).size() == 2, "week 7 has two days");
+    if (!found) {
+        return false;
+    }
+    var day1 = (rows as Array)[0] as Dictionary;
+    var day2 = (rows as Array)[1] as Dictionary;
+    var ok1 = check(logger, LiftosaurLogic.dayNameMatches("Week 7 - Day 1", day1["name"]), "W7 D1 matches");
+    var ok2 = check(logger, LiftosaurLogic.dayNameMatches("Week 7 - Day 2", day2["name"]), "W7 D2 matches");
+    var ok3 = check(logger, !LiftosaurLogic.dayNameMatches("Week 7 - Day 2", day1["name"]),
+        "days are not swapped");
+    return ok1 && ok2 && ok3;
+}

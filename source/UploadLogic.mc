@@ -61,7 +61,7 @@ module UploadLogic {
             !Model.inRange(dayInWeek, 1, 1000, false) ||
             !Model.inRange(session["startedAt"], 0, 2147483647, false) ||
             !Model.inRange(session["endedAt"], session["startedAt"] as Number, 2147483647, false) ||
-            !Model.validNonblankText(session["templateName"], 64) ||
+            !Model.validNonblankText(session["templateName"], Model.MAX_DAY_NAME_BYTES) ||
             !(exercises instanceof Array)) {
             return null;
         }

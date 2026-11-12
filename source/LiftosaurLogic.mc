@@ -243,6 +243,21 @@ module LiftosaurLogic {
         return weeks;
     }
 
+    // Liftosaur names a day of a multi-week program "<week name> - <day name>" ("Week 7 - Day 1"),
+    // a single-week program just "<day name>"; the program text gives only the day name.
+    function dayNameMatches(apiName as Object?, textName as Object?) as Boolean {
+        if (!(apiName instanceof String) || !(textName instanceof String)) {
+            return false;
+        }
+        var api = apiName as String;
+        var suffix = " - " + (textName as String);
+        if (api.equals(textName as String)) {
+            return true;
+        }
+        return api.length() > suffix.length() &&
+            (api.substring(api.length() - suffix.length(), api.length()) as String).equals(suffix);
+    }
+
     // Day rows [{week, dayInWeek, name}] of one week of a parseDays result (at most eight), or
     // null when the program has no such week or it has no days (reason in parseProblem).
     function weekDayRows(weeks as Array, week as Number) as Array? {

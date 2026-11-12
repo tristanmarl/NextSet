@@ -195,7 +195,7 @@ module Catalog {
         var day = workout["dayData"];
         if (!(workout["entries"] instanceof Array) ||
             !Model.validProgramId(workout["programId"]) ||
-            !Model.validNonblankText(workout["dayName"], 64) || !(day instanceof Dictionary) ||
+            !Model.validNonblankText(workout["dayName"], Model.MAX_DAY_NAME_BYTES) || !(day instanceof Dictionary) ||
             !Model.inRange((day as Dictionary)["week"], 1, 1000, false) ||
             !Model.inRange((day as Dictionary)["dayInWeek"], 1, 1000, false)) {
             return null;

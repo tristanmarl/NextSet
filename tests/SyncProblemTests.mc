@@ -276,3 +276,21 @@ function testTextWrapKeepsAllText(logger as Test.Logger) as Boolean {
         TextWrap.clampTop(3, 2, 4) == 0, "scroll offset is clamped");
     return okWidth && okText && okCut && okEmpty && okClamp;
 }
+
+// Liftosaur's dayName for a multi-week program is "<week name> - <day name>" (seen in the
+// playground: "Week 7 - Day 1" for "# Week 7" / "## Day 1"; a 0.6.0 FR265 report failed on it).
+(:test)
+function testDayNameMatchesWeekPrefix(logger as Test.Logger) as Boolean {
+    var exact = check(logger, LiftosaurLogic.dayNameMatches("Day 1", "Day 1"), "single-week name");
+    var prefixed = check(logger, LiftosaurLogic.dayNameMatches("Week 7 - Day 1", "Day 1"),
+        "multi-week name with the week prefix");
+    var freeHeader = check(logger, LiftosaurLogic.dayNameMatches("#29 Preparation - Week 1 - Push", "Push"),
+        "a free week header with its own dash");
+    var other = check(logger, !LiftosaurLogic.dayNameMatches("Week 7 - Day 2", "Day 1"), "another day");
+    var partial = check(logger, !LiftosaurLogic.dayNameMatches("Week 7 - Big Day 1", "Day 1"),
+        "a name that only ends the same way");
+    var bare = check(logger, !LiftosaurLogic.dayNameMatches(" - Day 1", "Day 1"), "nothing before the dash");
+    var nulls = check(logger, !LiftosaurLogic.dayNameMatches(null, "Day 1") &&
+        !LiftosaurLogic.dayNameMatches("Day 1", null), "missing names");
+    return exact && prefixed && freeHeader && other && partial && bare && nulls;
+}

@@ -6,6 +6,8 @@ module Model {
     const MAX_TEMPLATES = 8;
     // Total days over all weeks of a program (only the current week is ever synced).
     const MAX_PROGRAM_DAYS = 160;
+    // Liftosaur day names of multi-week programs are "<week header> - <day header>".
+    const MAX_DAY_NAME_BYTES = 128;
     const MAX_PROGRAM_WEEKS = 104;
     // Warmup slots are addressed as WARMUP_BASE + index so one slot number identifies either kind.
     const WARMUP_BASE = 100;
@@ -361,7 +363,7 @@ module Model {
         }
         var prefix = "W" + (day as Dictionary)["week"].toString() + " D" +
             (day as Dictionary)["dayInWeek"].toString();
-        if (!validNonblankText(workout["dayName"], 64)) {
+        if (!validNonblankText(workout["dayName"], MAX_DAY_NAME_BYTES)) {
             return prefix + ": day has no name";
         }
         if (!(entries instanceof Array) || (entries as Array).size() < 1) {
@@ -417,7 +419,7 @@ module Model {
             return false;
         }
         var entries = template["entries"];
-        if (!validId(template["id"]) || !validNonblankText(template["name"], 64) ||
+        if (!validId(template["id"]) || !validNonblankText(template["name"], MAX_DAY_NAME_BYTES) ||
             !inRange(template["revision"], 1, 2147483647, false) ||
             !validProgramId(template["programId"]) ||
             !inRange(template["week"], 1, 1000, false) ||
@@ -597,7 +599,7 @@ module Model {
             !validProgramId((routine as Dictionary)["programId"]) ||
             !inRange((routine as Dictionary)["week"], 1, 1000, false) ||
             !inRange((routine as Dictionary)["dayInWeek"], 1, 1000, false) ||
-            !validNonblankText((routine as Dictionary)["name"], 64) ||
+            !validNonblankText((routine as Dictionary)["name"], MAX_DAY_NAME_BYTES) ||
             !inRange(job["start"], 0, 2147483647, false) ||
             !inRange(job["end"], job["start"] as Number, 2147483647, false) ||
             !validEpochMillis(job["startTime"]) || !validEpochMillis(job["endTime"]) ||
@@ -743,7 +745,7 @@ module Model {
             !validId(record["id"]) || !inRange(record["sessionSeq"], 1, 2147483647, false) ||
             !validId(record["templateId"]) ||
             !inRange(record["templateRevision"], 1, 2147483647, false) ||
-            !validNonblankText(record["templateName"], 64) ||
+            !validNonblankText(record["templateName"], MAX_DAY_NAME_BYTES) ||
             !inRange(record["startedAt"], 0, 2147483647, false) ||
             !(record["exercises"] instanceof Array)) {
             return false;

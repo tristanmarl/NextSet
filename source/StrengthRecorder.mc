@@ -30,7 +30,8 @@ class StrengthRecorder {
         }
         try {
             _session = ActivityRecording.createSession({
-                :name => name,
+                // Day names can be up to 128 bytes ("<week> - <day>"); the activity keeps 64 as before.
+                :name => SessionLogic.truncateBytes(name, 64),
                 :sport => Activity.SPORT_TRAINING,
                 // GENERIC: STRENGTH_TRAINING triggers the native Strength UI "Set 1" overlay; Connect still shows Strength Training.
                 :subSport => Activity.SUB_SPORT_GENERIC

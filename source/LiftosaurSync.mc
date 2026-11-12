@@ -360,7 +360,7 @@ class LiftosaurSync {
         var routine = _pendingRoutine as Dictionary;
         _pendingRoutine = null;
         if (!Catalog.validRoutine(routine) ||
-            !Model.validNonblankText(routine["name"], 64)) {
+            !Model.validNonblankText(routine["name"], Model.MAX_DAY_NAME_BYTES)) {
             var journal = _pendingJournal as Dictionary;
             // The id was appended by the reply step: drop it again.
             var all = journal["routineIds"] as Array;
@@ -849,7 +849,7 @@ class LiftosaurSync {
             (coordinates as Dictionary)["dayInWeek"] != expected["dayInWeek"]) {
             return reject(tag + ": API sent another week or day");
         }
-        if (!Model.sameString((coordinates as Dictionary)["name"], expected["name"])) {
+        if (!LiftosaurLogic.dayNameMatches((coordinates as Dictionary)["name"], expected["name"])) {
             return reject(tag + ": day name differs from API");
         }
         var hasExercises = (coordinates as Dictionary)["exercises"] != 0;

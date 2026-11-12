@@ -206,7 +206,7 @@ class Store {
 
     private function validPayload(domain as String, payload as Dictionary) as Boolean {
         if (domain.length() > 8 && Model.sameString(domain.substring(0, 8), "routine.")) {
-            return Catalog.validRoutine(payload) && Model.validNonblankText(payload["name"], 64);
+            return Catalog.validRoutine(payload) && Model.validNonblankText(payload["name"], Model.MAX_DAY_NAME_BYTES);
         }
         if (Model.sameString(domain, "config")) {
             return validConfig(payload);
