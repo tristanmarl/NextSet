@@ -25,9 +25,13 @@ function testBreadcrumbStepNames(logger as Test.Logger) as Boolean {
         Breadcrumb.stepForPurpose(Liftosaur.REQ_KEY_TEST) == 0, "web purposes map to step codes");
     var ok6 = check(logger, Breadcrumb.versionCode("0.5.0") == 500 && Breadcrumb.versionCode("1.12.3") == 11203,
         "version string becomes a Number");
-    var line = Breadcrumb.summaryText("0.5.0", "006-B4315-00", "day reply W1 D3", "W1 D3: bad");
+    var line = Breadcrumb.summaryText("0.5.0", "006-B4315-00", "day reply W1 D3, 38 KB free", "W1 D3: bad");
+    var clean = Breadcrumb.summaryText("0.5.0", "006-B4315-00", null, null);
     var ok7 = check(logger, Model.sameString(line,
-        "NextSet 0.5.0 006-B4315-00 stop:day reply W1 D3 sync:W1 D3: bad"), "one-line summary");
+        "NextSet 0.5.0 006-B4315-00 · Stopped in: day reply W1 D3, 38 KB free · Last sync: W1 D3: bad"),
+        "one-line summary");
+    var ok8 = check(logger, Model.sameString(clean, "NextSet 0.5.0 006-B4315-00"), "summary without stop or sync");
+    ok7 = ok7 && ok8;
     return ok1 && ok2 && ok3 && ok4 && ok5 && ok6 && ok7;
 }
 

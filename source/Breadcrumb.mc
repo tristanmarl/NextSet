@@ -128,15 +128,6 @@ module Breadcrumb {
     }
 
     // Short form for the one-line summary: "day reply W1 D3".
-    function shortStop(crumb as Object?) as String {
-        var full = format(crumb);
-        if (full == null) {
-            return "none";
-        }
-        var comma = (full as String).find(",");
-        return comma == null ? full as String : (full as String).substring(0, comma) as String;
-    }
-
     // Once per launch: a crumb left behind is moved to crumb.last (plus the app version); `crumb`
     // is then cleared and this run's launch number written in memory. Returns true if one was moved.
     function onLaunch(version as Number) as Boolean {
@@ -194,12 +185,14 @@ module Breadcrumb {
             part = number == null ? "?" : number;
         } catch (error) {
         }
-        return summaryText(version, part, shortStop(last()), problem);
+        return summaryText(version, part, format(last()), problem);
     }
 
-    function summaryText(version as String, part as String, stop as String, problem as String?) as String {
-        return "NextSet " + version + " " + part + " stop:" + stop +
-            (problem == null ? "" : " sync:" + problem);
+    // Each fact once: Diagnostics shows this line, then only the timings.
+    function summaryText(version as String, part as String, stop as String?, problem as String?) as String {
+        return "NextSet " + version + " " + part +
+            (stop == null ? "" : " · Stopped in: " + stop) +
+            (problem == null ? "" : " · Last sync: " + problem);
     }
 
     function last() as Array? {

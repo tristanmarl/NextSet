@@ -1400,11 +1400,8 @@ class SessionController {
 
     // Settings → Diagnostics text.
     public function diagnostics() as String {
-        var problem = LiftosaurLogic.loadSyncProblem();
-        var stop = Breadcrumb.format(Breadcrumb.last());
-        return Breadcrumb.summary(problem) + " · " +
-            (stop == null ? "" : "Stopped in: " + stop + " · ") +
-            (problem == null ? "" : "Last sync: " + problem + " · ") +
+        // Version, watch, stopped-in step and last sync reason, then the timings; nothing twice.
+        return Breadcrumb.summary(LiftosaurLogic.loadSyncProblem()) + " · " +
             "Max commit " + _maxCommitMs.toString() + " ms · Parse " +
             (_syncMs < 0 ? "n/a" : _syncMs.toString() + " ms") + " · Free " +
             (System.getSystemStats().freeMemory / 1024).toString() + " KB";
