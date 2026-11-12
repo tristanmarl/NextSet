@@ -63,6 +63,7 @@ class NextSetApp extends Application.AppBase {
 
     public function onStart(state as Dictionary?) as Void {
         AppBase.onStart(state);
+        Breadcrumb.onLaunch(Breadcrumb.versionCode(WatchUi.loadResource($.Rez.Strings.AppVersion) as String));
         _controller.retryUploads();
         if (_controller.hasPendingFinalization()) {
             retryPendingFinalization();
@@ -74,6 +75,7 @@ class NextSetApp extends Application.AppBase {
 
     public function onStop(state as Dictionary?) as Void {
         _controller.flushDraft();
+        Breadcrumb.leave();
         if (_startPending) {
             _startTimer.stop();
             _controller.cancelWorkoutStart();

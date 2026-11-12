@@ -306,6 +306,14 @@ class LiftosaurSync {
     // Runs the next staged commit (no request is sent). A failed commit ends the sync with
     // ROUTINE_SYNC_SAVE_FAILED; the journal in the store is then still the last committed one.
     public function runPendingStep() as Void {
+        Breadcrumb.enter(_stage == STAGE_PROJECT ? Breadcrumb.STEP_SYNC_DAY :
+            (_stage == STAGE_ROUTINE ? Breadcrumb.STEP_ROUTINE_COMMIT : Breadcrumb.STEP_JOURNAL_COMMIT),
+            Breadcrumb.week, Breadcrumb.day);
+        runPendingStepBody();
+        Breadcrumb.leave();
+    }
+
+    private function runPendingStepBody() as Void {
         if (_stage == STAGE_PROJECT) {
             stepProjectRoutine();
         } else if (_stage == STAGE_ROUTINE) {
@@ -602,6 +610,7 @@ class LiftosaurSync {
             var index = journal["index"] as Number;
             if (index < days.size()) {
                 var day = days[index] as Dictionary;
+                Breadcrumb.at(day["week"] as Number, day["dayInWeek"] as Number);
                 path = "/workout/next";
                 query = {
                     "programId" => journal["programId"],
@@ -619,7 +628,10 @@ class LiftosaurSync {
             }
             return;
         }
-        if (!_host.applyRoutineSync(journal as Dictionary)) {
+        Breadcrumb.enter(Breadcrumb.STEP_SYNC_PIVOT, 0, 0);
+        var applied = _host.applyRoutineSync(journal as Dictionary);
+        Breadcrumb.leave();
+        if (!applied) {
             if (_host.errorCode() == Err.ROUTINE_SYNC_INVALID_RESPONSE) {
                 LiftosaurLogic.saveSyncProblem(journal["skipNote"] instanceof String ?
                     journal["skipNote"] as String : "No day with exercises this week");
@@ -637,6 +649,7 @@ class LiftosaurSync {
         _routineSyncRunning = false;
         _journal = null;
         _host.setErrorCode(Err.NONE);
+        Breadcrumb.clearLast();
         _retryAttempt = 0;
         var skipped = journal["skipCount"] instanceof Number ? journal["skipCount"] as Number : 0;
         _notice = "Synced " + (journal["routineIds"] as Array).size().toString() +
@@ -1074,6 +1087,14 @@ class LiftosaurSync {
     public function handleApiResponse(purpose as String?, uploadId as String?,
                                       responseCode as Number,
                                       data as Dictionary or String or PersistedContent.Iterator or Null) as Void {
+        Breadcrumb.enterForPurpose(purpose);
+        handleApiResponseBody(purpose, uploadId, responseCode, data);
+        Breadcrumb.leave();
+    }
+
+    private function handleApiResponseBody(purpose as String?, uploadId as String?,
+                                           responseCode as Number,
+                                           data as Dictionary or String or PersistedContent.Iterator or Null) as Void {
         _requestInFlight = false;
         if (purpose == null) {
             pumpAsyncWork();
