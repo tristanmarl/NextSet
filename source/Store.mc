@@ -118,18 +118,31 @@ class Store {
         if (!Model.inRange(payload["sequence"], 1, 2147483647, false) ||
             !(phase instanceof String) ||
             !(Model.sameString(phase, Liftosaur.PHASE_PROGRAM) || Model.sameString(phase, Liftosaur.PHASE_NEXT) ||
-              Model.sameString(phase, Liftosaur.PHASE_DAYS)) ||
+              Model.sameString(phase, Liftosaur.PHASE_DAYS) || Model.sameString(phase, Liftosaur.PHASE_FIRST) ||
+              Model.sameString(phase, Liftosaur.PHASE_WEEK)) ||
             !Model.inRange(payload["index"], 0, Model.MAX_TEMPLATES, false) ||
             (days != null && (!(days instanceof Array) ||
                 (days as Array).size() > Model.MAX_PROGRAM_DAYS ||
                 (Model.sameString(phase, Liftosaur.PHASE_DAYS) &&
                     (days as Array).size() > Model.MAX_TEMPLATES))) ||
-            !validRoutineIds(routineIds, true) ||
-            (Model.sameString(phase, Liftosaur.PHASE_PROGRAM) &&
-                (payload["programId"] != null || payload["programName"] != null)) ||
-            (!Model.sameString(phase, Liftosaur.PHASE_PROGRAM) &&
-                (!Model.validNonblankText(payload["programId"], 64) ||
-                 !Model.validNonblankText(payload["programName"], 64)))) {
+            !validRoutineIds(routineIds, true)) {
+            return false;
+        }
+        // No program yet (first request pending), program id only (week known, name not yet),
+        // or both (every later phase).
+        var noProgram = Model.sameString(phase, Liftosaur.PHASE_PROGRAM) ||
+            Model.sameString(phase, Liftosaur.PHASE_FIRST);
+        var weekOnly = Model.sameString(phase, Liftosaur.PHASE_WEEK);
+        if (noProgram && (payload["programId"] != null || payload["programName"] != null)) {
+            return false;
+        }
+        if (weekOnly && (!Model.validNonblankText(payload["programId"], 64) ||
+            payload["programName"] != null || payload["nextWeek"] == null ||
+            payload["nextDay"] == null)) {
+            return false;
+        }
+        if (!noProgram && !weekOnly && (!Model.validNonblankText(payload["programId"], 64) ||
+            !Model.validNonblankText(payload["programName"], 64))) {
             return false;
         }
         if (weeks != null) {
@@ -232,10 +245,17 @@ class Store {
     // Records validated since launch: "domain.generation" -> rev. A commit or delete drops the
     // entry, so an unchanged generation is validated once per launch.
     private var _validated as Dictionary = {};
-    // Revisions of both "active" generations after a commit ("active.a" -> rev, 0 = none), so the
-    // frequent workout commits do not read both stored sessions back first. Dropped on delete or
-    // a failed write.
-    private var _activeRevs as Dictionary = {};
+    // Revisions of the generations seen or written in this launch ("domain.a" -> rev, 0 = no
+    // record), filled by the first read or write of a domain so commitPair never reads the old
+    // envelopes back (each one briefly doubles the payload in memory). Only clean outcomes are
+    // cached (a valid envelope or no key); a damaged or newer-version record is read again so its
+    // flag is raised every time. A delete or a failed write drops the domain's entries.
+    private var _revs as Dictionary = {};
+
+    public function forgetRevisions(domain as String) as Void {
+        _revs.remove(domain + ".a");
+        _revs.remove(domain + ".b");
+    }
 
     private function readGeneration(domain as String, generation as String) as Dictionary? {
         var record = readEnvelope(domain, generation);
@@ -268,6 +288,22 @@ class Store {
         _badRecord = false;
         _futureRecord = false;
         _recoveredRecord = false;
+        // Both revisions known and the older generation already validated (or absent): read only
+        // the newer one, so a load holds one stored copy, not two.
+        var ra = _revs[domain + ".a"];
+        var rb = _revs[domain + ".b"];
+        if (ra instanceof Number && rb instanceof Number && !Model.sameString(domain, "last")) {
+            var aNewer = (ra as Number) >= (rb as Number);
+            var older = aNewer ? (rb as Number) : (ra as Number);
+            var olderKey = domain + (aNewer ? ".b" : ".a");
+            if (older == 0 || _validated[olderKey] == older) {
+                var newest = readGeneration(domain, aNewer ? "a" : "b");
+                if (newest != null) {
+                    _recoveredRecord = older == 0;
+                    return newest["payload"] as Dictionary;
+                }
+            }
+        }
         var a = readGeneration(domain, "a");
         var b = readGeneration(domain, "b");
         if (a == null && b == null) {
@@ -516,13 +552,16 @@ class Store {
     // Envelope-only read: returns rev (0 if missing/unusable) without validating the payload.
     private function readEnvelope(domain as String, generation as String) as Dictionary? {
         var raw = null;
+        var revKey = domain + "." + generation;
+        _revs.remove(revKey);
         try {
-            raw = readKey(domain + "." + generation);
+            raw = readKey(revKey);
         } catch (error) {
             _badRecord = true;
             return null;
         }
         if (raw == null) {
+            _revs[revKey] = 0;
             return null;
         }
         if (!(raw instanceof Dictionary)) {
@@ -543,10 +582,16 @@ class Store {
             _badRecord = true;
             return null;
         }
+        _revs[revKey] = record["rev"];
         return record;
     }
 
-    private function readRevision(domain as String, generation as String) as Number {
+    // Revision of one generation from the cache; a miss reads the envelope once (0 = unusable).
+    private function revisionOf(domain as String, generation as String) as Number {
+        var known = _revs[domain + "." + generation];
+        if (known instanceof Number) {
+            return known as Number;
+        }
         var record = readEnvelope(domain, generation);
         return record == null ? 0 : record["rev"] as Number;
     }
@@ -574,9 +619,7 @@ class Store {
 
     // Removes both generations of a domain (a leftover key is harmless, so failures are ignored).
     public function deletePair(domain as String) as Void {
-        if (Model.sameString(domain, "active")) {
-            _activeRevs = {};
-        }
+        forgetRevisions(domain);
         var generations = ["a", "b"];
         for (var i = 0; i < generations.size(); i++) {
             _validated.remove(domain + "." + generations[i]);
@@ -594,10 +637,8 @@ class Store {
         if (!validPayload(domain, payload)) {
             return false;
         }
-        var cached = Model.sameString(domain, "active") &&
-            _activeRevs["active.a"] instanceof Number && _activeRevs["active.b"] instanceof Number;
-        var a = cached ? _activeRevs["active.a"] as Number : readRevision(domain, "a");
-        var b = cached ? _activeRevs["active.b"] as Number : readRevision(domain, "b");
+        var a = revisionOf(domain, "a");
+        var b = revisionOf(domain, "b");
         if (_futureRecord || (_badRecord && a == 0 && b == 0)) {
             return false;
         }
@@ -620,16 +661,13 @@ class Store {
         try {
             writeKey(domain + "." + target, envelope);
         } catch (error) {
-            _activeRevs = {};
+            forgetRevisions(domain);
             return false;
         }
         if (!Model.sameString(domain, "last")) {
             _validated[domain + "." + target] = currentRevision + 1;
         }
-        if (Model.sameString(domain, "active")) {
-            _activeRevs = {"active.a" => a, "active.b" => b};
-            _activeRevs["active." + target] = currentRevision + 1;
-        }
+        _revs[domain + "." + target] = currentRevision + 1;
         return true;
     }
 

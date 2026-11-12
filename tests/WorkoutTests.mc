@@ -499,6 +499,7 @@ function testStoreEnvelopeRevisionAndHistoryPeek(logger as Test.Logger) as Boole
     var b = Application.Storage.getValue("config.b") as Dictionary;
     var wroteOlder = committed && a["rev"] == 5 && b["rev"] == 6;
     Application.Storage.setValue("config.a", {"v" => 2, "rev" => 9, "payload" => {}});
+    store.forgetRevisions("config");   // written behind the store's back, as a newer app would
     var futureRefused = !store.commitPair("config", config);
     var oldGenerationKept = (Application.Storage.getValue("config.b") as Dictionary)["rev"] == 6;
     Application.Storage.deleteValue("config.a");

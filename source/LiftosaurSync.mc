@@ -22,15 +22,28 @@ class LiftosaurSync {
     private var _storedKey as String? = null;
     private var _clientHeader as String? = null;
     private var _storedKeyLoaded as Boolean = false;
-    private var _asyncTimer as Timer.Timer;
-    private var _retryTimer as Timer.Timer;
+    // Created on first use (a device allows few timers; test controllers never start any).
+    private var _asyncTimer as Timer.Timer? = null;
+    private var _retryTimer as Timer.Timer? = null;
     private var _retryAttempt as Number = 0;
+    // The journal while a sync runs (loaded once, then replaced by each committed step); only
+    // trusted while _routineSyncRunning or a step is staged, else the store is read again.
+    private var _journal as Dictionary? = null;
+    // A day/program reply is handled in three steps so no callback holds the raw reply together
+    // with storage work: the web callback validates and projects (STAGE_ROUTINE or STAGE_JOURNAL
+    // follows), then the 150 ms timer commits the routine, then the journal and sends the next
+    // request. A relaunch before the journal commit resumes at the same day (the routine is
+    // rewritten under the same id).
+    private var _stage as Number = 0;
+    private var _pendingRoutine as Dictionary? = null;
+    private var _pendingJournal as Dictionary? = null;
+    const STAGE_NONE = 0;
+    const STAGE_ROUTINE = 1;
+    const STAGE_JOURNAL = 2;
 
     public function initialize(store as Store, host as SessionController) {
         _store = store;
         _host = host;
-        _asyncTimer = new Timer.Timer();
-        _retryTimer = new Timer.Timer();
     }
 
     public function clearNotice() as Void {
@@ -170,11 +183,14 @@ class LiftosaurSync {
     // One-shot retry with backoff while the app is open; never during a workout or its save.
     private function scheduleRetry() as Void {
         if (_host.hasActiveSession() || _host.hasPendingFinalization() ||
-            (pendingUploadCount() == 0 && _store.loadRoutineSync() == null)) {
+            (pendingUploadCount() == 0 && _journal == null && _store.loadRoutineSync() == null)) {
             return;
         }
-        _retryTimer.stop();
-        _retryTimer.start(method(:retryNow), LiftosaurLogic.retryDelayMinutes(_retryAttempt) * 60000,
+        if (_retryTimer == null) {
+            _retryTimer = new Timer.Timer();
+        }
+        (_retryTimer as Timer.Timer).stop();
+        (_retryTimer as Timer.Timer).start(method(:retryNow), LiftosaurLogic.retryDelayMinutes(_retryAttempt) * 60000,
             false);
         _retryAttempt++;
     }
@@ -196,6 +212,9 @@ class LiftosaurSync {
         }
         var headers = apiHeaders(write);
         if (headers == null) {
+            return false;
+        }
+        if (!enoughMemory(purpose)) {
             return false;
         }
         if (!online()) {
@@ -233,6 +252,76 @@ class LiftosaurSync {
         }
     }
 
+    // A sync reply is held whole while it is converted; with too little free memory the request
+    // would end in a crash, so stop first with a recoverable error and a reason in Diagnostics.
+    private function enoughMemory(purpose as String) as Boolean {
+        var need = LiftosaurLogic.syncMemoryNeed(purpose);
+        if (need == 0) {
+            return true;
+        }
+        var free = System.getSystemStats().freeMemory;
+        if (free >= need) {
+            return true;
+        }
+        _host.setErrorCode(Err.SYNC_LOW_MEMORY);
+        LiftosaurLogic.saveSyncProblem("Low memory: " + (free / 1024).toString() + " KB free, " +
+            (need / 1024).toString() + " KB needed");
+        WatchUi.requestUpdate();
+        return false;
+    }
+
+    // The journal of the running sync: the in-memory copy, else one read from the store.
+    private function syncJournal() as Dictionary? {
+        if (_journal == null) {
+            _journal = _store.loadRoutineSync();
+        }
+        return _journal;
+    }
+
+    private function dropStaged() as Void {
+        if (_asyncTimer != null) {
+            (_asyncTimer as Timer.Timer).stop();
+        }
+        _stage = STAGE_NONE;
+        _pendingRoutine = null;
+        _pendingJournal = null;
+    }
+
+    // Steps staged by a reply handler; the host (tests) may run them without the timer.
+    public function pendingSteps() as Number {
+        return _stage == STAGE_ROUTINE ? 2 : (_stage == STAGE_JOURNAL ? 1 : 0);
+    }
+
+    // Runs the next staged commit (no request is sent). A failed commit ends the sync with
+    // ROUTINE_SYNC_SAVE_FAILED; the journal in the store is then still the last committed one.
+    public function runPendingStep() as Void {
+        if (_stage == STAGE_ROUTINE) {
+            var routine = _pendingRoutine as Dictionary;
+            _pendingRoutine = null;
+            if (!_store.commitPair("routine." + (routine["id"] as String), routine)) {
+                stageFailed();
+                return;
+            }
+            _stage = STAGE_JOURNAL;
+        } else if (_stage == STAGE_JOURNAL) {
+            var journal = _pendingJournal as Dictionary;
+            dropStaged();
+            if (!_store.commitPair("rsync", journal)) {
+                stageFailed();
+                return;
+            }
+            _journal = journal;
+        }
+    }
+
+    private function stageFailed() as Void {
+        dropStaged();
+        _journal = null;
+        _routineSyncRunning = false;
+        _host.setErrorCode(Err.ROUTINE_SYNC_SAVE_FAILED);
+        WatchUi.requestUpdate();
+    }
+
     public function syncRoutines() as Boolean {
         if (liftosaurKey() == null) {
             _host.setErrorCode(Err.LIFTOSAUR_KEY_REQUIRED);
@@ -242,6 +331,8 @@ class LiftosaurSync {
         if (_routineSyncRunning && _requestInFlight) {
             return true;
         }
+        dropStaged();
+        _journal = null;
         var journal = _store.loadRoutineSync();
         if (_store.hasUnsupportedRecord() || _store.hasCorruptRecord()) {
             _host.setErrorCode(Err.ROUTINE_SYNC_SAVE_FAILED);
@@ -268,7 +359,7 @@ class LiftosaurSync {
             var sequence = ((config as Dictionary)["routineSyncSeq"] as Number) + 1;
             journal = {
                 "sequence" => sequence,
-                "phase" => Liftosaur.PHASE_PROGRAM,
+                "phase" => Liftosaur.PHASE_FIRST,
                 "index" => 0,
                 "days" => [],
                 "routineIds" => []
@@ -379,16 +470,26 @@ class LiftosaurSync {
 
     // One-shot timer target: continue sync/upload work outside the response callback.
     public function continueAsyncWork() as Void {
+        if (_stage != STAGE_NONE) {
+            runPendingStep();
+            if (_stage != STAGE_NONE) {
+                scheduleAsyncWork();
+                return;
+            }
+        }
         pumpAsyncWork();
     }
 
     private function scheduleAsyncWork() as Void {
-        _asyncTimer.stop();
-        _asyncTimer.start(method(:continueAsyncWork), 150, false);
+        if (_asyncTimer == null) {
+            _asyncTimer = new Timer.Timer();
+        }
+        (_asyncTimer as Timer.Timer).stop();
+        (_asyncTimer as Timer.Timer).start(method(:continueAsyncWork), 150, false);
     }
 
     private function pumpAsyncWork() as Void {
-        if (_requestInFlight) {
+        if (_requestInFlight || _stage != STAGE_NONE) {
             return;
         }
         if (_routineSyncRunning) {
@@ -398,22 +499,12 @@ class LiftosaurSync {
         }
     }
 
-    private function saveRoutineJournal(journal as Dictionary) as Boolean {
-        if (!_store.commitPair("rsync", journal)) {
-            _host.setErrorCode(Err.ROUTINE_SYNC_SAVE_FAILED);
-            _routineSyncRunning = false;
-            WatchUi.requestUpdate();
-            return false;
-        }
-        return true;
-    }
-
     private function advanceRoutineSync() as Void {
         if (!_routineSyncRunning || _requestInFlight) {
             return;
         }
-        var journal = _store.loadRoutineSync();
-        if (journal == null || _store.hasUnsupportedRecord() || _store.hasCorruptRecord()) {
+        var journal = syncJournal();
+        if (journal == null) {
             _routineSyncRunning = false;
             _host.setErrorCode(Err.ROUTINE_SYNC_SAVE_FAILED);
             WatchUi.requestUpdate();
@@ -423,12 +514,14 @@ class LiftosaurSync {
         var settled = _host.settleRoutineSync(journal as Dictionary);
         if (settled < 0) {
             _routineSyncRunning = false;
+            _journal = null;
             WatchUi.requestUpdate();
             pumpAsyncWork();
             return;
         }
         if (settled == 1) {
             _store.deletePair("rsync");
+            _journal = null;
             _routineSyncRunning = false;
             _uploadRequested = true;
             WatchUi.requestUpdate();
@@ -436,34 +529,35 @@ class LiftosaurSync {
             return;
         }
         var phase = journal["phase"] as String;
-        if (Model.sameString(phase, Liftosaur.PHASE_PROGRAM)) {
-            if (!makeApiRequest("/programs/current", Communications.HTTP_REQUEST_METHOD_GET,
-                null, false, Liftosaur.REQ_SYNC_PROGRAM, null)) {
-                _routineSyncRunning = false;
-                pumpAsyncWork();
+        var path = null;
+        var query = null;
+        var purpose = Liftosaur.REQ_SYNC_DAY;
+        if (Model.sameString(phase, Liftosaur.PHASE_PROGRAM) ||
+            Model.sameString(phase, Liftosaur.PHASE_WEEK)) {
+            path = "/programs/current";
+            purpose = Liftosaur.REQ_SYNC_PROGRAM;
+        } else if (Model.sameString(phase, Liftosaur.PHASE_NEXT) ||
+            Model.sameString(phase, Liftosaur.PHASE_FIRST)) {
+            path = "/workout/next";
+            purpose = Liftosaur.REQ_SYNC_NEXT;
+        } else {
+            var days = journal["days"] as Array;
+            var index = journal["index"] as Number;
+            if (index < days.size()) {
+                var day = days[index] as Dictionary;
+                path = "/workout/next";
+                query = {
+                    "programId" => journal["programId"],
+                    "week" => day["week"],
+                    "dayInWeek" => day["dayInWeek"]
+                };
             }
-            return;
         }
-        if (Model.sameString(phase, Liftosaur.PHASE_NEXT)) {
-            if (!makeApiRequest("/workout/next", Communications.HTTP_REQUEST_METHOD_GET,
-                null, false, Liftosaur.REQ_SYNC_NEXT, null)) {
+        if (path != null) {
+            if (!makeApiRequest(path as String, Communications.HTTP_REQUEST_METHOD_GET,
+                query as Dictionary?, false, purpose, null)) {
                 _routineSyncRunning = false;
-                pumpAsyncWork();
-            }
-            return;
-        }
-        var days = journal["days"] as Array;
-        var index = journal["index"] as Number;
-        if (index < days.size()) {
-            var day = days[index] as Dictionary;
-            var query = {
-                "programId" => journal["programId"],
-                "week" => day["week"],
-                "dayInWeek" => day["dayInWeek"]
-            };
-            if (!makeApiRequest("/workout/next", Communications.HTTP_REQUEST_METHOD_GET,
-                query, false, Liftosaur.REQ_SYNC_DAY, null)) {
-                _routineSyncRunning = false;
+                _journal = null;
                 pumpAsyncWork();
             }
             return;
@@ -474,6 +568,7 @@ class LiftosaurSync {
                     journal["skipNote"] as String : "No day with exercises this week");
             }
             _routineSyncRunning = false;
+            _journal = null;
             WatchUi.requestUpdate();
             pumpAsyncWork();
             return;
@@ -483,6 +578,7 @@ class LiftosaurSync {
         LiftosaurLogic.saveSyncProblem(journal["skipNote"] instanceof String ?
             journal["skipNote"] as String : null);
         _routineSyncRunning = false;
+        _journal = null;
         _host.setErrorCode(Err.NONE);
         _retryAttempt = 0;
         var skipped = journal["skipCount"] instanceof Number ? journal["skipCount"] as Number : 0;
@@ -515,6 +611,7 @@ class LiftosaurSync {
 
     private function syncRequestFailed(responseCode as Number, data as Object?) as Void {
         _routineSyncRunning = false;
+        _journal = null;
         var transport = LiftosaurLogic.transportError(responseCode);
         _host.setErrorCode((responseCode == -402 || responseCode == -403) ?
             Err.ROUTINE_SYNC_RESPONSE_TOO_LARGE :
@@ -535,6 +632,24 @@ class LiftosaurSync {
         return false;
     }
 
+    // Step one of a reply: the next journal is only built here and committed later.
+    private function stageJournal(journal as Dictionary, routine as Dictionary?) as Boolean {
+        _pendingRoutine = routine;
+        _pendingJournal = journal;
+        _stage = routine == null ? STAGE_JOURNAL : STAGE_ROUTINE;
+        return true;
+    }
+
+    // A week with more than eight days syncs the first eight; the rest is noted.
+    private function noteSkippedDays(journal as Dictionary, week as Number, named as Number) as Void {
+        if (named > Model.MAX_TEMPLATES) {
+            journal["skipCount"] = named - Model.MAX_TEMPLATES;
+            journal["skipNote"] = "Week " + week.toString() + ": days " +
+                (Model.MAX_TEMPLATES + 1).toString() + "-" + named.toString() + " skipped (max " +
+                Model.MAX_TEMPLATES.toString() + ")";
+        }
+    }
+
     private function routineProgramReceived(data as Object?) as Boolean {
         var body = responseBody(data);
         if (body == null) {
@@ -544,7 +659,13 @@ class LiftosaurSync {
         if (!(program["text"] instanceof String)) {
             return reject("Program has no text");
         }
-        var weeks = LiftosaurLogic.parseDays(program["text"] as String);
+        var journal = syncJournal();
+        if (journal == null) {
+            return reject("Sync journal unreadable");
+        }
+        var week = Model.sameString(journal["phase"], Liftosaur.PHASE_WEEK) ?
+            journal["nextWeek"] as Number : 0;
+        var weeks = LiftosaurLogic.parseDaysFor(program["text"] as String, week);
         if (weeks == null) {
             return reject(LiftosaurLogic.parseProblem == null ? "Program text rejected" :
                 LiftosaurLogic.parseProblem as String);
@@ -552,25 +673,37 @@ class LiftosaurSync {
         if (!Model.validId(program["id"]) || !Model.validNonblankText(program["name"], 64)) {
             return reject("Program id or name invalid");
         }
-        var journal = _store.loadRoutineSync();
-        if (journal == null) {
-            return reject("Sync journal unreadable");
+        var next = SessionLogic.copyDictionary(journal);
+        next["programName"] = program["name"];
+        next["index"] = 0;
+        next["routineIds"] = [];
+        if (week > 0) {
+            // Week already known from /workout/next: keep only its days.
+            if (!Model.sameString(program["id"], journal["programId"])) {
+                return reject("Program changed during sync");
+            }
+            var rows = LiftosaurLogic.weekDayRows(weeks, week);
+            if (rows == null) {
+                return reject(LiftosaurLogic.parseProblem as String);
+            }
+            noteSkippedDays(next, week, ((weeks[week - 1]) as Array).size());
+            next["days"] = rows;
+            next["phase"] = Liftosaur.PHASE_DAYS;
+            return stageJournal(next, null);
         }
-        journal["phase"] = Liftosaur.PHASE_NEXT;
-        journal["programId"] = program["id"];
-        journal["programName"] = program["name"];
-        journal["weeks"] = weeks;
-        journal.remove("days");
-        journal["index"] = 0;
-        journal["routineIds"] = [];
-        journal.remove("nextWeek");
-        journal.remove("nextDay");
-        return saveRoutineJournal(journal as Dictionary);
+        // Older flow (journal written by a version that asked /programs/current first).
+        next["phase"] = Liftosaur.PHASE_NEXT;
+        next["programId"] = program["id"];
+        next["weeks"] = weeks;
+        next.remove("days");
+        next.remove("nextWeek");
+        next.remove("nextDay");
+        return stageJournal(next, null);
     }
 
     private function routineNextReceived(data as Object?) as Boolean {
         var coordinates = Catalog.dayCoordinates(data);
-        var journal = _store.loadRoutineSync();
+        var journal = syncJournal();
         if (coordinates == null) {
             var why = Model.liftosaurWorkoutProblem(data);
             return reject(why == null ? "/workout/next reply invalid" : why);
@@ -578,24 +711,32 @@ class LiftosaurSync {
         if (journal == null) {
             return reject("Sync journal unreadable");
         }
+        var next = SessionLogic.copyDictionary(journal);
+        var week = (coordinates as Dictionary)["week"] as Number;
+        if (Model.sameString(journal["phase"], Liftosaur.PHASE_FIRST)) {
+            // Which week is current is known now; /programs/current is parsed for that week only.
+            next["phase"] = Liftosaur.PHASE_WEEK;
+            next["programId"] = (coordinates as Dictionary)["programId"];
+            next["nextWeek"] = week;
+            next["nextDay"] = (coordinates as Dictionary)["dayInWeek"];
+            next["index"] = 0;
+            next["routineIds"] = [];
+            next.remove("days");
+            next.remove("skipCount");
+            next.remove("skipNote");
+            return stageJournal(next, null);
+        }
         if (!Model.sameString((coordinates as Dictionary)["programId"], journal["programId"])) {
             return reject("Program changed during sync");
         }
         // Only the current week is synced; the program text lists every week.
-        var week = (coordinates as Dictionary)["week"] as Number;
         var weekDays = null;
         if (journal["weeks"] instanceof Array) {
             weekDays = LiftosaurLogic.weekDayRows(journal["weeks"] as Array, week);
             if (weekDays == null) {
                 return reject(LiftosaurLogic.parseProblem as String);
             }
-            var named = ((journal["weeks"] as Array)[week - 1] as Array).size();
-            if (named > Model.MAX_TEMPLATES) {
-                journal["skipCount"] = named - Model.MAX_TEMPLATES;
-                journal["skipNote"] = "Week " + week.toString() + ": days " +
-                    (Model.MAX_TEMPLATES + 1).toString() + "-" + named.toString() + " skipped (max " +
-                    Model.MAX_TEMPLATES.toString() + ")";
-            }
+            noteSkippedDays(next, week, ((journal["weeks"] as Array)[week - 1] as Array).size());
         } else if (journal["days"] instanceof Array) {
             // Journal written before weeks were stored by position.
             weekDays = LiftosaurLogic.daysForWeek(journal["days"] as Array, week);
@@ -605,16 +746,16 @@ class LiftosaurSync {
         } else {
             return reject("Sync journal has no days");
         }
-        journal["days"] = weekDays;
-        journal.remove("weeks");
-        journal["phase"] = Liftosaur.PHASE_DAYS;
-        journal["nextWeek"] = (coordinates as Dictionary)["week"];
-        journal["nextDay"] = (coordinates as Dictionary)["dayInWeek"];
-        return saveRoutineJournal(journal as Dictionary);
+        next["days"] = weekDays;
+        next.remove("weeks");
+        next["phase"] = Liftosaur.PHASE_DAYS;
+        next["nextWeek"] = (coordinates as Dictionary)["week"];
+        next["nextDay"] = (coordinates as Dictionary)["dayInWeek"];
+        return stageJournal(next, null);
     }
 
     private function routineDayReceived(data as Object?) as Boolean {
-        var journal = _store.loadRoutineSync();
+        var journal = syncJournal();
         if (journal == null) {
             return reject("Sync journal unreadable");
         }
@@ -636,30 +777,26 @@ class LiftosaurSync {
         if (!Model.sameString((coordinates as Dictionary)["name"], expected["name"])) {
             return reject(tag + ": day name differs from API");
         }
-        var routine = (coordinates as Dictionary)["exercises"] == 0 ? null :
-            Catalog.parseRoutine(data, journal["sequence"] as Number, index + 1);
+        var hasExercises = (coordinates as Dictionary)["exercises"] != 0;
+        var routine = hasExercises ?
+            Catalog.parseRoutine(data, journal["sequence"] as Number, index + 1) : null;
+        var next = SessionLogic.copyDictionary(journal);
+        next["index"] = index + 1;
         if (routine == null) {
             // A day without exercises, or with exercises NextSet cannot run, is skipped: the
             // other days still sync. The reason of an unsupported day goes to Diagnostics.
-            if ((coordinates as Dictionary)["exercises"] != 0) {
-                journal["skipCount"] = (journal["skipCount"] instanceof Number ?
+            if (hasExercises) {
+                next["skipCount"] = (journal["skipCount"] instanceof Number ?
                     journal["skipCount"] as Number : 0) + 1;
-                journal["skipNote"] = Catalog.lastProblem == null ? tag + ": not supported" :
+                next["skipNote"] = Catalog.lastProblem == null ? tag + ": not supported" :
                     Catalog.lastProblem as String;
             }
-            journal["index"] = index + 1;
-            return saveRoutineJournal(journal as Dictionary);
-        }
-        var id = (routine as Dictionary)["id"] as String;
-        if (!_store.commitPair("routine." + id, routine as Dictionary)) {
-            _host.setErrorCode(Err.ROUTINE_SYNC_SAVE_FAILED);
-            return false;
+            return stageJournal(next, null);
         }
         var ids = (journal["routineIds"] as Array).slice(0, null);
-        ids.add(id);
-        journal["routineIds"] = ids;
-        journal["index"] = index + 1;
-        return saveRoutineJournal(journal as Dictionary);
+        ids.add((routine as Dictionary)["id"]);
+        next["routineIds"] = ids;
+        return stageJournal(next, routine as Dictionary);
     }
 
     private function findQueuedUpload(id as String) as Dictionary? {
@@ -891,6 +1028,13 @@ class LiftosaurSync {
                 syncRequestFailed(responseCode, data);
                 return;
             }
+            if (_stage != STAGE_NONE) {
+                // Defensive: finish an earlier reply's commits before taking this one.
+                runPendingStep();
+                runPendingStep();
+            } else if (!_routineSyncRunning) {
+                _journal = null;
+            }
             var parseStart = System.getTimer();
             var accepted = Model.sameString(purpose, Liftosaur.REQ_SYNC_PROGRAM) ?
                 routineProgramReceived(data) : (Model.sameString(purpose, Liftosaur.REQ_SYNC_NEXT) ?
@@ -898,6 +1042,7 @@ class LiftosaurSync {
             _host.noteSyncMs(System.getTimer() - parseStart);
             if (!accepted) {
                 _routineSyncRunning = false;
+                _journal = null;
                 if (_host.errorCode() != Err.ROUTINE_SYNC_SAVE_FAILED) {
                     _host.setErrorCode(Err.ROUTINE_SYNC_INVALID_RESPONSE);
                     LiftosaurLogic.saveSyncProblem(_problem == null ? "Reply rejected" : _problem);

@@ -456,6 +456,16 @@ class SessionController {
         _sync.handleApiResponse(purpose, uploadId, responseCode, data);
     }
 
+    // Staged commits of the last sync reply still to run (0-2) and a way to run one without the
+    // 150 ms timer (tests).
+    public function pendingSyncSteps() as Number {
+        return _sync.pendingSteps();
+    }
+
+    public function runPendingSyncStep() as Void {
+        _sync.runPendingStep();
+    }
+
     // -2: no readable config, -1: error (code set), 0: journal not yet committed, 1: it was
     // already committed and its superseded routine domains are reclaimed.
     public function settleRoutineSync(journal as Dictionary) as Number {
@@ -495,6 +505,16 @@ class SessionController {
 
     public function applyRoutineSync(journal as Dictionary) as Boolean {
         var ids = journal["routineIds"] as Array;
+        var config = readConfig();
+        if (config == null) {
+            _errorCode = Err.SAVED_SETTINGS_ARE_DAMAGED;
+            return false;
+        }
+        // The superseded routines are released before the new ones load, so the pivot never holds
+        // both sets; a failed pivot just reloads the config on the next read.
+        var oldIds = routineIdsOf((config as Dictionary)["routines"] as Array);
+        (config as Dictionary).remove("routines");
+        _config = null;
         var nextRoutines = [];
         for (var i = 0; i < ids.size(); i++) {
             var routine = _store.loadPair("routine." + (ids[i] as String));
@@ -511,17 +531,11 @@ class SessionController {
             _errorCode = Err.ROUTINE_SYNC_INVALID_RESPONSE;
             return false;
         }
-        var config = readConfig();
-        if (config == null) {
-            _errorCode = Err.SAVED_SETTINGS_ARE_DAMAGED;
-            return false;
-        }
         var priorFallback = _store.loadOlderPair("config");
         if (_store.hasUnsupportedRecord()) {
             _errorCode = Err.ROUTINE_SYNC_SAVE_FAILED;
             return false;
         }
-        var oldIds = routineIdsOf((config as Dictionary)["routines"] as Array);
         var fallbackIds = priorFallback != null && priorFallback["routineIds"] instanceof Array ?
             priorFallback["routineIds"] as Array : [];
         var next = SessionLogic.copyDictionary(config as Dictionary);

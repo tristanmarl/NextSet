@@ -106,6 +106,7 @@ function testIssue2ProgramReplyStartsDaySync(logger as Test.Logger) as Boolean {
     var saved = store.commitPair("rsync", journal);
     var controller = new SessionController(store);
     controller.handleApiResponse(Liftosaur.REQ_SYNC_PROGRAM, null, 200, {"data" => program});
+    syncSettle(controller);
     var after = store.loadRoutineSync() as Dictionary;
     var weeks = after["weeks"];
     var phaseOk = Model.sameString(after["phase"], "next") && weeks instanceof Array &&

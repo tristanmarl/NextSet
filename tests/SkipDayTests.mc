@@ -28,8 +28,11 @@ function testSyncSkipsEmptyAndUnsupportedDays(logger as Test.Logger) as Boolean 
     var saved = store.commitPair("rsync", journal);
     var controller = new SessionController(store);
     controller.handleApiResponse(Liftosaur.REQ_SYNC_DAY, null, 200, empty);
+    syncSettle(controller);
     controller.handleApiResponse(Liftosaur.REQ_SYNC_DAY, null, 200, good);
+    syncSettle(controller);
     controller.handleApiResponse(Liftosaur.REQ_SYNC_DAY, null, 200, noWeight);
+    syncSettle(controller);
     var after = store.loadRoutineSync() as Dictionary;
     var ids = after["routineIds"] as Array;
     var walked = after["index"] == 3 && ids.size() == 1 &&
@@ -60,6 +63,7 @@ function testSyncStillStopsOnWrongDay(logger as Test.Logger) as Boolean {
     var saved = store.commitPair("rsync", journal);
     var controller = new SessionController(store);
     controller.handleApiResponse(Liftosaur.REQ_SYNC_DAY, null, 200, good);
+    syncSettle(controller);
     var after = store.loadRoutineSync() as Dictionary;
     ok = check(logger, seeded && saved, "fixture store and journal are saved") && ok;
     ok = check(logger, after["index"] == 0, "a reply for another day does not advance the sync") && ok;
