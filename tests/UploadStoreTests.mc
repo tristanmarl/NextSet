@@ -21,7 +21,16 @@ class UploadMemoryStore extends Store {
         _values[key] = value;
     }
 
+    public function shareValuesWith(other as UploadMemoryStore) as Void {
+        _values = other.values();
+    }
+
+    public function values() as Dictionary {
+        return _values;
+    }
+
     public function deletePair(domain as String) as Void {
+        forgetRevisions(domain);
         _values.remove(domain + ".a");
         _values.remove(domain + ".b");
     }

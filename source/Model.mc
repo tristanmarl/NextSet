@@ -105,7 +105,22 @@ module Model {
         return (list as Array)[index] as Dictionary;
     }
 
+    const KIND_WEIGHT = 0;
+    const KIND_BODYWEIGHT = 1;
+    const KIND_TIMED = 2;
+
+    // Load type as a number, so a per-set check compares numbers, not strings (-1 = unknown).
+    function loadKind(type as Object?) as Number {
+        return sameString(type, "weight") ? KIND_WEIGHT : (sameString(type, "bodyweight") ?
+            KIND_BODYWEIGHT : (sameString(type, "timed") ? KIND_TIMED : -1));
+    }
+
     function validPlanTarget(target as Object?, type as Object?) as Boolean {
+        return validPlanTargetKind(target, loadKind(type));
+    }
+
+    // validPlanTarget with the load type already resolved (loadKind), for loops over sets.
+    function validPlanTargetKind(target as Object?, kind as Number) as Boolean {
         if (!(target instanceof Dictionary)) {
             return false;
         }
@@ -117,7 +132,7 @@ module Model {
             (set["amrap"] != null && !(set["amrap"] instanceof Boolean))) {
             return false;
         }
-        if (sameString(type, "timed")) {
+        if (kind == KIND_TIMED) {
             return set["load100"] == null && set["reps"] == 1 &&
                 inRange(set["durationSec"], 1, MAX_DURATION_SEC, false);
         }
@@ -126,8 +141,8 @@ module Model {
                 (set["minReps"] as Number) < (set["reps"] as Number)))) {
             return false;
         }
-        return sameString(type, "bodyweight") ? set["load100"] == null :
-            sameString(type, "weight") && inRange(set["load100"], 0, MAX_LOAD100, false);
+        return kind == KIND_BODYWEIGHT ? set["load100"] == null :
+            kind == KIND_WEIGHT && inRange(set["load100"], 0, MAX_LOAD100, false);
     }
 
     function validWarmupTarget(target as Object?) as Boolean {
@@ -419,6 +434,7 @@ module Model {
             }
             var item = entry as Dictionary;
             var type = item["loadType"];
+            var kind = loadKind(type);
             var count = item["workingSetCount"];
             var targets = item["setTargets"];
             var warmups = item["warmups"];
@@ -428,9 +444,8 @@ module Model {
                 !validText(item["equipment"], 48, true) ||
                 !validText(item["superset"], 24, true) ||
                 !(item["unilateral"] instanceof Boolean) ||
-                !(sameString(type, "weight") || sameString(type, "bodyweight") ||
-                    sameString(type, "timed")) ||
-                !(sameString(type, "weight") ? validUnit(item["unit"]) &&
+                kind < 0 ||
+                !(kind == KIND_WEIGHT ? validUnit(item["unit"]) &&
                     inRange(item["increment100"], 25, 10000, false) &&
                     (item["increment100"] as Number) % 25 == 0 :
                     item["unit"] == null && item["increment100"] == null) ||
@@ -450,7 +465,7 @@ module Model {
             total += count as Number;
             var setTargets = targets as Array;
             for (var s = 0; s < setTargets.size(); s++) {
-                if (!validPlanTarget(setTargets[s], type)) {
+                if (!validPlanTargetKind(setTargets[s], kind)) {
                     return false;
                 }
             }
@@ -817,6 +832,7 @@ module Model {
             }
             var item = exercise as Dictionary;
             var type = item["loadType"];
+            var kind = loadKind(type);
             var planned = item["plannedSetCount"];
             var slots = item["slots"];
             if (!validId(item["entryId"]) || !validId(item["exerciseId"]) ||
@@ -861,7 +877,7 @@ module Model {
                 }
                 var targetValues = planTargets as Array;
                 for (var t = 0; t < targetValues.size(); t++) {
-                    if (!validPlanTarget(targetValues[t], type)) {
+                    if (!validPlanTargetKind(targetValues[t], kind)) {
                         return false;
                     }
                 }

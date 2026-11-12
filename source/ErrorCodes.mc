@@ -51,6 +51,7 @@ module Err {
     const PHONE_NOT_CONNECTED = 51;
     const NO_RESPONSE_WILL_RETRY = 52;
     const NO_ACTIVE_WORKOUT = 53;
+    const SYNC_LOW_MEMORY = 54;
 
     function message(code as Number) as String? {
         switch (code) {
@@ -148,6 +149,8 @@ module Err {
                 return "No response · will retry";
             case NO_ACTIVE_WORKOUT:
                 return "No active workout";
+            case SYNC_LOW_MEMORY:
+                return "Not enough free memory to sync; retry later";
         }
         return null;
     }
@@ -221,6 +224,8 @@ module Err {
                 return message(code);
             case ROUTINE_SYNC_RESPONSE_TOO_LARGE:
                 return message(code);
+            case SYNC_LOW_MEMORY:
+                return "Low memory · retry sync";
         }
         return null;
     }

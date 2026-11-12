@@ -4,6 +4,10 @@ import Toybox.Lang;
 module LiftosaurLogic {
     const MAX_PROGRAM_BYTES = 16384;
     const PARSE_CHUNK = 1024;
+    // Peak a reply adds while it is converted, measured in the simulator with a 10-exercise,
+    // 4-set day (about 91 KB) and a 16 KB program (about 27 KB), plus margin; see docs/DEVICE_TESTS.md.
+    const SYNC_NEED_DAY = 112640;
+    const SYNC_NEED_PROGRAM = 49152;
 
     function trim(text as String) as String {
         var start = 0;
@@ -120,6 +124,12 @@ module LiftosaurLogic {
     // "## Name" is a day. Days before any week header form an implicit week 1 (a "#" line after
     // them is ambiguous and rejected). Single pass; only day names become substrings.
     function parseDays(programText as String) as Array? {
+        return parseDaysFor(programText, 0);
+    }
+
+    // weekWanted > 0: every header is still validated and counted, but only that week keeps its
+    // names; the other entries are null (the Array is as long as the number of weeks).
+    function parseDaysFor(programText as String, weekWanted as Number) as Array? {
         parseProblem = null;
         // ponytail: Liftoscript scan is capped at 16 KiB; raise if larger programs are supported.
         // The text is scanned in chunks of whole lines: toCharArray() of the whole 16 KiB text
@@ -136,6 +146,7 @@ module LiftosaurLogic {
         }
         var weeks = [];
         var current = null;
+        var started = false;
         var implicit = false;
         var total = 0;
         var pos = 0;
@@ -196,12 +207,15 @@ module LiftosaurLogic {
                     if (!Model.validNonblankText(name, 64)) {
                         return lineProblem(chunk, from, to, "bad day name");
                     }
-                    if (current == null) {
-                        current = [];
+                    if (!started) {
+                        started = true;
+                        current = weekWanted <= 1 ? [] : null;
                         weeks.add(current);
                         implicit = true;
                     }
-                    (current as Array).add(name);
+                    if (current != null) {
+                        (current as Array).add(name);
+                    }
                     total++;
                     if (total > Model.MAX_PROGRAM_DAYS) {
                         parseProblem = "Program over " + Model.MAX_PROGRAM_DAYS.toString() + " days";
@@ -215,7 +229,8 @@ module LiftosaurLogic {
                         parseProblem = "Program over " + Model.MAX_PROGRAM_WEEKS.toString() + " weeks";
                         return null;
                     }
-                    current = [];
+                    started = true;
+                    current = weekWanted <= 0 || weeks.size() + 1 == weekWanted ? [] : null;
                     weeks.add(current);
                 }
             }
@@ -235,17 +250,31 @@ module LiftosaurLogic {
             parseProblem = "Week " + week.toString() + " not in program text";
             return null;
         }
-        var names = weeks[week - 1] as Array;
-        if (names.size() == 0) {
+        var names = weeks[week - 1];
+        if (!(names instanceof Array) || (names as Array).size() == 0) {
             parseProblem = "Week " + week.toString() + " has no days";
             return null;
         }
         // Over eight days: the first eight are synced, the caller notes the rest as skipped.
         var rows = [];
-        for (var i = 0; i < names.size() && i < Model.MAX_TEMPLATES; i++) {
-            rows.add({"week" => week, "dayInWeek" => i + 1, "name" => names[i]});
+        for (var i = 0; i < (names as Array).size() && i < Model.MAX_TEMPLATES; i++) {
+            rows.add({"week" => week, "dayInWeek" => i + 1, "name" => (names as Array)[i]});
         }
         return rows;
+    }
+
+    // Free app memory a sync request needs before it is sent (its reply is held whole while it
+    // is converted); 0 for requests that are not routine sync. Measured values: docs/DEVICE_TESTS.md.
+    function syncMemoryNeed(purpose as String) as Number {
+        if (Model.sameString(purpose, Liftosaur.REQ_SYNC_DAY) ||
+            Model.sameString(purpose, Liftosaur.REQ_SYNC_NEXT)) {
+            return SYNC_NEED_DAY;
+        }
+        return Model.sameString(purpose, Liftosaur.REQ_SYNC_PROGRAM) ? SYNC_NEED_PROGRAM : 0;
+    }
+
+    function enoughFree(purpose as String, free as Number) as Boolean {
+        return free >= syncMemoryNeed(purpose);
     }
 
     // Reason of the last rejected sync, kept in the small storage key "diag.sync" (null = none).

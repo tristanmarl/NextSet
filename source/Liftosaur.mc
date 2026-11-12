@@ -18,6 +18,11 @@ module Liftosaur {
     const PHASE_PROGRAM = "program";
     const PHASE_NEXT = "next";
     const PHASE_DAYS = "days";
+    // Since 0.5.1: /workout/next first (PHASE_FIRST), then /programs/current for that one week
+    // (PHASE_WEEK: programId and nextWeek/nextDay known, no program name yet). "program" and
+    // "next" are written by older versions and still resume.
+    const PHASE_FIRST = "first";
+    const PHASE_WEEK = "week";
 
     // Request purposes (in memory only).
     const REQ_SYNC_PROGRAM = "sync_program";

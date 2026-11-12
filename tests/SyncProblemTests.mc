@@ -188,6 +188,7 @@ function testWeeksJournalAndSyncReasons(logger as Test.Logger) as Boolean {
     LiftosaurLogic.saveSyncProblem("old problem");
     var controller = new SessionController(store);
     controller.handleApiResponse(Liftosaur.REQ_SYNC_NEXT, null, 200, reply);
+    syncSettle(controller);
     var after = store.loadRoutineSync();
     var daysPhase = after != null && Model.sameString(after["phase"], "days") &&
         after["weeks"] == null && (after["days"] as Array).size() == 3 &&
@@ -204,7 +205,9 @@ function testWeeksJournalAndSyncReasons(logger as Test.Logger) as Boolean {
             {"week" => 2, "dayInWeek" => 1, "name" => "D"}]};
     var legacyStore = new UploadMemoryStore();
     var legacySaved = legacyStore.commitPair("rsync", legacy);
-    new SessionController(legacyStore).handleApiResponse(Liftosaur.REQ_SYNC_NEXT, null, 200, reply);
+    var legacyController = new SessionController(legacyStore);
+    legacyController.handleApiResponse(Liftosaur.REQ_SYNC_NEXT, null, 200, reply);
+    syncSettle(legacyController);
     var legacyAfter = legacyStore.loadRoutineSync();
     var legacyDays = legacyAfter != null && Model.sameString(legacyAfter["phase"], "days") &&
         (legacyAfter["days"] as Array).size() == 2;
@@ -215,7 +218,9 @@ function testWeeksJournalAndSyncReasons(logger as Test.Logger) as Boolean {
     var shortStore = new UploadMemoryStore();
     var shortSaved = shortStore.commitPair("rsync", shortWeeks);
     LiftosaurLogic.saveSyncProblem(null);
-    new SessionController(shortStore).handleApiResponse(Liftosaur.REQ_SYNC_NEXT, null, 200, reply);
+    var shortController = new SessionController(shortStore);
+    shortController.handleApiResponse(Liftosaur.REQ_SYNC_NEXT, null, 200, reply);
+    syncSettle(shortController);
     // The journal is fine, so the sync moves on; only the day-name check can reject it.
     var badName = new UploadMemoryStore();
     var nameJournal = {"sequence" => 1, "phase" => "days", "index" => 0, "programId" => "x0001xxx",
@@ -224,6 +229,7 @@ function testWeeksJournalAndSyncReasons(logger as Test.Logger) as Boolean {
     var nameSaved = badName.commitPair("rsync", nameJournal);
     var nameController = new SessionController(badName);
     nameController.handleApiResponse(Liftosaur.REQ_SYNC_DAY, null, 200, reply);
+    syncSettle(nameController);
     var nameProblem = LiftosaurLogic.loadSyncProblem();
     var nameOk = nameProblem != null && Model.sameString(nameProblem, "W1 D2: day name differs from API");
     var diagnostics = nameController.diagnostics();

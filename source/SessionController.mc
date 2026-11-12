@@ -135,12 +135,14 @@ class SessionController {
     // keys but must copy nested values (routines, settings, overrides) before mutating.
     private function readConfig() as Dictionary? {
         if (_config == null) {
-            _config = loadConfig();
+            _config = loadConfig(false);
         }
         return _config == null ? null : SessionLogic.copyDictionary(_config as Dictionary);
     }
 
-    private function loadConfig() as Dictionary? {
+    // lite: the routines are not loaded; "routines" is empty and "oldIds" lists the stored ids
+    // (the sync pivot only needs the ids, not 20 KB per routine).
+    private function loadConfig(lite as Boolean) as Dictionary? {
         var stored = _store.loadPair("config");
         if (_store.hasUnsupportedRecord() || (_store.hasCorruptRecord() && stored == null)) {
             _errorCode = Err.SAVED_SETTINGS_ARE_DAMAGED;
@@ -168,7 +170,10 @@ class SessionController {
             _errorCode = Err.SAVED_SETTINGS_ARE_DAMAGED;
             return null;
         }
-        var routines = loadRoutines(config["routineIds"] as Array);
+        var routines = lite ? [] : loadRoutines(config["routineIds"] as Array);
+        if (lite) {
+            config["oldIds"] = config["routineIds"];
+        }
         config.remove("routineIds");
         config["routines"] = routines;
         if (!(config["settings"] instanceof Dictionary)) {
@@ -456,6 +461,24 @@ class SessionController {
         _sync.handleApiResponse(purpose, uploadId, responseCode, data);
     }
 
+    // The routines of the config stay in memory (about 20 KB per synced day); a sync reply needs
+    // that room, so the cache is dropped and reloads lazily on the next read (never mid-workout).
+    public function releaseConfigCache() as Void {
+        if (!hasActiveSession() && !hasPendingFinalization()) {
+            _config = null;
+        }
+    }
+
+    // Staged commits of the last sync reply still to run (0-2) and a way to run one without the
+    // 150 ms timer (tests).
+    public function pendingSyncSteps() as Number {
+        return _sync.pendingSteps();
+    }
+
+    public function runPendingSyncStep() as Void {
+        _sync.runPendingStep();
+    }
+
     // -2: no readable config, -1: error (code set), 0: journal not yet committed, 1: it was
     // already committed and its superseded routine domains are reclaimed.
     public function settleRoutineSync(journal as Dictionary) as Number {
@@ -495,6 +518,27 @@ class SessionController {
 
     public function applyRoutineSync(journal as Dictionary) as Boolean {
         var ids = journal["routineIds"] as Array;
+        var config = null;
+        var oldIds = [];
+        if (_config != null) {
+            config = SessionLogic.copyDictionary(_config as Dictionary);
+            oldIds = routineIdsOf((config as Dictionary)["routines"] as Array);
+        } else {
+            config = loadConfig(true);
+            if (config != null && (config as Dictionary)["oldIds"] instanceof Array) {
+                oldIds = (config as Dictionary)["oldIds"] as Array;
+            }
+        }
+        if (config == null) {
+            _errorCode = Err.SAVED_SETTINGS_ARE_DAMAGED;
+            return false;
+        }
+        // The superseded routines are released first and the new ones are checked one at a time
+        // (only id, week and day are kept), so the pivot never holds a whole set; the config reloads
+        // lazily on the next read. A failed pivot reloads it the same way.
+        (config as Dictionary).remove("routines");
+        (config as Dictionary).remove("oldIds");
+        _config = null;
         var nextRoutines = [];
         for (var i = 0; i < ids.size(); i++) {
             var routine = _store.loadPair("routine." + (ids[i] as String));
@@ -503,7 +547,8 @@ class SessionController {
                 _errorCode = Err.ROUTINE_SYNC_SAVE_FAILED;
                 return false;
             }
-            nextRoutines.add(routine);
+            nextRoutines.add({"id" => routine["id"], "week" => routine["week"],
+                "dayInWeek" => routine["dayInWeek"]});
         }
         var nextId = Catalog.nextRoutineId(nextRoutines,
             journal["nextWeek"] as Number, journal["nextDay"] as Number);
@@ -511,21 +556,14 @@ class SessionController {
             _errorCode = Err.ROUTINE_SYNC_INVALID_RESPONSE;
             return false;
         }
-        var config = readConfig();
-        if (config == null) {
-            _errorCode = Err.SAVED_SETTINGS_ARE_DAMAGED;
-            return false;
-        }
         var priorFallback = _store.loadOlderPair("config");
         if (_store.hasUnsupportedRecord()) {
             _errorCode = Err.ROUTINE_SYNC_SAVE_FAILED;
             return false;
         }
-        var oldIds = routineIdsOf((config as Dictionary)["routines"] as Array);
         var fallbackIds = priorFallback != null && priorFallback["routineIds"] instanceof Array ?
             priorFallback["routineIds"] as Array : [];
         var next = SessionLogic.copyDictionary(config as Dictionary);
-        next["routines"] = nextRoutines;
         next["routineSyncSeq"] = journal["sequence"];
         next["programId"] = journal["programId"];
         next["programName"] = journal["programName"];
@@ -536,7 +574,7 @@ class SessionController {
             return false;
         }
         _stored = true;
-        _config = next;
+        _config = null;
         // Keep domains used by both readable config generations. Older fallback domains are now
         // unreferenced and can be reclaimed after the new pivot is durable.
         for (var i = 0; i < fallbackIds.size(); i++) {

@@ -55,6 +55,7 @@ function testSyncDayResponseDefersPivot(logger as Test.Logger) as Boolean {
     var saved = store.commitPair("rsync", journal);
     var controller = new SessionController(store);
     controller.handleApiResponse(Liftosaur.REQ_SYNC_DAY, null, 200, upperReply);
+    syncSettle(controller);
     var after = store.loadRoutineSync() as Dictionary;
     var config = store.loadPair("config") as Dictionary;
     var routine = store.loadPair("routine.sync-2-d1");
