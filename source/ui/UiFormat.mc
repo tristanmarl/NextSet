@@ -265,6 +265,13 @@ module UiFormat {
         return [value.substring(0, splitAt), value.substring(splitAt + 1, value.length())];
     }
 
+    // Greedy word wrap into as many lines as needed (a word wider than maxWidth is cut by
+    // characters). Used by the Feedback screen; titles keep using wrapTitle.
+    function wrapLines(dc as Dc, value as String, font as Graphics.FontType,
+                       maxWidth as Numeric) as Array {
+        return TextWrap.breakLines(value, new DcMeasure(dc, font), maxWidth);
+    }
+
     function load100(value as Number) as String {
         var whole = value / 100;
         var fraction = value % 100;

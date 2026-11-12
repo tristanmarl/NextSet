@@ -1,5 +1,6 @@
 import Toybox.Graphics;
 import Toybox.Lang;
+import Toybox.Math;
 import Toybox.System;
 import Toybox.Time;
 import Toybox.WatchUi;
@@ -280,13 +281,15 @@ module Navigator {
     }
 
     function feedback(message as String) as Void {
-        WatchUi.pushView(new FeedbackView(message), new FeedbackDelegate(), WatchUi.SLIDE_UP);
+        var view = new FeedbackView(message);
+        WatchUi.pushView(view, new FeedbackDelegate(view), WatchUi.SLIDE_UP);
     }
 
     // Result of an async action: replaces a "Testing…" feedback still on screen, else pushes.
     function replaceFeedback(message as String) as Void {
         if (WatchUi.getCurrentView()[0] instanceof FeedbackView) {
-            WatchUi.switchToView(new FeedbackView(message), new FeedbackDelegate(), WatchUi.SLIDE_IMMEDIATE);
+            var view = new FeedbackView(message);
+            WatchUi.switchToView(view, new FeedbackDelegate(view), WatchUi.SLIDE_IMMEDIATE);
         } else {
             feedback(message);
         }
@@ -497,27 +500,68 @@ class RoutineDetailDelegate extends WatchUi.Menu2InputDelegate {
 
 class FeedbackView extends WatchUi.View {
     private var _message as String;
+    private var _top as Number = 0;
+    private var _visible as Number = 0;
+    private var _lines as Array = [] as Array;
 
     public function initialize(message as String) {
         _message = message;
         View.initialize();
     }
 
+    // UP/DOWN: scroll a text that does not fit.
+    public function scroll(delta as Number) as Void {
+        var next = TextWrap.clampTop(_top + delta, _lines.size(), _visible);
+        if (next != _top) {
+            _top = next;
+            WatchUi.requestUpdate();
+        }
+    }
+
     public function onUpdate(dc as Dc) as Void {
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
         dc.clear();
-        var lines = UiFormat.wrapTitle(dc, _message, Graphics.FONT_SMALL, dc.getWidth() * 0.72);
-        var height = lines.size() * dc.getFontHeight(Graphics.FONT_SMALL);
-        var y = (dc.getHeight() - height) / 2;
-        for (var i = 0; i < lines.size(); i++) {
-            y = UiFormat.drawLine(dc, lines[i] as String, y, Graphics.FONT_SMALL);
+        var h = dc.getHeight();
+        var w = dc.getWidth();
+        // Text block: 16 %..84 % of the height; the width is the chord of the circle at its edge.
+        var area = h * 68 / 100;
+        var half = h * 34 / 100;
+        var radius = (w < h ? w : h) / 2;
+        var chord = 2.0 * Math.sqrt((radius * radius - half * half).toFloat());
+        var maxWidth = chord * 0.94;
+        var font = Graphics.FONT_SMALL;
+        _lines = UiFormat.wrapLines(dc, _message, font, maxWidth);
+        if (_lines.size() * dc.getFontHeight(font) > area) {
+            font = Graphics.FONT_XTINY;
+            _lines = UiFormat.wrapLines(dc, _message, font, maxWidth);
         }
-        UiFormat.drawLine(dc, "BACK", y + 10, Graphics.FONT_XTINY);
+        var fh = dc.getFontHeight(font);
+        _visible = area / fh;
+        if (_visible < 1) {
+            _visible = 1;
+        }
+        _top = TextWrap.clampTop(_top, _lines.size(), _visible);
+        var shown = _lines.size() - _top;
+        if (shown > _visible) {
+            shown = _visible;
+        }
+        var y = (h - shown * fh) / 2;
+        for (var i = 0; i < shown; i++) {
+            y = UiFormat.drawLine(dc, _lines[_top + i] as String, y, font);
+        }
+        if (_lines.size() > _visible) {
+            dc.setColor(Graphics.COLOR_LT_GRAY, Graphics.COLOR_BLACK);
+            var more = (_top > 0 ? "^ " : "") + (_top + _visible < _lines.size() ? "v" : "");
+            dc.drawText(w / 2, h * 87 / 100, Graphics.FONT_XTINY, more, Graphics.TEXT_JUSTIFY_CENTER);
+        }
     }
 }
 
 class FeedbackDelegate extends KeyDelegate {
-    public function initialize() {
+    private var _view as FeedbackView;
+
+    public function initialize(view as FeedbackView) {
+        _view = view;
         KeyDelegate.initialize();
     }
 
@@ -528,6 +572,16 @@ class FeedbackDelegate extends KeyDelegate {
 
     public function onStartKey() as Boolean {
         WatchUi.popView(WatchUi.SLIDE_DOWN);
+        return true;
+    }
+
+    public function onUpKey() as Boolean {
+        _view.scroll(-1);
+        return true;
+    }
+
+    public function onDownKey() as Boolean {
+        _view.scroll(1);
         return true;
     }
 }

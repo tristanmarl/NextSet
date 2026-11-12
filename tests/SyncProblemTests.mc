@@ -241,3 +241,32 @@ function testWeeksJournalAndSyncReasons(logger as Test.Logger) as Boolean {
             "a rejected day stores its reason and Diagnostics shows it") &&
         check(logger, cleared, "the reason can be cleared");
 }
+
+class FixedMeasure {
+    public function width(text as String) as Number {
+        return text.length() * 10;
+    }
+}
+
+(:test)
+function testTextWrapKeepsAllText(logger as Test.Logger) as Boolean {
+    var m = new FixedMeasure();
+    var lines = TextWrap.breakLines("Last sync: day 2 has no weight on set 3 · Free 400 KB", m, 130);
+    var ok = true;
+    var joined = "";
+    for (var i = 0; i < lines.size(); i++) {
+        var line = lines[i] as String;
+        ok = ok && line.length() * 10 <= 130;
+        joined = joined + (i == 0 ? "" : " ") + line;
+    }
+    var okWidth = check(logger, ok, "every wrapped line fits the width");
+    var okText = check(logger, Model.sameString(joined, "Last sync: day 2 has no weight on set 3 · Free 400 KB"),
+        "wrapping loses no text");
+    var long = TextWrap.breakLines("abcdefghijklmnopqrstuvwxyz", m, 100);
+    var okCut = check(logger, long.size() == 3 && (long[0] as String).length() == 10,
+        "an overlong word is cut by characters");
+    var okEmpty = check(logger, TextWrap.breakLines("", m, 100).size() == 0, "empty text has no lines");
+    var okClamp = check(logger, TextWrap.clampTop(9, 10, 4) == 6 && TextWrap.clampTop(-1, 10, 4) == 0 &&
+        TextWrap.clampTop(3, 2, 4) == 0, "scroll offset is clamped");
+    return okWidth && okText && okCut && okEmpty && okClamp;
+}

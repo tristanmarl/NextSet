@@ -172,7 +172,7 @@ module Err {
             case ROUTINE_NOT_FOUND:
                 return "Routine not found";
             case ROUTINE_SYNC_INVALID_RESPONSE:
-                return "Sync failed: see Diagnostics";
+                return "Sync failed: Settings > Diagnostics";
             case WORKOUT_CANNOT_START:
                 return "Workout cannot start";
             case COULD_NOT_RESERVE_WORKOUT_ID:
