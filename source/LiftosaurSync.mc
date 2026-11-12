@@ -399,6 +399,7 @@ class LiftosaurSync {
     }
 
     private function saveRoutineJournal(journal as Dictionary) as Boolean {
+        Breadcrumb.enter(Breadcrumb.STEP_JOURNAL_COMMIT, Breadcrumb.week, Breadcrumb.day);
         if (!_store.commitPair("rsync", journal)) {
             _host.setErrorCode(Err.ROUTINE_SYNC_SAVE_FAILED);
             _routineSyncRunning = false;
@@ -456,6 +457,7 @@ class LiftosaurSync {
         var index = journal["index"] as Number;
         if (index < days.size()) {
             var day = days[index] as Dictionary;
+            Breadcrumb.at(day["week"] as Number, day["dayInWeek"] as Number);
             var query = {
                 "programId" => journal["programId"],
                 "week" => day["week"],
@@ -468,7 +470,10 @@ class LiftosaurSync {
             }
             return;
         }
-        if (!_host.applyRoutineSync(journal as Dictionary)) {
+        Breadcrumb.enter(Breadcrumb.STEP_SYNC_PIVOT, 0, 0);
+        var applied = _host.applyRoutineSync(journal as Dictionary);
+        Breadcrumb.leave();
+        if (!applied) {
             if (_host.errorCode() == Err.ROUTINE_SYNC_INVALID_RESPONSE) {
                 LiftosaurLogic.saveSyncProblem(journal["skipNote"] instanceof String ?
                     journal["skipNote"] as String : "No day with exercises this week");
@@ -484,6 +489,7 @@ class LiftosaurSync {
             journal["skipNote"] as String : null);
         _routineSyncRunning = false;
         _host.setErrorCode(Err.NONE);
+        Breadcrumb.clearLast();
         _retryAttempt = 0;
         var skipped = journal["skipCount"] instanceof Number ? journal["skipCount"] as Number : 0;
         _notice = "Synced " + (journal["routineIds"] as Array).size().toString() +
@@ -651,6 +657,7 @@ class LiftosaurSync {
             return saveRoutineJournal(journal as Dictionary);
         }
         var id = (routine as Dictionary)["id"] as String;
+        Breadcrumb.enter(Breadcrumb.STEP_ROUTINE_COMMIT, Breadcrumb.week, Breadcrumb.day);
         if (!_store.commitPair("routine." + id, routine as Dictionary)) {
             _host.setErrorCode(Err.ROUTINE_SYNC_SAVE_FAILED);
             return false;
@@ -874,6 +881,14 @@ class LiftosaurSync {
     public function handleApiResponse(purpose as String?, uploadId as String?,
                                       responseCode as Number,
                                       data as Dictionary or String or PersistedContent.Iterator or Null) as Void {
+        Breadcrumb.enterForPurpose(purpose);
+        handleApiResponseBody(purpose, uploadId, responseCode, data);
+        Breadcrumb.leave();
+    }
+
+    private function handleApiResponseBody(purpose as String?, uploadId as String?,
+                                           responseCode as Number,
+                                           data as Dictionary or String or PersistedContent.Iterator or Null) as Void {
         _requestInFlight = false;
         if (purpose == null) {
             pumpAsyncWork();

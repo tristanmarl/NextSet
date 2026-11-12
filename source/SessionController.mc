@@ -1072,6 +1072,13 @@ class SessionController {
     }
 
     public function advanceFinalization() as Boolean {
+        Breadcrumb.enter(Breadcrumb.STEP_FINALIZE, 0, 0);
+        var advanced = advanceFinalizationBody();
+        Breadcrumb.leave();
+        return advanced;
+    }
+
+    private function advanceFinalizationBody() as Boolean {
         if (!hasPendingFinalization()) {
             return false;
         }
@@ -1091,6 +1098,7 @@ class SessionController {
                 } else if (_fitSavedInMemory) {
                     recording["fitState"] = "saved";
                 } else if (_recorder.hasSession()) {
+                    Breadcrumb.enter(Breadcrumb.STEP_FIT_SAVE, 0, 0);
                     if (saveRecording()) {
                         var count = recording["fitSegments"] instanceof Number ?
                             recording["fitSegments"] as Number : 0;
@@ -1355,7 +1363,10 @@ class SessionController {
     // Settings → Diagnostics text.
     public function diagnostics() as String {
         var problem = LiftosaurLogic.loadSyncProblem();
-        return (problem == null ? "" : "Last sync: " + problem + " · ") +
+        var stop = Breadcrumb.format(Breadcrumb.last());
+        return Breadcrumb.summary(problem) + " · " +
+            (stop == null ? "" : "Stopped in: " + stop + " · ") +
+            (problem == null ? "" : "Last sync: " + problem + " · ") +
             "Max commit " + _maxCommitMs.toString() + " ms · Parse " +
             (_syncMs < 0 ? "n/a" : _syncMs.toString() + " ms") + " · Free " +
             (System.getSystemStats().freeMemory / 1024).toString() + " KB";
