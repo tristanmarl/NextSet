@@ -2,6 +2,9 @@
 
 NextSet is an unofficial companion for Liftosaur. It is not made or endorsed by Liftosaur and needs Liftosaur Premium for API access.
 
+## 0.6.1
+- **Multi-week programs sync again.** Liftosaur names a day of a multi-week program "Week 7 - Day 1", while the program text says "## Day 1". NextSet treated that as a mismatch and stopped every multi-week sync with "day name differs from API". Both forms are accepted now, and long week + day names (up to 128 bytes) are allowed.
+
 ## 0.6.0
 - **AMRAP sets show "3+".** Sets marked as many-reps-as-possible in Liftosaur (`1x3+`) show their reps with a "+" on the set screen, the exercise list and the routine preview, so you remember to enter what you really did. Logging is still one START press.
 - **Rest per set.** Each set keeps the rest time Liftosaur gives it (`3x5 20s, 2x5 120s` rests 20 s, then 120 s); before, every set used the first set's rest.
