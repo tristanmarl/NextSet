@@ -2,9 +2,13 @@
 
 NextSet is an unofficial companion for Liftosaur. It is not made or endorsed by Liftosaur and needs Liftosaur Premium for API access.
 
-## Unreleased
-- **Fewer crashes on the Forerunner 255 sync.** A day reply is now handled in four short steps instead of one long one, which ended in "Watchdog Tripped: code executed too long" on heavy days.
-- **Routine sync uses much less memory.** Low-memory watches (Forerunner 255 family) no longer crash while syncing: a reply is converted and dropped before anything is saved, only the current week's days are kept, saves no longer read the old copies back, and the loaded routines are released while a sync runs. When free memory is still too low the sync stops with "Low memory · retry sync" and a reason under Settings → Diagnostics.
+## 0.6.0
+- **AMRAP sets show "3+".** Sets marked as many-reps-as-possible in Liftosaur (`1x3+`) show their reps with a "+" on the set screen, the exercise list and the routine preview, so you remember to enter what you really did. Logging is still one START press.
+- **Rest per set.** Each set keeps the rest time Liftosaur gives it (`3x5 20s, 2x5 120s` rests 20 s, then 120 s); before, every set used the first set's rest.
+- **Forerunner 255 sync crash.** Garmin's crash reports showed the app being stopped for running too long ("code executed too long") while syncing a heavy day. A day reply is now handled in four short steps instead of one long one and checked once instead of three times. Tested in the simulator; not yet confirmed on a real Forerunner 255.
+- **Routine sync uses much less memory.** On low-memory watches (Forerunner 255 family) the peak during sync is much lower: a reply is converted and dropped before anything is saved, only the current week's days are kept, saves no longer read the old copies back, and the loaded routines are released while a sync runs. When free memory is still too low the sync stops with "Low memory · retry sync" and a reason under Settings → Diagnostics.
+- **Diagnostics you can read and paste.** Settings → Diagnostics starts with one line to copy into a bug report: app version, watch, the step the app was in if it stopped unexpectedly last time ("Stopped in: day reply W1 D3, 38 KB free") and the reason of the last failed sync. Long text wraps and scrolls with UP/DOWN instead of being cut off. A failed sync now says "Sync failed: Settings > Diagnostics".
+- Fixed a crash when a sync reply arrived after the sync had already moved on.
 
 ## 0.5.0
 - **Connect IQ 3.4 watches.** The minimum is Connect IQ 3.4 instead of 5, adding the fēnix 6 Pro / 6S Pro / 6X Pro, Forerunner 945 LTE, Descent Mk2 / Mk2S and the eight MARQ Gen 1 editions (67 watches in all). Tested in the simulator only on these.
