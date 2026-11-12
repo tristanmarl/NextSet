@@ -3,6 +3,7 @@ import Toybox.Lang;
 
 module LiftosaurLogic {
     const MAX_PROGRAM_BYTES = 16384;
+    const PARSE_CHUNK = 1024;
 
     function trim(text as String) as String {
         var start = 0;
@@ -121,63 +122,104 @@ module LiftosaurLogic {
     function parseDays(programText as String) as Array? {
         parseProblem = null;
         // ponytail: Liftoscript scan is capped at 16 KiB; raise if larger programs are supported.
-        if (Model.byteLength(programText) > MAX_PROGRAM_BYTES) {
+        // The text is scanned in chunks of whole lines: toCharArray() of the whole 16 KiB text
+        // (and of toUtf8Array() for its size) cost ~75 KB each at the same moment as the raw reply.
+        var length = programText.length();
+        var bytes = 0;
+        for (var at = 0; at < length; at += PARSE_CHUNK) {
+            var piece = programText.substring(at, at + PARSE_CHUNK < length ? at + PARSE_CHUNK : length);
+            bytes += (piece as String).toUtf8Array().size();
+        }
+        if (bytes > MAX_PROGRAM_BYTES) {
             parseProblem = "Program over 16 KB";
             return null;
         }
-        var chars = programText.toCharArray();
-        var count = chars.size();
         var weeks = [];
         var current = null;
         var implicit = false;
         var total = 0;
-        var start = 0;
-        for (var i = 0; i <= count; i++) {
-            if (i < count && chars[i] != '\n') {
-                continue;
-            }
-            var from = start;
-            var to = i;
-            start = i + 1;
-            while (from < to && isSpaceChar(chars[from])) {
-                from++;
-            }
-            while (to > from && isSpaceChar(chars[to - 1])) {
-                to--;
-            }
-            if (from >= to || chars[from] != '#') {
-                continue;
-            }
-            if (to - from >= 2 && chars[from + 1] == '#') {
-                if (to - from < 3 || chars[from + 2] != ' ') {
-                    return lineProblem(programText, from, to, "day header needs a space");
+        var pos = 0;
+        var skipping = false;   // inside the rest of a line longer than one chunk
+        while (pos < length) {
+            var last = pos + PARSE_CHUNK >= length;
+            var chunk = programText.substring(pos, last ? length : pos + PARSE_CHUNK) as String;
+            var chars = chunk.toCharArray();
+            var count = chars.size();
+            // A chunk ends after its last newline; the rest is read again with the next chunk.
+            // No newline at all: the line is longer than a chunk, scan its start only.
+            var limit = count;
+            var partial = false;
+            if (!last) {
+                var newline = count - 1;
+                while (newline >= 0 && chars[newline] != '\n') {
+                    newline--;
                 }
-                var name = trim(programText.substring(from + 3, to) as String);
-                if (!Model.validNonblankText(name, 64)) {
-                    return lineProblem(programText, from, to, "bad day name");
+                if (newline >= 0) {
+                    limit = newline + 1;
+                } else {
+                    partial = true;
                 }
-                if (current == null) {
+            }
+            pos += limit;
+            var start = 0;
+            if (skipping) {
+                while (start < limit && chars[start] != '\n') {
+                    start++;
+                }
+                if (start >= limit) {
+                    continue;
+                }
+                start++;
+                skipping = false;
+            }
+            for (var i = start; i <= limit; i++) {
+                if (i < limit && chars[i] != '\n') {
+                    continue;
+                }
+                var from = start;
+                var to = i;
+                start = i + 1;
+                while (from < to && isSpaceChar(chars[from])) {
+                    from++;
+                }
+                while (to > from && isSpaceChar(chars[to - 1])) {
+                    to--;
+                }
+                if (from >= to || chars[from] != '#') {
+                    continue;
+                }
+                if (to - from >= 2 && chars[from + 1] == '#') {
+                    if (to - from < 3 || chars[from + 2] != ' ') {
+                        return lineProblem(chunk, from, to, "day header needs a space");
+                    }
+                    var name = trim(chunk.substring(from + 3, to) as String);
+                    if (!Model.validNonblankText(name, 64)) {
+                        return lineProblem(chunk, from, to, "bad day name");
+                    }
+                    if (current == null) {
+                        current = [];
+                        weeks.add(current);
+                        implicit = true;
+                    }
+                    (current as Array).add(name);
+                    total++;
+                    if (total > Model.MAX_PROGRAM_DAYS) {
+                        parseProblem = "Program over " + Model.MAX_PROGRAM_DAYS.toString() + " days";
+                        return null;
+                    }
+                } else {
+                    if (implicit) {
+                        return lineProblem(chunk, from, to, "week header after days");
+                    }
+                    if (weeks.size() >= Model.MAX_PROGRAM_WEEKS) {
+                        parseProblem = "Program over " + Model.MAX_PROGRAM_WEEKS.toString() + " weeks";
+                        return null;
+                    }
                     current = [];
                     weeks.add(current);
-                    implicit = true;
                 }
-                (current as Array).add(name);
-                total++;
-                if (total > Model.MAX_PROGRAM_DAYS) {
-                    parseProblem = "Program over " + Model.MAX_PROGRAM_DAYS.toString() + " days";
-                    return null;
-                }
-            } else {
-                if (implicit) {
-                    return lineProblem(programText, from, to, "week header after days");
-                }
-                if (weeks.size() >= Model.MAX_PROGRAM_WEEKS) {
-                    parseProblem = "Program over " + Model.MAX_PROGRAM_WEEKS.toString() + " weeks";
-                    return null;
-                }
-                current = [];
-                weeks.add(current);
             }
+            skipping = partial;
         }
         if (total == 0) {
             parseProblem = "No days (## Name) in program";
