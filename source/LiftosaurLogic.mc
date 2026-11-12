@@ -4,8 +4,10 @@ import Toybox.Lang;
 module LiftosaurLogic {
     const MAX_PROGRAM_BYTES = 16384;
     const PARSE_CHUNK = 1024;
-    const SYNC_NEED_DAY = 100000;
-    const SYNC_NEED_PROGRAM = 100000;
+    // Peak a reply adds while it is converted, measured in the simulator with a 10-exercise,
+    // 4-set day (about 91 KB) and a 16 KB program (about 27 KB), plus margin; see docs/DEVICE_TESTS.md.
+    const SYNC_NEED_DAY = 112640;
+    const SYNC_NEED_PROGRAM = 49152;
 
     function trim(text as String) as String {
         var start = 0;
@@ -269,6 +271,10 @@ module LiftosaurLogic {
             return SYNC_NEED_DAY;
         }
         return Model.sameString(purpose, Liftosaur.REQ_SYNC_PROGRAM) ? SYNC_NEED_PROGRAM : 0;
+    }
+
+    function enoughFree(purpose as String, free as Number) as Boolean {
+        return free >= syncMemoryNeed(purpose);
     }
 
     // Reason of the last rejected sync, kept in the small storage key "diag.sync" (null = none).

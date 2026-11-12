@@ -2,6 +2,9 @@
 
 NextSet is an unofficial companion for Liftosaur. It is not made or endorsed by Liftosaur and needs Liftosaur Premium for API access.
 
+## Unreleased
+- **Routine sync uses much less memory.** Low-memory watches (Forerunner 255 family) no longer crash while syncing: a reply is converted and dropped before anything is saved, only the current week's days are kept, saves no longer read the old copies back, and the loaded routines are released while a sync runs. When free memory is still too low the sync stops with "Low memory · retry sync" and a reason under Settings → Diagnostics.
+
 ## 0.5.0
 - **Connect IQ 3.4 watches.** The minimum is Connect IQ 3.4 instead of 5, adding the fēnix 6 Pro / 6S Pro / 6X Pro, Forerunner 945 LTE, Descent Mk2 / Mk2S and the eight MARQ Gen 1 editions (67 watches in all). Tested in the simulator only on these.
 - **Any Liftoscript week header.** Any `# …` line opens the next week, so programs with headers like "# Week 4 - Deload" or "# #29 Preparation - Week 1" (5/3/1 BBB, Juggernaut, Sheiko) sync instead of failing with "Liftosaur routine data is invalid".

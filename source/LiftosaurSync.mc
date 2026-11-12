@@ -260,7 +260,13 @@ class LiftosaurSync {
             return true;
         }
         var free = System.getSystemStats().freeMemory;
-        if (free >= need) {
+        if (LiftosaurLogic.enoughFree(purpose, free)) {
+            return true;
+        }
+        // The loaded routines are the big resident part: drop them and look again.
+        _host.releaseConfigCache();
+        free = System.getSystemStats().freeMemory;
+        if (LiftosaurLogic.enoughFree(purpose, free)) {
             return true;
         }
         _host.setErrorCode(Err.SYNC_LOW_MEMORY);
@@ -1035,6 +1041,7 @@ class LiftosaurSync {
             } else if (!_routineSyncRunning) {
                 _journal = null;
             }
+            _host.releaseConfigCache();
             var parseStart = System.getTimer();
             var accepted = Model.sameString(purpose, Liftosaur.REQ_SYNC_PROGRAM) ?
                 routineProgramReceived(data) : (Model.sameString(purpose, Liftosaur.REQ_SYNC_NEXT) ?

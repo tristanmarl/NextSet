@@ -272,6 +272,21 @@ function testSyncMemoryGuardRules(logger as Test.Logger) as Boolean {
         LiftosaurLogic.syncMemoryNeed(Liftosaur.REQ_SYNC_NEXT) > 0, "sync requests need free memory");
     ok = check(logger, LiftosaurLogic.syncMemoryNeed(Liftosaur.REQ_UPLOAD_START) == 0 &&
         LiftosaurLogic.syncMemoryNeed(Liftosaur.REQ_KEY_TEST) == 0, "other requests are not guarded") && ok;
+    var need = LiftosaurLogic.syncMemoryNeed(Liftosaur.REQ_SYNC_DAY);
+    ok = check(logger, LiftosaurLogic.enoughFree(Liftosaur.REQ_SYNC_DAY, need) &&
+        !LiftosaurLogic.enoughFree(Liftosaur.REQ_SYNC_DAY, need - 1) &&
+        LiftosaurLogic.enoughFree(Liftosaur.REQ_UPLOAD_START, 0), "the free-memory threshold is exact") && ok;
     return check(logger, Err.message(Err.SYNC_LOW_MEMORY) != null &&
         Err.shortMessage(Err.SYNC_LOW_MEMORY) != null, "the low-memory error has both texts") && ok;
+}
+
+(:test)
+function testReleasedConfigReloadsLazily(logger as Test.Logger) as Boolean {
+    var store = stageStore(stageJournalFor("1cc9198d"));
+    var controller = new SessionController(store);
+    var before = controller.routineTemplates().size();
+    controller.releaseConfigCache();
+    var after = controller.routineTemplates().size();
+    return check(logger, before == 1 && after == 1 && controller.errorCode() == Err.NONE,
+        "the routines reload from storage after the cache is released");
 }
