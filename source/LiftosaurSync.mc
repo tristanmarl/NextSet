@@ -619,7 +619,12 @@ class LiftosaurSync {
             return reject("Sync journal unreadable");
         }
         var index = journal["index"] as Number;
-        var expected = (journal["days"] as Array)[index] as Dictionary;
+        var days = journal["days"];
+        // A stray reply (journal not at the day step, or all days done) must not index past the list.
+        if (!(days instanceof Array) || index >= (days as Array).size()) {
+            return reject("Day reply does not match the sync step");
+        }
+        var expected = (days as Array)[index] as Dictionary;
         var tag = "W" + expected["week"].toString() + " D" + expected["dayInWeek"].toString();
         var coordinates = Catalog.dayCoordinates(data);
         if (coordinates == null) {
