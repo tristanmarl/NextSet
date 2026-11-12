@@ -326,8 +326,8 @@ module SessionLogic {
             entryId,
             slotIndex,
             now,
-            warmupSet ? (slot["restSec"] instanceof Number ? slot["restSec"] as Number : 60) :
-                changedExercise["restSec"] as Number
+            slot["restSec"] instanceof Number ? slot["restSec"] as Number :
+                (warmupSet ? 60 : changedExercise["restSec"] as Number)
         ) : null;
         var pointer = {};
         pointer["entryId"] = entryId;

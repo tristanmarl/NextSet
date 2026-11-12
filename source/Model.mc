@@ -112,7 +112,9 @@ module Model {
         var set = target as Dictionary;
         // Sets that ask for an RPE: logRpe, with the program's target RPE x10 when it has one.
         if ((set["logRpe"] != null && !(set["logRpe"] instanceof Boolean)) ||
-            !inRange(set["rpe10"], 10, 100, true)) {
+            !inRange(set["rpe10"], 10, 100, true) ||
+            !inRange(set["restSec"], 0, MAX_REST_SEC, true) ||
+            (set["amrap"] != null && !(set["amrap"] instanceof Boolean))) {
             return false;
         }
         if (sameString(type, "timed")) {
@@ -879,6 +881,10 @@ module Model {
                 }
                 var savedSlot = slot as Dictionary;
                 if (!history && !(savedSlot["draft"] instanceof Dictionary)) {
+                    return false;
+                }
+                if (!inRange(savedSlot["restSec"], 0, MAX_REST_SEC, true) ||
+                    (savedSlot["amrap"] != null && !(savedSlot["amrap"] instanceof Boolean))) {
                     return false;
                 }
                 if (savedSlot["draft"] != null && !validSavedDraft(type, savedSlot["draft"])) {
