@@ -193,7 +193,7 @@ module UiFormat {
             }
             return [[draft["durationSec"].toString(), "num"], ["s", "unit"]];
         }
-        var reps = [draft["reps"].toString(), "num"];
+        var reps = [repsText(exercise, slot), "num"];
         if (Model.sameString(type, "bodyweight")) {
             return [["BW", "unit"], ["×", "sep"], reps];
         }
@@ -388,15 +388,22 @@ module UiFormat {
         var draft = (Model.slotAt(exercise, slotIndex) as Dictionary)["draft"] as Dictionary;
         var type = exercise["loadType"];
         if (Model.sameString(type, "weight")) {
-            return load100(draft["load100"] as Number) + " " + unit(exercise) + " × " + draft["reps"].toString();
+            return load100(draft["load100"] as Number) + " " + unit(exercise) + " × " + repsText(exercise, slotIndex);
         }
         if (Model.sameString(type, "assistance")) {
-            return load100(draft["load100"] as Number) + " " + unit(exercise) + " assist × " + draft["reps"].toString();
+            return load100(draft["load100"] as Number) + " " + unit(exercise) + " assist × " + repsText(exercise, slotIndex);
         }
         if (Model.sameString(type, "bodyweight")) {
-            return "Bodyweight × " + draft["reps"].toString();
+            return "Bodyweight × " + repsText(exercise, slotIndex);
         }
         return draft["durationSec"].toString() + " sec";
+    }
+
+    // Reps of a set's draft, "3+" for an AMRAP working set.
+    function repsText(exercise as Dictionary, slotIndex as Number) as String {
+        var slot = Model.slotAt(exercise, slotIndex) as Dictionary;
+        var draft = slot["draft"] as Dictionary;
+        return draft["reps"].toString() + (slot["amrap"] == true ? "+" : "");
     }
 
     // "8–10" when the plan gave a rep range for this set, else null.

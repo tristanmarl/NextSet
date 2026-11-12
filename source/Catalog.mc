@@ -89,7 +89,11 @@ module Catalog {
                     (sourceSet["minReps"] as Number) < (sourceSet["reps"] as Number) ?
                     sourceSet["minReps"] : null;
                 var rpe = sourceSet["rpe"];
+                var setRest = sourceSet["timer"];
                 targets.add({
+                    // Per-set rest and AMRAP ("3+"); both omitted from the cache when absent.
+                    "restSec" => Model.inRange(setRest, 0, Model.MAX_REST_SEC, false) ? setRest : null,
+                    "amrap" => sourceSet["isAmrap"] == true ? true : null,
                     "reps" => reps,
                     "minReps" => lowReps,
                     "load100" => Model.sameString(type, "weight") ? load100 : null,
@@ -394,7 +398,14 @@ module Catalog {
                     "durationEdited" => false,
                     "targetAlertConsumed" => false
                 };
-                slots.add({"draft" => draft, "completed" => null});
+                var slot = {"draft" => draft, "completed" => null};
+                if (Model.inRange(target["restSec"], 0, Model.MAX_REST_SEC, false)) {
+                    slot["restSec"] = target["restSec"];
+                }
+                if (target["amrap"] == true) {
+                    slot["amrap"] = true;
+                }
+                slots.add(slot);
             }
             var firstTarget = targets[0] as Dictionary;
             var minReps = null;

@@ -225,9 +225,9 @@ module Navigator {
                 result += target["durationSec"].toString() + "s";
             } else if (target["load100"] instanceof Number) {
                 result += UiFormat.load100(target["load100"] as Number) + "×" +
-                    target["reps"].toString();
+                    target["reps"].toString() + (target["amrap"] == true ? "+" : "");
             } else {
-                result += target["reps"].toString();
+                result += target["reps"].toString() + (target["amrap"] == true ? "+" : "");
             }
         }
         if (targets.size() > count) {
