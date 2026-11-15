@@ -18,6 +18,10 @@ module Catalog {
 
     // Why the last parseRoutine returned null (short text), else null. Built only on failure.
     var lastProblem as String? = null;
+    // Set by projectChecked: "W1 D2 Name: no sets, left out" for the first exercise without
+    // working sets it left out (null when none), and true when that left out every exercise.
+    var leftOut as String? = null;
+    var dayEmpty as Boolean = false;
 
     // Records "W1 D2 Name: text" (name only when an exercise is given) and returns null.
     function reject(workout as Dictionary, source as Dictionary?, text as String) as Dictionary? {
@@ -58,6 +62,8 @@ module Catalog {
         var workout = workoutFromReply(reply) as Dictionary;
         var sourceEntries = workout["entries"] as Array;
         var entries = [];
+        leftOut = null;
+        dayEmpty = false;
         for (var e = 0; e < sourceEntries.size(); e++) {
             var source = sourceEntries[e] as Dictionary;
             var sourceSets = source["sets"] as Array;
@@ -67,9 +73,19 @@ module Catalog {
                     sets.add(sourceSets[s]);
                 }
             }
-            if (sets.size() == 0 || sets.size() > Model.MAX_SETS) {
-                return reject(workout, source, sets.size() == 0 ? "only warmup sets" :
-                    sets.size().toString() + " sets (max " + Model.MAX_SETS.toString() + ")");
+            if (sets.size() == 0) {
+                // Nothing to do for this exercise (Liftosaur shows it empty too): left out.
+                if (leftOut == null) {
+                    var tagDay = workout["dayData"] as Dictionary;
+                    leftOut = Model.fit("W" + tagDay["week"].toString() + " D" +
+                        tagDay["dayInWeek"].toString() + " " + Model.nameTag(source["name"]) +
+                        ": no sets, left out", 60);
+                }
+                continue;
+            }
+            if (sets.size() > Model.MAX_SETS) {
+                return reject(workout, source, sets.size().toString() + " sets (max " +
+                    Model.MAX_SETS.toString() + ")");
             }
             var firstSet = sets[0] as Dictionary;
             var timed = Model.timedSet(firstSet);
@@ -151,7 +167,7 @@ module Catalog {
             var firstTarget = targets[0] as Dictionary;
             var restSec = firstSet["timer"];
             entries.add({
-                "entryId" => "e" + (e + 1).toString(),
+                "entryId" => "e" + (entries.size() + 1).toString(),
                 "liftosaurEntryId" => source["entryId"],
                 "exerciseId" => exerciseId,
                 "name" => source["name"],
@@ -175,6 +191,11 @@ module Catalog {
                 "startingLoad100" => Model.sameString(type, "weight") ?
                     Model.planLoad100(firstSet["weight"]) : null
             });
+        }
+        if (entries.size() == 0) {
+            // Every exercise was left out: the day counts as a day without exercises.
+            dayEmpty = true;
+            return null;
         }
         var dayData = workout["dayData"] as Dictionary;
         var routine = {

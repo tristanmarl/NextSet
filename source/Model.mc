@@ -309,8 +309,9 @@ module Model {
         } else if (!validText(item["equipment"], 48, true) ||
             !validText(item["superset"], 24, true)) {
             reason = "bad equipment or superset";
-        } else if (!(sets instanceof Array) || (sets as Array).size() < 1) {
-            reason = "no sets";
+        } else if (!(sets instanceof Array)) {
+            // An empty list is fine: an exercise without sets is left out of the routine.
+            reason = "sets is not a list";
         } else if ((sets as Array).size() > MAX_SETS) {
             reason = (sets as Array).size().toString() + " sets (max " + MAX_SETS.toString() + ")";
         } else if (warmups != null && !(warmups instanceof Array)) {

@@ -338,6 +338,14 @@ class LiftosaurSync {
         var routine = Catalog.projectChecked(reply, journal["sequence"] as Number,
             journal["index"] as Number);
         reply = null;
+        if (routine == null && Catalog.dayEmpty) {
+            // Every exercise had no working sets: like an empty day, not counted as skipped.
+            if (Catalog.leftOut != null && !(journal["skipNote"] instanceof String)) {
+                journal["skipNote"] = Catalog.leftOut;
+            }
+            _stage = STAGE_JOURNAL;
+            return;
+        }
         if (routine == null) {
             // Exercises NextSet cannot run: the day is skipped, the reason goes to Diagnostics.
             journal["skipCount"] = (journal["skipCount"] instanceof Number ?
@@ -350,6 +358,10 @@ class LiftosaurSync {
         var ids = (journal["routineIds"] as Array).slice(0, null);
         ids.add((routine as Dictionary)["id"]);
         journal["routineIds"] = ids;
+        if (Catalog.leftOut != null && !(journal["skipNote"] instanceof String)) {
+            // A note only (the day still syncs, so it is not counted as skipped).
+            journal["skipNote"] = Catalog.leftOut;
+        }
         _pendingRoutine = routine;
         _stage = STAGE_ROUTINE;
     }
