@@ -113,10 +113,34 @@ module LiftosaurLogic {
     // Why the last parseDays returned null (short text), else null. Built only on failure.
     var parseProblem as String? = null;
 
-    function lineProblem(source as String, from as Number, to as Number, text as String) as Null {
-        var shown = to - from > 24 ? 24 : to - from;
-        parseProblem = "Line \"" + source.substring(from, from + shown) + "\": " + text;
+    // line = the header line from its first "#" (at most the rest of PARSE_CHUNK from line start).
+    function lineProblem(line as String, text as String) as Null {
+        var chars = line.toCharArray();
+        var to = chars.size();
+        while (to > 0 && isSpaceChar(chars[to - 1])) {
+            to--;
+        }
+        var shown = to > 24 ? 24 : to;
+        parseProblem = "Line \"" + line.substring(0, shown) + "\": " + text;
         return null;
+    }
+
+    // Start index of the line holding the "#" at index p when that "#" is the first non-blank
+    // character of the line and lies within PARSE_CHUNK characters of the line start (longer lines
+    // are only read that far); else -1.
+    function headerLineStart(programText as String, p as Number) as Number {
+        var k = p;
+        while (k > 0 && p - k < PARSE_CHUNK) {
+            var c = programText.substring(k - 1, k).toCharArray()[0];
+            if (c == '\n') {
+                return k;
+            }
+            if (!isSpaceChar(c)) {
+                return -1;
+            }
+            k--;
+        }
+        return k == 0 && p < PARSE_CHUNK ? 0 : -1;
     }
 
     // Weeks of day names: Array of Arrays of Strings, index 0 = week 1. Liftoscript numbers weeks
@@ -132,8 +156,8 @@ module LiftosaurLogic {
     function parseDaysFor(programText as String, weekWanted as Number) as Array? {
         parseProblem = null;
         // ponytail: Liftoscript scan is capped at 16 KiB; raise if larger programs are supported.
-        // The text is scanned in chunks of whole lines: toCharArray() of the whole 16 KiB text
-        // (and of toUtf8Array() for its size) cost ~75 KB each at the same moment as the raw reply.
+        // No toCharArray() of the whole 16 KiB text (and of toUtf8Array() for its size): that cost
+        // ~75 KB each at the same moment as the raw reply; the size is counted per chunk.
         var length = programText.length();
         var bytes = 0;
         for (var at = 0; at < length; at += PARSE_CHUNK) {
@@ -150,62 +174,81 @@ module LiftosaurLogic {
         var implicit = false;
         var total = 0;
         var pos = 0;
-        var skipping = false;   // inside the rest of a line longer than one chunk
+        // Interpreted work must follow the number of "#" characters, not the text length (the
+        // watchdog counts bytecodes: a 16 KB per-character loop tripped it on an FR255). The bulk
+        // is skipped with the native String.find on windows of PARSE_CHUNK characters.
         while (pos < length) {
-            var last = pos + PARSE_CHUNK >= length;
-            var chunk = programText.substring(pos, last ? length : pos + PARSE_CHUNK) as String;
-            var chars = chunk.toCharArray();
-            var count = chars.size();
-            // A chunk ends after its last newline; the rest is read again with the next chunk.
-            // No newline at all: the line is longer than a chunk, scan its start only.
-            var limit = count;
-            var partial = false;
-            if (!last) {
-                var newline = count - 1;
-                while (newline >= 0 && chars[newline] != '\n') {
-                    newline--;
+            var end = pos + PARSE_CHUNK < length ? pos + PARSE_CHUNK : length;
+            var window = programText.substring(pos, end) as String;
+            var wlen = end - pos;
+            var rest = window;
+            var base = 0;
+            var jump = -1;
+            // Inside one window every substring is short; only a header line that starts before
+            // or runs past the window falls back to the (slower) full-text lookups.
+            while (jump < 0) {
+                var idx = rest.find("#");
+                if (idx == null) {
+                    jump = end;
+                    break;
                 }
-                if (newline >= 0) {
-                    limit = newline + 1;
-                } else {
-                    partial = true;
+                var q = base + (idx as Number);
+                var tail = window.substring(q > 16 ? q - 16 : 0, q) as String;
+                var tailChars = tail.toCharArray();
+                var j = tailChars.size() - 1;
+                while (j >= 0 && isSpaceChar(tailChars[j])) {
+                    j--;
                 }
-            }
-            pos += limit;
-            var start = 0;
-            if (skipping) {
-                while (start < limit && chars[start] != '\n') {
-                    start++;
+                var ls = -200000;      // line start relative to the window; -200000 = not known yet
+                if (j >= 0) {
+                    ls = tailChars[j] == '\n' ? q - tailChars.size() + j + 1 : -100000;   // -100000 = not a header
+                } else if (q - tailChars.size() == 0 && pos == 0) {
+                    ls = 0;
                 }
-                if (start >= limit) {
+                if (ls == -200000) {
+                    var lineStart = headerLineStart(programText, pos + q);
+                    ls = lineStart < 0 ? -100000 : lineStart - pos;
+                }
+                if (ls == -100000) {
+                    base = q + 1;
+                    rest = window.substring(base, wlen) as String;
                     continue;
                 }
-                start++;
-                skipping = false;
-            }
-            for (var i = start; i <= limit; i++) {
-                if (i < limit && chars[i] != '\n') {
-                    continue;
-                }
-                var from = start;
-                var to = i;
-                start = i + 1;
-                while (from < to && isSpaceChar(chars[from])) {
-                    from++;
-                }
-                while (to > from && isSpaceChar(chars[to - 1])) {
-                    to--;
-                }
-                if (from >= to || chars[from] != '#') {
-                    continue;
-                }
-                if (to - from >= 2 && chars[from + 1] == '#') {
-                    if (to - from < 3 || chars[from + 2] != ' ') {
-                        return lineProblem(chunk, from, to, "day header needs a space");
+                var line = null;
+                if (ls >= 0) {
+                    var lineRest = window.substring(q, wlen) as String;
+                    var newline = lineRest.find("\n");
+                    if (newline != null) {
+                        line = lineRest.substring(0, newline as Number) as String;
+                    } else if (end == length) {
+                        line = lineRest;
                     }
-                    var name = trim(chunk.substring(from + 3, to) as String);
+                }
+                if (line == null) {
+                    // starts before the window or runs past it: read from the full text, at most
+                    // PARSE_CHUNK characters from the line start (indentation counts)
+                    var cut = pos + ls + PARSE_CHUNK < length ? pos + ls + PARSE_CHUNK : length;
+                    line = programText.substring(pos + q, cut) as String;
+                    var newline = line.find("\n");
+                    if (newline != null) {
+                        line = line.substring(0, newline as Number) as String;
+                    }
+                    jump = pos + q + line.length();
+                }
+                var lineText = line as String;
+                if (jump < 0) {
+                    base = q + lineText.length();
+                    rest = window.substring(base, wlen) as String;
+                }
+                var second = lineText.length() >= 2 ? lineText.substring(1, 2) as String : "";
+                if (Model.sameString(second, "#")) {
+                    var spaced = lineText.length() >= 3 && Model.sameString(lineText.substring(2, 3) as String, " ");
+                    var name = spaced ? trim(lineText.substring(3, lineText.length()) as String) : "";
+                    if (!spaced || name.length() == 0) {
+                        return lineProblem(lineText, "day header needs a space");
+                    }
                     if (!Model.validNonblankText(name, 64)) {
-                        return lineProblem(chunk, from, to, "bad day name");
+                        return lineProblem(lineText, "bad day name");
                     }
                     if (!started) {
                         started = true;
@@ -223,7 +266,7 @@ module LiftosaurLogic {
                     }
                 } else {
                     if (implicit) {
-                        return lineProblem(chunk, from, to, "week header after days");
+                        return lineProblem(lineText, "week header after days");
                     }
                     if (weeks.size() >= Model.MAX_PROGRAM_WEEKS) {
                         parseProblem = "Program over " + Model.MAX_PROGRAM_WEEKS.toString() + " weeks";
@@ -234,7 +277,7 @@ module LiftosaurLogic {
                     weeks.add(current);
                 }
             }
-            skipping = partial;
+            pos = jump;
         }
         if (total == 0) {
             parseProblem = "No days (## Name) in program";
