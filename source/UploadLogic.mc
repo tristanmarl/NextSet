@@ -444,18 +444,44 @@ module UploadLogic {
             }
         }
         var savedExercises = next["exercises"] as Array;
+        var claimed = new [entries.size()];
+        for (var c = 0; c < claimed.size(); c++) {
+            claimed[c] = 0;
+        }
         for (var e = 0; e < savedExercises.size(); e++) {
             var saved = savedExercises[e] as Dictionary;
-            var matches = [];
+            // Liftoscript labels give several entries with one name; the reply's entryId is
+            // "<label>_<exerciseKey>" (stable for a program day), so id plus name picks the
+            // entry first (first one not yet claimed). Without an id match, a name that is
+            // unique in the reply and not yet claimed is used; anything else is skipped.
+            var found = -1;
+            var nameMatches = 0;
+            var savedName = saved["name"];
+            var savedLiftId = saved["liftosaurEntryId"];
             for (var p = 0; p < entries.size(); p++) {
-                if (Model.sameString((entries[p] as Dictionary)["name"], saved["name"])) {
-                    matches.add(entries[p]);
+                var candidate = entries[p] as Dictionary;
+                if (!Model.sameString(candidate["name"], savedName)) {
+                    continue;
+                }
+                nameMatches++;
+                if (claimed[p] == 0 && Model.sameString(candidate["entryId"], savedLiftId)) {
+                    found = p;
+                    break;
                 }
             }
-            if (matches.size() != 1) {
+            if (found < 0 && nameMatches == 1) {
+                for (var p = 0; p < entries.size(); p++) {
+                    if (Model.sameString((entries[p] as Dictionary)["name"], savedName)) {
+                        found = claimed[p] == 0 ? p : -1;
+                        break;
+                    }
+                }
+            }
+            if (found < 0) {
                 continue;
             }
-            var source = matches[0] as Dictionary;
+            claimed[found] = 1;
+            var source = entries[found] as Dictionary;
             var savedType = saved["loadType"] as String;
             var liveType = liveLoadType(source);
             if (liveType == null ||
