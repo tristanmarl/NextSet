@@ -2,6 +2,9 @@
 
 NextSet is an unofficial companion for Liftosaur. It is not made or endorsed by Liftosaur and needs Liftosaur Premium for API access.
 
+## 0.6.4
+- **An exercise with no sets no longer hides the whole day.** A program line without a set count (for example `Back Extension / 35s+|60s` instead of `1x1 35s+|60s`) reaches NextSet as an exercise with no sets. NextSet skipped the whole day ("no sets"); it now leaves only that exercise out, syncs the rest of the day, and notes it under Settings → Diagnostics ("W1 D2 Back Extension: no sets, left out").
+
 ## 0.6.2
 - **Days without a weight no longer disappear.** A set the program gives no weight (`Pull Up / 3x8`) made NextSet skip the whole day, so that day was missing on the watch. Such sets are now bodyweight sets.
 - **Faster, simpler routine sync.** NextSet no longer downloads and reads your whole program text; it asks Liftosaur for each day of the current week directly and takes the day names from Liftosaur. This removes a Forerunner 255 crash while reading long programs ("code executed too long") and makes the app about 7 KB smaller.
