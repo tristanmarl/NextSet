@@ -2,6 +2,13 @@
 
 NextSet is an unofficial companion for Liftosaur. It is not made or endorsed by Liftosaur and needs Liftosaur Premium for API access.
 
+## 0.6.2
+- **Days without a weight no longer disappear.** A set the program gives no weight (`Pull Up / 3x8`) made NextSet skip the whole day, so that day was missing on the watch. Such sets are now bodyweight sets.
+- **Faster, simpler routine sync.** NextSet no longer downloads and reads your whole program text; it asks Liftosaur for each day of the current week directly and takes the day names from Liftosaur. This removes a Forerunner 255 crash while reading long programs ("code executed too long") and makes the app about 7 KB smaller.
+- **Uploads recover from a bad connection.** Server errors, timeouts and temporary Bluetooth errors now retry later instead of stopping the upload for good.
+- **Same exercise twice in a day.** Exercises that appear twice in one day with different labels (`heavy: Squat`, `light: Squat`) now upload to the right exercise; before, their sets were left out.
+- **Weighted holds** upload their planned weight instead of 0 kg, and very long finish notes are shortened so Liftosaur accepts them.
+
 ## 0.6.1
 - **Multi-week programs sync again.** Liftosaur names a day of a multi-week program "Week 7 - Day 1", while the program text says "## Day 1". NextSet treated that as a mismatch and stopped every multi-week sync with "day name differs from API". Both forms are accepted now, and long week + day names (up to 128 bytes) are allowed.
 
