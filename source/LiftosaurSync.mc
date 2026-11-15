@@ -387,6 +387,39 @@ class LiftosaurSync {
         WatchUi.requestUpdate();
     }
 
+    // Drops the journal and the routines it committed that the stored config does not use.
+    private function abandonJournal(journal as Dictionary) as Void {
+        var keep = _host.routineIds();
+        var abandoned = journal["routineIds"] as Array;
+        for (var i = 0; i < abandoned.size(); i++) {
+            if (!UploadLogic.containsString(keep, abandoned[i])) {
+                _store.deletePair("routine." + (abandoned[i] as String));
+            }
+        }
+        _store.deletePair("rsync");
+    }
+
+    // A new journal in PHASE_FIRST (the first /workout/next is asked); false with the error set.
+    private function freshJournal() as Boolean {
+        var config = _host.syncConfig();
+        if (config == null) {
+            return false;
+        }
+        var sequence = ((config as Dictionary)["routineSyncSeq"] as Number) + 1;
+        var journal = {
+            "sequence" => sequence,
+            "phase" => Liftosaur.PHASE_FIRST,
+            "index" => 0,
+            "routineIds" => []
+        };
+        if (!_store.commitPair("rsync", journal)) {
+            _host.setErrorCode(Err.ROUTINE_SYNC_SAVE_FAILED);
+            return false;
+        }
+        _journal = null;
+        return true;
+    }
+
     public function syncRoutines() as Boolean {
         if (liftosaurKey() == null) {
             _host.setErrorCode(Err.LIFTOSAUR_KEY_REQUIRED);
@@ -406,33 +439,10 @@ class LiftosaurSync {
         // A manual sync always restarts: a journal that keeps failing must not be resumed forever.
         // Launch-time resume goes through retryUploads().
         if (journal != null) {
-            var keep = _host.routineIds();
-            var abandoned = journal["routineIds"] as Array;
-            for (var i = 0; i < abandoned.size(); i++) {
-                if (!UploadLogic.containsString(keep, abandoned[i])) {
-                    _store.deletePair("routine." + (abandoned[i] as String));
-                }
-            }
-            _store.deletePair("rsync");
-            journal = null;
+            abandonJournal(journal as Dictionary);
         }
-        if (journal == null) {
-            var config = _host.syncConfig();
-            if (config == null) {
-                return false;
-            }
-            var sequence = ((config as Dictionary)["routineSyncSeq"] as Number) + 1;
-            journal = {
-                "sequence" => sequence,
-                "phase" => Liftosaur.PHASE_FIRST,
-                "index" => 0,
-                "days" => [],
-                "routineIds" => []
-            };
-            if (!_store.commitPair("rsync", journal as Dictionary)) {
-                _host.setErrorCode(Err.ROUTINE_SYNC_SAVE_FAILED);
-                return false;
-            }
+        if (!freshJournal()) {
+            return false;
         }
         _host.setErrorCode(Err.NONE);
         _notice = null;
@@ -597,27 +607,21 @@ class LiftosaurSync {
         var path = null;
         var query = null;
         var purpose = Liftosaur.REQ_SYNC_DAY;
-        if (Model.sameString(phase, Liftosaur.PHASE_PROGRAM) ||
-            Model.sameString(phase, Liftosaur.PHASE_WEEK)) {
-            path = "/programs/current";
-            purpose = Liftosaur.REQ_SYNC_PROGRAM;
-        } else if (Model.sameString(phase, Liftosaur.PHASE_NEXT) ||
-            Model.sameString(phase, Liftosaur.PHASE_FIRST)) {
+        if (Model.sameString(phase, Liftosaur.PHASE_FIRST)) {
             path = "/workout/next";
             purpose = Liftosaur.REQ_SYNC_NEXT;
-        } else {
-            var days = journal["days"] as Array;
-            var index = journal["index"] as Number;
-            if (index < days.size()) {
-                var day = days[index] as Dictionary;
-                Breadcrumb.at(day["week"] as Number, day["dayInWeek"] as Number);
-                path = "/workout/next";
-                query = {
-                    "programId" => journal["programId"],
-                    "week" => day["week"],
-                    "dayInWeek" => day["dayInWeek"]
-                };
-            }
+        } else if (Model.sameString(phase, Liftosaur.PHASE_PROBE)) {
+            // Day number index + 1 of the week /workout/next reported; the day after the last
+            // one answers 404 day_not_found (handled with the reply).
+            var week = journal["nextWeek"] as Number;
+            var dayInWeek = (journal["index"] as Number) + 1;
+            Breadcrumb.at(week, dayInWeek);
+            path = "/workout/next";
+            query = {"programId" => journal["programId"], "week" => week, "dayInWeek" => dayInWeek};
+        } else if (!Model.sameString(phase, Liftosaur.PHASE_PROBED)) {
+            // A journal of 0.6.x or older (program text phases): restart from the first request.
+            restartRoutineSync(journal as Dictionary);
+            return;
         }
         if (path != null) {
             if (!makeApiRequest(path as String, Communications.HTTP_REQUEST_METHOD_GET,
@@ -658,6 +662,21 @@ class LiftosaurSync {
         _uploadRequested = true;
         WatchUi.requestUpdate();
         pumpAsyncWork();
+    }
+
+    // The routines of a journal in a retired phase are rewritten under the same ids by the new
+    // sync (they were committed before the journal pointed past them), so only the unused ones are
+    // dropped and the sync starts again from PHASE_FIRST.
+    private function restartRoutineSync(journal as Dictionary) as Void {
+        abandonJournal(journal);
+        _journal = null;
+        if (!freshJournal()) {
+            _routineSyncRunning = false;
+            WatchUi.requestUpdate();
+            pumpAsyncWork();
+            return;
+        }
+        advanceRoutineSync();
     }
 
     private function responseBody(data as Object?) as Dictionary? {
@@ -710,67 +729,8 @@ class LiftosaurSync {
         return true;
     }
 
-    // A week with more than eight days syncs the first eight; the rest is noted.
-    private function noteSkippedDays(journal as Dictionary, week as Number, named as Number) as Void {
-        if (named > Model.MAX_TEMPLATES) {
-            journal["skipCount"] = named - Model.MAX_TEMPLATES;
-            journal["skipNote"] = "Week " + week.toString() + ": days " +
-                (Model.MAX_TEMPLATES + 1).toString() + "-" + named.toString() + " skipped (max " +
-                Model.MAX_TEMPLATES.toString() + ")";
-        }
-    }
-
-    private function routineProgramReceived(data as Object?) as Boolean {
-        var body = responseBody(data);
-        if (body == null) {
-            return reject("/programs/current reply invalid");
-        }
-        var program = body["program"] instanceof Dictionary ? body["program"] as Dictionary : body;
-        if (!(program["text"] instanceof String)) {
-            return reject("Program has no text");
-        }
-        var journal = syncJournal();
-        if (journal == null) {
-            return reject("Sync journal unreadable");
-        }
-        var week = Model.sameString(journal["phase"], Liftosaur.PHASE_WEEK) ?
-            journal["nextWeek"] as Number : 0;
-        var weeks = LiftosaurLogic.parseDaysFor(program["text"] as String, week);
-        if (weeks == null) {
-            return reject(LiftosaurLogic.parseProblem == null ? "Program text rejected" :
-                LiftosaurLogic.parseProblem as String);
-        }
-        if (!Model.validId(program["id"]) || !Model.validNonblankText(program["name"], 64)) {
-            return reject("Program id or name invalid");
-        }
-        var next = SessionLogic.copyDictionary(journal);
-        next["programName"] = program["name"];
-        next["index"] = 0;
-        next["routineIds"] = [];
-        if (week > 0) {
-            // Week already known from /workout/next: keep only its days.
-            if (!Model.sameString(program["id"], journal["programId"])) {
-                return reject("Program changed during sync");
-            }
-            var rows = LiftosaurLogic.weekDayRows(weeks, week);
-            if (rows == null) {
-                return reject(LiftosaurLogic.parseProblem as String);
-            }
-            noteSkippedDays(next, week, ((weeks[week - 1]) as Array).size());
-            next["days"] = rows;
-            next["phase"] = Liftosaur.PHASE_DAYS;
-            return stageJournal(next, null);
-        }
-        // Older flow (journal written by a version that asked /programs/current first).
-        next["phase"] = Liftosaur.PHASE_NEXT;
-        next["programId"] = program["id"];
-        next["weeks"] = weeks;
-        next.remove("days");
-        next.remove("nextWeek");
-        next.remove("nextDay");
-        return stageJournal(next, null);
-    }
-
+    // The first /workout/next: which program and week are current. Only its envelope is read
+    // (the day itself is asked again as day 1, 2, ...), so the heavy walk is not done here.
     private function routineNextReceived(data as Object?) as Boolean {
         var coordinates = Catalog.dayCoordinates(data);
         var journal = syncJournal();
@@ -781,62 +741,39 @@ class LiftosaurSync {
         if (journal == null) {
             return reject("Sync journal unreadable");
         }
+        if (!Model.sameString(journal["phase"], Liftosaur.PHASE_FIRST)) {
+            return reject("Reply does not match the sync step");
+        }
+        if (!Model.validNonblankText((coordinates as Dictionary)["programName"], 64)) {
+            return reject("Program name invalid");
+        }
         var next = SessionLogic.copyDictionary(journal);
-        var week = (coordinates as Dictionary)["week"] as Number;
-        if (Model.sameString(journal["phase"], Liftosaur.PHASE_FIRST)) {
-            // Which week is current is known now; /programs/current is parsed for that week only.
-            next["phase"] = Liftosaur.PHASE_WEEK;
-            next["programId"] = (coordinates as Dictionary)["programId"];
-            next["nextWeek"] = week;
-            next["nextDay"] = (coordinates as Dictionary)["dayInWeek"];
-            next["index"] = 0;
-            next["routineIds"] = [];
-            next.remove("days");
-            next.remove("skipCount");
-            next.remove("skipNote");
-            return stageJournal(next, null);
-        }
-        if (!Model.sameString((coordinates as Dictionary)["programId"], journal["programId"])) {
-            return reject("Program changed during sync");
-        }
-        // Only the current week is synced; the program text lists every week.
-        var weekDays = null;
-        if (journal["weeks"] instanceof Array) {
-            weekDays = LiftosaurLogic.weekDayRows(journal["weeks"] as Array, week);
-            if (weekDays == null) {
-                return reject(LiftosaurLogic.parseProblem as String);
-            }
-            noteSkippedDays(next, week, ((journal["weeks"] as Array)[week - 1] as Array).size());
-        } else if (journal["days"] instanceof Array) {
-            // Journal written before weeks were stored by position.
-            weekDays = LiftosaurLogic.daysForWeek(journal["days"] as Array, week);
-            if (weekDays.size() == 0 || weekDays.size() > Model.MAX_TEMPLATES) {
-                return reject("Week " + week.toString() + " not usable in program text");
-            }
-        } else {
-            return reject("Sync journal has no days");
-        }
-        next["days"] = weekDays;
-        next.remove("weeks");
-        next["phase"] = Liftosaur.PHASE_DAYS;
+        next["phase"] = Liftosaur.PHASE_PROBE;
+        next["programId"] = (coordinates as Dictionary)["programId"];
+        next["programName"] = (coordinates as Dictionary)["programName"];
         next["nextWeek"] = (coordinates as Dictionary)["week"];
         next["nextDay"] = (coordinates as Dictionary)["dayInWeek"];
+        next["index"] = 0;
+        next["routineIds"] = [];
+        next.remove("skipCount");
+        next.remove("skipNote");
         return stageJournal(next, null);
     }
 
+    // A day reply in PHASE_PROBE: day number index + 1 of the week /workout/next reported. The
+    // day name comes from the reply itself; program, week and day must be the ones asked for.
     private function routineDayReceived(data as Object?) as Boolean {
         var journal = syncJournal();
         if (journal == null) {
             return reject("Sync journal unreadable");
         }
         var index = journal["index"] as Number;
-        var days = journal["days"];
-        // A stray reply (journal not at the day step, or all days done) must not index past the list.
-        if (!(days instanceof Array) || index >= (days as Array).size()) {
+        // A stray reply (journal not at the probe step) must not be taken for a day.
+        if (!Model.sameString(journal["phase"], Liftosaur.PHASE_PROBE) || index > Model.MAX_TEMPLATES) {
             return reject("Day reply does not match the sync step");
         }
-        var expected = (days as Array)[index] as Dictionary;
-        var tag = "W" + expected["week"].toString() + " D" + expected["dayInWeek"].toString();
+        var week = journal["nextWeek"] as Number;
+        var tag = "W" + week.toString() + " D" + (index + 1).toString();
         var coordinates = Catalog.dayCoordinates(data);
         if (coordinates == null) {
             var why = Model.liftosaurWorkoutProblem(data);
@@ -845,15 +782,20 @@ class LiftosaurSync {
         if (!Model.sameString((coordinates as Dictionary)["programId"], journal["programId"])) {
             return reject(tag + ": program differs from API");
         }
-        if ((coordinates as Dictionary)["week"] != expected["week"] ||
-            (coordinates as Dictionary)["dayInWeek"] != expected["dayInWeek"]) {
+        if ((coordinates as Dictionary)["week"] != week ||
+            (coordinates as Dictionary)["dayInWeek"] != index + 1) {
             return reject(tag + ": API sent another week or day");
         }
-        if (!LiftosaurLogic.dayNameMatches((coordinates as Dictionary)["name"], expected["name"])) {
-            return reject(tag + ": day name differs from API");
+        var next = SessionLogic.copyDictionary(journal);
+        if (index >= Model.MAX_TEMPLATES) {
+            // The ninth day exists: the first eight are synced, the rest is only noted.
+            next["phase"] = Liftosaur.PHASE_PROBED;
+            next["skipNote"] = "Week " + week.toString() + ": days " +
+                (Model.MAX_TEMPLATES + 1).toString() + "+ not synced (max " +
+                Model.MAX_TEMPLATES.toString() + ")";
+            return stageJournal(next, null);
         }
         var hasExercises = (coordinates as Dictionary)["exercises"] != 0;
-        var next = SessionLogic.copyDictionary(journal);
         next["index"] = index + 1;
         if (hasExercises && Catalog.checkReply(data)) {
             // The projection runs in the next step; the reply is kept until then.
@@ -873,6 +815,23 @@ class LiftosaurSync {
                 Catalog.lastProblem as String;
         }
         return stageJournal(next, null);
+    }
+
+    // 404 for the day after the last one of the week: the server answers day_not_found for a
+    // week/day that is not in the program (lambda/utils/apiv1Workout.ts). A 404 whose body could
+    // not be read counts the same; any other code (not_found: no program) is an error. Day 1 is
+    // never the end: a week without a first day is an error.
+    private function probeEnded(responseCode as Number, data as Object?) as Boolean {
+        if (responseCode != 404) {
+            return false;
+        }
+        var journal = syncJournal();
+        if (journal == null || !Model.sameString(journal["phase"], Liftosaur.PHASE_PROBE) ||
+            (journal["index"] as Number) < 1) {
+            return false;
+        }
+        var code = errorCodeFrom(data);
+        return code == null || Model.sameString(code, Liftosaur.ERR_DAY_NOT_FOUND);
     }
 
     private function findQueuedUpload(id as String) as Dictionary? {
@@ -1064,9 +1023,10 @@ class LiftosaurSync {
         _uploadRequested = false;
         var transport = LiftosaurLogic.transportError(responseCode);
         _host.setErrorCode((responseCode == 401 || responseCode == 403) ? Err.LIFTOSAUR_UNAUTHORIZED :
-            (responseCode == 422 && code != null && Model.sameString(code, Liftosaur.ERR_PROGRAM_ERROR) ?
-                Err.WORKOUT_UPLOAD_PROGRAM_ERROR :
-                (transport != Err.NONE ? transport : Err.WORKOUT_UPLOAD_FAILED)));
+            ((responseCode == -402 || responseCode == -403) ? Err.WORKOUT_UPLOAD_RESPONSE_TOO_LARGE :
+                (responseCode == 422 && code != null && Model.sameString(code, Liftosaur.ERR_PROGRAM_ERROR) ?
+                    Err.WORKOUT_UPLOAD_PROGRAM_ERROR :
+                    (transport != Err.NONE ? transport : Err.WORKOUT_UPLOAD_FAILED))));
         if (transport != Err.NONE) {
             scheduleRetry();
         }
@@ -1106,9 +1066,18 @@ class LiftosaurSync {
             pumpAsyncWork();
             return;
         }
-        if (Model.sameString(purpose, Liftosaur.REQ_SYNC_PROGRAM) || Model.sameString(purpose, Liftosaur.REQ_SYNC_NEXT) ||
+        if (Model.sameString(purpose, Liftosaur.REQ_SYNC_NEXT) ||
             Model.sameString(purpose, Liftosaur.REQ_SYNC_DAY)) {
             if (!ok) {
+                if (Model.sameString(purpose, Liftosaur.REQ_SYNC_DAY) && _stage == STAGE_NONE &&
+                    probeEnded(responseCode, data)) {
+                    // End of the week: only the pivot is left (persisted, so a relaunch resumes there).
+                    var ended = SessionLogic.copyDictionary(syncJournal() as Dictionary);
+                    ended["phase"] = Liftosaur.PHASE_PROBED;
+                    stageJournal(ended, null);
+                    scheduleAsyncWork();
+                    return;
+                }
                 syncRequestFailed(responseCode, data);
                 return;
             }
@@ -1122,9 +1091,8 @@ class LiftosaurSync {
             }
             _host.releaseConfigCache();
             var parseStart = System.getTimer();
-            var accepted = Model.sameString(purpose, Liftosaur.REQ_SYNC_PROGRAM) ?
-                routineProgramReceived(data) : (Model.sameString(purpose, Liftosaur.REQ_SYNC_NEXT) ?
-                    routineNextReceived(data) : routineDayReceived(data));
+            var accepted = Model.sameString(purpose, Liftosaur.REQ_SYNC_NEXT) ?
+                routineNextReceived(data) : routineDayReceived(data);
             _host.noteSyncMs(System.getTimer() - parseStart);
             if (!accepted) {
                 _routineSyncRunning = false;
@@ -1142,6 +1110,15 @@ class LiftosaurSync {
             scheduleAsyncWork();
             return;
         }
+        // A reply too large or too big for memory (-402 / -403) to a sets or finish write: Liftosaur
+        // had applied it (only a processed write answers with a workout), and both writes are
+        // idempotent, so the step counts as done. For start (set ids come from its reply) it is an
+        // error of its own, see uploadFailed.
+        if ((responseCode == -402 || responseCode == -403) &&
+            (Model.sameString(purpose, Liftosaur.REQ_UPLOAD_SETS) ||
+             Model.sameString(purpose, Liftosaur.REQ_UPLOAD_FINISH))) {
+            ok = true;
+        }
         var job = uploadId == null ? null : _store.loadUpload(uploadId as String);
         if (job == null || _store.hasUnsupportedRecord() || _store.hasCorruptRecord()) {
             _uploadRequested = false;
@@ -1157,20 +1134,12 @@ class LiftosaurSync {
                 return;
             }
             if (code != null && Model.sameString(code, Liftosaur.ERR_ALREADY_ACTIVE)) {
-                // Crash-resume: the open workout may be ours (same startTime); ask Liftosaur.
-                if (!makeApiRequest("/workout/current", Communications.HTTP_REQUEST_METHOD_GET,
-                    null, false, Model.sameString(purpose, Liftosaur.REQ_UPLOAD_START) ?
-                        Liftosaur.REQ_UPLOAD_CURRENT : Liftosaur.REQ_UPLOAD_CURRENT_RESUME, uploadId)) {
-                    markUploadBlocked(uploadId as String, job as Dictionary, code as String);
-                }
+                // /workout/start with our program, week, day and startTime is answered with the
+                // live workout (200) when it is ours (lambda/utils/apiv1Workout.ts), so a 409 here
+                // is a different workout in progress: the upload waits (blocked).
+                markUploadBlocked(uploadId as String, job as Dictionary, code as String);
                 return;
             }
-        }
-        var currentCheck = Model.sameString(purpose, Liftosaur.REQ_UPLOAD_CURRENT) ||
-            Model.sameString(purpose, Liftosaur.REQ_UPLOAD_CURRENT_RESUME);
-        if (currentCheck && !ok) {
-            markUploadBlocked(uploadId as String, job as Dictionary, Liftosaur.ERR_ALREADY_ACTIVE);
-            return;
         }
         if (!ok) {
             uploadFailed(responseCode, data, uploadId,
@@ -1190,19 +1159,13 @@ class LiftosaurSync {
             return;
         }
         if (Model.sameString(purpose, Liftosaur.REQ_UPLOAD_START) ||
-            Model.sameString(purpose, Liftosaur.REQ_UPLOAD_RESUME_SETS) || currentCheck) {
+            Model.sameString(purpose, Liftosaur.REQ_UPLOAD_RESUME_SETS)) {
             var started = UploadLogic.withStartedWorkout(job as Dictionary, data);
             if (started == null) {
-                if (currentCheck) {
-                    markUploadBlocked(uploadId as String, job as Dictionary,
-                        Liftosaur.ERR_ALREADY_ACTIVE);
-                } else {
-                    markUploadMismatch(uploadId as String, job as Dictionary);
-                }
+                markUploadMismatch(uploadId as String, job as Dictionary);
                 return;
             }
-            if (Model.sameString(purpose, Liftosaur.REQ_UPLOAD_RESUME_SETS) ||
-                Model.sameString(purpose, Liftosaur.REQ_UPLOAD_CURRENT_RESUME)) {
+            if (Model.sameString(purpose, Liftosaur.REQ_UPLOAD_RESUME_SETS)) {
                 var resumed = SessionLogic.copyDictionary(started as Dictionary);
                 resumed["state"] = Liftosaur.STATE_SETS;
                 resumed["setsBody"] = (job as Dictionary)["setsBody"];

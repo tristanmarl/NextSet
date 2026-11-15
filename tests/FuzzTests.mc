@@ -17,10 +17,6 @@ module FuzzTests {
                 Phase2Tests.phase2ApiWorkout("DayBx", 1790752141000l, "Plank", true, true, "b"), issue2];
         }
 
-        function fuzzProgramFixtures() as Array {
-            return [WatchUi.loadResource(Rez.JsonData.LiftosaurProgram), WatchUi.loadResource(Rez.JsonData.Issue2Program)];
-        }
-
         function fuzzConfig(routine as Dictionary) as Dictionary {
             return {"routines" => [routine], "settings" => {"defaultRestSec" => 90, "vibrationEnabled" => true},
                 "incrementOverrides" => {"Squat" => 500}};
@@ -177,12 +173,9 @@ module FuzzTests {
                 parsed++;
             }
         }
-        var program = (FuzzKit.fuzzProgramFixtures()[0] as Dictionary)["data"] as Dictionary;
-        var weeks = LiftosaurLogic.parseDays(program["text"] as String);
         var session = FuzzKit.fuzzActiveSession();
         var done = (((session["exercises"] as Array)[0] as Dictionary)["slots"] as Array)[0] as Dictionary;
         return WorkoutTests.check(logger, parsed == replies.size(), "all fuzz reply fixtures parse (" + Catalog.lastProblem + ")") &&
-            WorkoutTests.check(logger, weeks != null, "the program fixture parses") &&
             WorkoutTests.check(logger, done["completed"] != null && Model.validStoredSession(session, false),
                 "the logged-set session fixture is valid") &&
             WorkoutTests.check(logger, Model.validUpload(FuzzKit.fuzzJob("weight", false)) && Model.validUpload(FuzzKit.fuzzJob("timed", true)),
@@ -458,72 +451,15 @@ module FuzzTests {
     }
 
     (:test)
-    function testFuzzLiftoscriptText(logger as Test.Logger) as Boolean {
-        Fuzz.failures = 0;
-        for (var i = 0; i < 80; i++) {
-            Fuzz.begin(8000 + i);
-            var text = Fuzz.programText(40, 0);
-            try {
-                Fuzz.go("LiftoscriptText");
-                var weeks = LiftosaurLogic.parseDays(text);
-                if (weeks != null) {
-                    for (var w = 1; w <= (weeks as Array).size() + 1; w++) {
-                        LiftosaurLogic.weekDayRows(weeks as Array, w);
-                    }
-                }
-            } catch (ex) {
-                Fuzz.caught(logger, "parseDays generated", 8000 + i, ex);
-            }
-        }
-        var fixtures = FuzzKit.fuzzProgramFixtures();
-        for (var f = 0; f < fixtures.size(); f++) {
-            var base = ((fixtures[f] as Dictionary)["data"] as Dictionary)["text"] as String;
-            for (var i = 0; i < 40; i++) {
-                var seed = 8500 + f * 100 + i;
-                Fuzz.begin(seed);
-                var text = Fuzz.mutateText(base);
-                if (Fuzz.rand(2) == 0) {
-                    text = Fuzz.mutateText(text);
-                }
-                try {
-                    Fuzz.go("LiftoscriptText");
-                    LiftosaurLogic.parseDays(text);
-                } catch (ex) {
-                    Fuzz.caught(logger, "parseDays mutated fixture " + f.toString(), seed, ex);
-                }
-            }
-        }
-        return WorkoutTests.check(logger, Fuzz.failures == 0, "parseDays never throws on random text (" + Fuzz.failures.toString() + ")");
-    }
-
-    (:test)
-    function testFuzzLiftoscriptNearTheCap(logger as Test.Logger) as Boolean {
-        Fuzz.failures = 0;
-        for (var i = 0; i < 12; i++) {
-            Fuzz.begin(9000 + i);
-            var text = Fuzz.programText(30, 1 + i % 2);
-            try {
-                Fuzz.go("LiftoscriptNearTheCap");
-                LiftosaurLogic.parseDays(text);
-            } catch (ex) {
-                Fuzz.caught(logger, "parseDays near cap", 9000 + i, ex);
-            }
-        }
-        return WorkoutTests.check(logger, Fuzz.failures == 0, "parseDays never throws near the 16 KiB cap (" + Fuzz.failures.toString() + ")");
-    }
-
-    (:test)
     function testFuzzSyncReplyHandlers(logger as Test.Logger) as Boolean {
         Fuzz.failures = 0;
         var upper = WorkoutTests.workoutFixtureReply(1) as Dictionary;
         var first = WorkoutTests.workoutFixtureRoutine(1) as Dictionary;
-        var programs = FuzzKit.fuzzProgramFixtures();
         var journals = [
-            {"sequence" => 2, "phase" => "program", "index" => 0, "days" => [], "routineIds" => []},
-            {"sequence" => 2, "phase" => "next", "index" => 0, "programId" => first["programId"],
-                "programName" => "P", "weeks" => [["DayAx", "DayBx"], ["DayCx"]], "routineIds" => []},
+            {"sequence" => 2, "phase" => "first", "index" => 0, "routineIds" => []},
+            {"sequence" => 2, "phase" => "program", "index" => 0, "routineIds" => []},
             SyncTests.syncJournal(first, 2)];
-        var purposes = [Liftosaur.REQ_SYNC_PROGRAM, Liftosaur.REQ_SYNC_NEXT, Liftosaur.REQ_SYNC_DAY];
+        var purposes = [Liftosaur.REQ_SYNC_NEXT, Liftosaur.REQ_SYNC_NEXT, Liftosaur.REQ_SYNC_DAY];
         var store = new UploadStoreTests.UploadMemoryStore();
         var controller = new SessionController(store);
         for (var k = 0; k < 3; k++) {
@@ -533,9 +469,9 @@ module FuzzTests {
                 var journal = Fuzz.rand(3) == 0 ? Fuzz.mutatedDict(journals[k], 1 + Fuzz.rand(2)) :
                     Fuzz.copy(journals[k]);
                 FuzzKit.fuzzResetSyncStore(store, first, journal);
-                var base = k == 0 ? programs[i % 2] : upper;
-                var data = Fuzz.rand(12) == 0 ? Fuzz.junk() : Fuzz.mutated(base, Fuzz.rand(4));
                 var code = Fuzz.rand(5) == 0 ? FuzzKit.fuzzResponseCode() : 200;
+                var data = Fuzz.rand(12) == 0 ? Fuzz.junk() : (code == 404 && Fuzz.rand(2) == 0 ?
+                    {"error" => {"code" => Liftosaur.ERR_DAY_NOT_FOUND}} : Fuzz.mutated(upper, Fuzz.rand(4)));
                 try {
                     Fuzz.go("SyncReplyHandlers");
                     controller.handleApiResponse(purposes[k], null, code, data);
@@ -548,32 +484,6 @@ module FuzzTests {
             }
         }
         return WorkoutTests.check(logger, Fuzz.failures == 0, "sync reply handlers never throw (" + Fuzz.failures.toString() + ")");
-    }
-
-    (:test)
-    function testFuzzSyncProgramText(logger as Test.Logger) as Boolean {
-        Fuzz.failures = 0;
-        var first = WorkoutTests.workoutFixtureRoutine(1) as Dictionary;
-        var programs = FuzzKit.fuzzProgramFixtures();
-        var store = new UploadStoreTests.UploadMemoryStore();
-        var controller = new SessionController(store);
-        for (var i = 0; i < 40; i++) {
-            var seed = 11000 + i;
-            Fuzz.begin(seed);
-            var reply = Fuzz.copy(programs[i % 2]) as Dictionary;
-            var data = reply["data"] as Dictionary;
-            data["text"] = i % 4 == 3 ? Fuzz.programText(30, 1 + Fuzz.rand(2)) : Fuzz.programText(40, 0);
-            FuzzKit.fuzzResetSyncStore(store, first, {"sequence" => 2, "phase" => "program", "index" => 0,
-                "days" => [], "routineIds" => []});
-            try {
-                Fuzz.go("SyncProgramText");
-                controller.handleApiResponse(Liftosaur.REQ_SYNC_PROGRAM, null, 200, reply);
-                FuzzKit.fuzzSettleJournal(controller, store);
-            } catch (ex) {
-                Fuzz.caught(logger, "sync program text", seed, ex);
-            }
-        }
-        return WorkoutTests.check(logger, Fuzz.failures == 0, "the program reply handler never throws on odd text (" + Fuzz.failures.toString() + ")");
     }
 
     (:test)
@@ -611,7 +521,7 @@ module FuzzTests {
     function testFuzzUploadResponseHandlers(logger as Test.Logger) as Boolean {
         Fuzz.failures = 0;
         var purposes = [Liftosaur.REQ_UPLOAD_PREVIEW, Liftosaur.REQ_UPLOAD_START, Liftosaur.REQ_UPLOAD_RESUME_SETS,
-            Liftosaur.REQ_UPLOAD_CURRENT, Liftosaur.REQ_UPLOAD_CURRENT_RESUME, Liftosaur.REQ_UPLOAD_SETS,
+            Liftosaur.REQ_UPLOAD_SETS,
             Liftosaur.REQ_UPLOAD_FINISH, Liftosaur.REQ_KEY_TEST];
         var job = FuzzKit.fuzzJob("weight", false);
         var reply = Phase2Tests.phase2ApiWorkout("DayBx", job["startTime"] as Long, "Row", false, false, "p");
@@ -778,22 +688,20 @@ module FuzzTests {
         Fuzz.failures = 0;
         var upper = WorkoutTests.workoutFixtureReply(1) as Dictionary;
         var first = WorkoutTests.workoutFixtureRoutine(1) as Dictionary;
-        var program = FuzzKit.fuzzProgramFixtures()[0];
         var journals = [
-            {"sequence" => 2, "phase" => "program", "index" => 0, "days" => [], "routineIds" => []},
+            {"sequence" => 2, "phase" => "first", "index" => 0, "routineIds" => []},
+            {"sequence" => 2, "phase" => "program", "index" => 0, "routineIds" => []},
             {"sequence" => 2, "phase" => "next", "index" => 0, "programId" => first["programId"],
                 "programName" => "P", "weeks" => [["DayAx"]], "routineIds" => []},
-            {"sequence" => 2, "phase" => "next", "index" => 0, "programId" => first["programId"],
-                "programName" => "P", "days" => [{"week" => 1, "dayInWeek" => 1, "name" => "DayAx"}],
-                "routineIds" => []},
             SyncTests.syncJournal(first, 2),
-            {"sequence" => 2, "phase" => "days", "index" => 1, "programId" => first["programId"],
-                "programName" => "P", "days" => [{"week" => first["week"], "dayInWeek" => first["dayInWeek"],
-                "name" => first["name"]}], "routineIds" => [first["id"]]},
+            {"sequence" => 2, "phase" => "probe", "index" => 8, "programId" => first["programId"],
+                "programName" => "P", "nextWeek" => 1, "nextDay" => 1, "routineIds" => []},
+            {"sequence" => 2, "phase" => "probed", "index" => 1, "programId" => first["programId"],
+                "programName" => "P", "nextWeek" => 1, "nextDay" => 1, "routineIds" => [first["id"]]},
             {"sequence" => 2, "phase" => "days", "index" => 0, "programId" => first["programId"],
                 "programName" => "P", "days" => [], "routineIds" => []}];
-        var replies = [upper, program, {}, {"data" => {}}, null];
-        var purposes = [Liftosaur.REQ_SYNC_PROGRAM, Liftosaur.REQ_SYNC_NEXT, Liftosaur.REQ_SYNC_DAY];
+        var replies = [upper, {}, {"data" => {}}, null];
+        var purposes = [Liftosaur.REQ_SYNC_NEXT, Liftosaur.REQ_SYNC_DAY];
         var store = new UploadStoreTests.UploadMemoryStore();
         var controller = new SessionController(store);
         var n = 0;
@@ -817,7 +725,7 @@ module FuzzTests {
         }
         var kinds = [FuzzKit.fuzzJob("weight", false), FuzzKit.fuzzJob("timed", true)];
         var purposesUp = [Liftosaur.REQ_UPLOAD_PREVIEW, Liftosaur.REQ_UPLOAD_START, Liftosaur.REQ_UPLOAD_RESUME_SETS,
-            Liftosaur.REQ_UPLOAD_CURRENT, Liftosaur.REQ_UPLOAD_CURRENT_RESUME, Liftosaur.REQ_UPLOAD_SETS,
+            Liftosaur.REQ_UPLOAD_SETS,
             Liftosaur.REQ_UPLOAD_FINISH];
         var states = [Liftosaur.STATE_START, Liftosaur.STATE_SETS, Liftosaur.STATE_FINISH, Liftosaur.STATE_BLOCKED];
         var conflict = {"error" => {"code" => Liftosaur.ERR_ALREADY_ACTIVE}};
@@ -855,26 +763,25 @@ module FuzzTests {
         return WorkoutTests.check(logger, Fuzz.failures == 0, "no handler throws on a reply that does not match its stored state (" + Fuzz.failures.toString() + ")");
     }
 
-    // Regression: a day reply that arrives while the journal is not at the day step (or after the
-    // last day) used to index past the journal's day list (Array Out Of Bounds in routineDayReceived).
+    // Regression: a day reply that arrives while the journal is not at the probe step must be
+    // rejected, not taken for a day.
     (:test)
     function testStrayDayReplyIsRejected(logger as Test.Logger) as Boolean {
         var upper = WorkoutTests.workoutFixtureReply(1) as Dictionary;
         var first = WorkoutTests.workoutFixtureRoutine(1) as Dictionary;
         var store = new UploadStoreTests.UploadMemoryStore();
         var controller = new SessionController(store);
-        FuzzKit.fuzzResetSyncStore(store, first, {"sequence" => 2, "phase" => "program", "index" => 0,
-            "days" => [], "routineIds" => []});
+        FuzzKit.fuzzResetSyncStore(store, first, {"sequence" => 2, "phase" => "first", "index" => 0,
+            "routineIds" => []});
         controller.handleApiResponse(Liftosaur.REQ_SYNC_DAY, null, 200, upper);
-        var atProgramStep = controller.errorCode();
-        FuzzKit.fuzzResetSyncStore(store, first, {"sequence" => 2, "phase" => "days", "index" => 1,
-            "programId" => first["programId"], "programName" => "P",
-            "days" => [{"week" => first["week"], "dayInWeek" => first["dayInWeek"], "name" => first["name"]}],
+        var atFirstStep = controller.errorCode();
+        FuzzKit.fuzzResetSyncStore(store, first, {"sequence" => 2, "phase" => "probed", "index" => 1,
+            "programId" => first["programId"], "programName" => "P", "nextWeek" => 1, "nextDay" => 1,
             "routineIds" => [first["id"]]});
         controller.handleApiResponse(Liftosaur.REQ_SYNC_DAY, null, 200, upper);
         var afterLastDay = controller.errorCode();
-        return WorkoutTests.check(logger, atProgramStep == Err.ROUTINE_SYNC_INVALID_RESPONSE,
-                "a day reply at the program step is rejected") &&
+        return WorkoutTests.check(logger, atFirstStep == Err.ROUTINE_SYNC_INVALID_RESPONSE,
+                "a day reply at the first step is rejected") &&
             WorkoutTests.check(logger, afterLastDay == Err.ROUTINE_SYNC_INVALID_RESPONSE,
                 "a day reply after the last day is rejected");
     }

@@ -14,11 +14,11 @@ module SyncTests {
     }
 
     function syncJournal(routine as Dictionary, sequence as Number) as Dictionary {
-        return {"sequence" => sequence, "phase" => "days", "index" => 0,
+        // Waiting for the reply of the routine's own day (day number index + 1).
+        return {"sequence" => sequence, "phase" => "probe",
+            "index" => (routine["dayInWeek"] as Number) - 1,
             "programId" => routine["programId"], "programName" => "P",
-            "nextWeek" => routine["week"], "nextDay" => routine["dayInWeek"],
-            "days" => [{"week" => routine["week"], "dayInWeek" => routine["dayInWeek"],
-                "name" => routine["name"]}], "routineIds" => []};
+            "nextWeek" => routine["week"], "nextDay" => routine["dayInWeek"], "routineIds" => []};
     }
 
     (:test)
@@ -32,7 +32,6 @@ module SyncTests {
         var prepared = controller.prepareWorkoutStart(first["id"] as String, 1790752141);
         // A sync pivot lands between prepare and reserve.
         var journal = syncJournal(second, 2);
-        journal["phase"] = "days";
         journal["index"] = 1;
         journal["routineIds"] = [second["id"]];
         var stored = store.commitPair("routine." + (second["id"] as String), second);
@@ -96,28 +95,5 @@ module SyncTests {
             WorkoutTests.check(logger, controller.pendingUploadCount() == 0 &&
                 Model.sameString(statuses["session-1"], Liftosaur.STATE_DONE),
                 "finish success empties the queue and records the outcome");
-    }
-
-    (:test)
-    function testWorkoutCurrentAdoptsOurOpenWorkout(logger as Test.Logger) as Boolean {
-        var session = Phase2Tests.phase2UploadSession("weight", false, 1790752141, 1790752201);
-        var job = UploadLogic.makeJob(session) as Dictionary;
-        var startTime = job["startTime"] as Long;
-        var ours = Phase2Tests.phase2ApiWorkout("DayBx", startTime, "Row", false, false, "cur");
-        var theirs = Phase2Tests.phase2ApiWorkout("DayBx", startTime + 1, "Row", false, false, "cur");
-        var adoptStore = new UploadStoreTests.UploadMemoryStore();
-        var queuedOurs = WorkoutTests.fixtureQueueUpload(adoptStore, job);
-        new SessionController(adoptStore).handleApiResponse(Liftosaur.REQ_UPLOAD_CURRENT,
-            "session-1", 200, ours);
-        var adopted = adoptStore.loadUpload("session-1") as Dictionary;
-        var blockStore = new UploadStoreTests.UploadMemoryStore();
-        var queuedTheirs = WorkoutTests.fixtureQueueUpload(blockStore, job);
-        new SessionController(blockStore).handleApiResponse(Liftosaur.REQ_UPLOAD_CURRENT,
-            "session-1", 200, theirs);
-        var blocked = blockStore.loadUpload("session-1") as Dictionary;
-        return WorkoutTests.check(logger, queuedOurs && Model.sameString(adopted["state"], Liftosaur.STATE_SETS),
-                "an open workout with our start time is adopted like a successful start") &&
-            WorkoutTests.check(logger, queuedTheirs && Model.sameString(blocked["state"], Liftosaur.STATE_BLOCKED),
-                "an open workout with another start time keeps the job blocked");
     }
 }

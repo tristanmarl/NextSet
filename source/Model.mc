@@ -177,6 +177,13 @@ module Model {
         return validKg(amount) ? load100(amount) : null;
     }
 
+    // Weight of a Liftosaur plan set in hundredths of its unit. Liftosaur sends weight: null for a
+    // set the program gives no weight (`Pull Up / 3x8`); that is a bodyweight set, 0. Null again
+    // only when the value is present but unreadable.
+    function planLoad100(weight as Object?) as Number? {
+        return weight == null ? 0 : weightLoad100(weight);
+    }
+
     function weightUnit(weight as Object?) as String? {
         if (!(weight instanceof String) || (weight as String).length() < 3) {
             return null;
@@ -257,8 +264,8 @@ module Model {
         if (!inRange(reps, 1, MAX_REPS, false)) {
             return reps == null ? "set has no reps" : "reps out of range";
         }
-        if (weightLoad100(item["weight"]) == null) {
-            return "no weight";
+        if (planLoad100(item["weight"]) == null) {
+            return "bad weight";
         }
         if (!inRange(item["timer"], 0, MAX_REST_SEC, true)) {
             return "rest out of range";

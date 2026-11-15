@@ -119,7 +119,8 @@ class Store {
             !(phase instanceof String) ||
             !(Model.sameString(phase, Liftosaur.PHASE_PROGRAM) || Model.sameString(phase, Liftosaur.PHASE_NEXT) ||
               Model.sameString(phase, Liftosaur.PHASE_DAYS) || Model.sameString(phase, Liftosaur.PHASE_FIRST) ||
-              Model.sameString(phase, Liftosaur.PHASE_WEEK)) ||
+              Model.sameString(phase, Liftosaur.PHASE_WEEK) || Model.sameString(phase, Liftosaur.PHASE_PROBE) ||
+              Model.sameString(phase, Liftosaur.PHASE_PROBED)) ||
             !Model.inRange(payload["index"], 0, Model.MAX_TEMPLATES, false) ||
             (days != null && (!(days instanceof Array) ||
                 (days as Array).size() > Model.MAX_PROGRAM_DAYS ||
@@ -128,8 +129,8 @@ class Store {
             !validRoutineIds(routineIds, true)) {
             return false;
         }
-        // No program yet (first request pending), program id only (week known, name not yet),
-        // or both (every later phase).
+        // No program yet (first request pending), program id only (week known, name not yet; a
+        // retired phase), or both (every later phase).
         var noProgram = Model.sameString(phase, Liftosaur.PHASE_PROGRAM) ||
             Model.sameString(phase, Liftosaur.PHASE_FIRST);
         var weekOnly = Model.sameString(phase, Liftosaur.PHASE_WEEK);
@@ -139,6 +140,11 @@ class Store {
         if (weekOnly && (!Model.validNonblankText(payload["programId"], 64) ||
             payload["programName"] != null || payload["nextWeek"] == null ||
             payload["nextDay"] == null)) {
+            return false;
+        }
+        var probing = Model.sameString(phase, Liftosaur.PHASE_PROBE) ||
+            Model.sameString(phase, Liftosaur.PHASE_PROBED);
+        if (probing && (payload["nextWeek"] == null || payload["nextDay"] == null || days != null)) {
             return false;
         }
         if (!noProgram && !weekOnly && (!Model.validNonblankText(payload["programId"], 64) ||

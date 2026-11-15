@@ -18,15 +18,13 @@ module SkipDayTests {
         SyncProblemTests.problemWorkout(empty)["entries"] = [];
         var good = skipDayReply("Legs", 2, "b");
         var noWeight = skipDayReply("Arms", 3, "c");
-        SyncProblemTests.problemSet(noWeight, 0)["weight"] = null;
+        SyncProblemTests.problemSet(noWeight, 0)["weight"] = "heavy";
         var first = Catalog.parseRoutine(good, 1, 1) as Dictionary;
         var store = new UploadStoreTests.UploadMemoryStore();
         var seeded = SyncTests.syncSeedStore(store, first);
-        var journal = {"sequence" => 2, "phase" => "days", "index" => 0,
+        var journal = {"sequence" => 2, "phase" => "probe", "index" => 0,
             "programId" => "x0001xxx", "programName" => "P", "nextWeek" => 1, "nextDay" => 1,
-            "days" => [{"week" => 1, "dayInWeek" => 1, "name" => "Rest"},
-                {"week" => 1, "dayInWeek" => 2, "name" => "Legs"},
-                {"week" => 1, "dayInWeek" => 3, "name" => "Arms"}], "routineIds" => []};
+            "routineIds" => []};
         var saved = store.commitPair("rsync", journal);
         var controller = new SessionController(store);
         controller.handleApiResponse(Liftosaur.REQ_SYNC_DAY, null, 200, empty);
@@ -40,7 +38,7 @@ module SkipDayTests {
         var walked = after["index"] == 3 && ids.size() == 1 &&
             Model.sameString(ids[0], "sync-2-d2");
         var noted = after["skipCount"] == 1 &&
-            Model.sameString(after["skipNote"], "W1 D3 Squat: no weight");
+            Model.sameString(after["skipNote"], "W1 D3 Squat: bad weight");
         var pivoted = controller.applyRoutineSync(after);
         var config = store.loadPair("config") as Dictionary;
         var nextOk = Model.sameString(config["nextRoutineId"], "sync-2-d2");
@@ -59,9 +57,9 @@ module SkipDayTests {
         var first = Catalog.parseRoutine(good, 1, 1) as Dictionary;
         var store = new UploadStoreTests.UploadMemoryStore();
         var seeded = SyncTests.syncSeedStore(store, first);
-        var journal = {"sequence" => 2, "phase" => "days", "index" => 0,
+        var journal = {"sequence" => 2, "phase" => "probe", "index" => 0,
             "programId" => "x0001xxx", "programName" => "P", "nextWeek" => 1, "nextDay" => 1,
-            "days" => [{"week" => 1, "dayInWeek" => 1, "name" => "Legs"}], "routineIds" => []};
+            "routineIds" => []};
         var saved = store.commitPair("rsync", journal);
         var controller = new SessionController(store);
         controller.handleApiResponse(Liftosaur.REQ_SYNC_DAY, null, 200, good);
@@ -83,11 +81,9 @@ module SkipDayTests {
         var wrap = Catalog.nextRoutineId(routines, 1, 5);
         var none = Catalog.nextRoutineId([], 1, 1);
         var store = new UploadStoreTests.UploadMemoryStore();
-        var base = {"sequence" => 2, "phase" => "days", "index" => 2,
+        var base = {"sequence" => 2, "phase" => "probe", "index" => 2,
             "programId" => "x0001xxx", "programName" => "P", "nextWeek" => 1, "nextDay" => 1,
-            "days" => [{"week" => 1, "dayInWeek" => 1, "name" => "A"},
-                {"week" => 1, "dayInWeek" => 2, "name" => "B"}],
-            "routineIds" => ["sync-2-d2"], "skipCount" => 1, "skipNote" => "W1 D1 Squat: no weight"};
+            "routineIds" => ["sync-2-d2"], "skipCount" => 1, "skipNote" => "W1 D1 Squat: bad weight"};
         var accepted = store.commitPair("rsync", base);
         var badCount = SessionLogic.copyDictionary(base);
         badCount["skipCount"] = -1;

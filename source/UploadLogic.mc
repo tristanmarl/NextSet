@@ -227,9 +227,29 @@ module UploadLogic {
         var body = {"startTime" => job["startTime"], "endTime" => job["endTime"],
             "intervals" => [[job["startTime"], job["endTime"]]]};
         if (notes.length() > 0) {
-            body["notes"] = notes;
+            body["notes"] = capNotes(notes);
         }
         return body;
+    }
+
+    // Liftosaur rejects finish notes over 2500 characters (valibot maxLength counts UTF-16 units,
+    // a character beyond U+FFFF counts twice) with a permanent 400: cut at whole characters so
+    // the units stay within 2000.
+    const MAX_NOTES_UNITS = 2000;
+
+    function capNotes(notes as String) as String {
+        var chars = notes.toCharArray();
+        var units = 0;
+        var keep = 0;
+        for (var i = 0; i < chars.size(); i++) {
+            var width = chars[i].toNumber() > 65535 ? 2 : 1;
+            if (units + width > MAX_NOTES_UNITS) {
+                break;
+            }
+            units += width;
+            keep++;
+        }
+        return keep == chars.size() ? notes : notes.substring(0, keep) as String;
     }
 
     function responseWorkout(reply as Object?) as Dictionary? {
@@ -257,7 +277,7 @@ module UploadLogic {
         for (var i = 0; i < sets.size(); i++) {
             var set = sets[i] as Dictionary;
             timed = timed || Model.timedSet(set);
-            if (Model.weightLoad100(set["weight"]) != 0) {
+            if (Model.planLoad100(set["weight"]) != 0) {
                 bodyweight = false;
             }
         }
@@ -307,7 +327,10 @@ module UploadLogic {
         if (timedPlan) {
             var plannedReps = plan["reps"] instanceof Number ? plan["reps"] : plan["minReps"];
             result["reps"] = plannedReps;
-            result["weight"] = "0kg";
+            // A weighted hold (`Plank / 3x1 30s / 20kg`) sends the plan's own weight; a hold
+            // without one (null or 0) sends "0kg".
+            result["weight"] = Model.planLoad100(plan["weight"]) instanceof Number &&
+                (Model.planLoad100(plan["weight"]) as Number) > 0 ? plan["weight"] : "0kg";
             result["setTimer"] = set["timeSec"];
             if (plan["isUnilateral"] == true || exercise["unilateral"] == true) {
                 result["setTimerLeft"] = set["timeLeftSec"] instanceof Number ? set["timeLeftSec"] : set["timeSec"];

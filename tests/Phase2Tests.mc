@@ -62,29 +62,16 @@ module Phase2Tests {
     }
 
     (:test)
-    function testLiftoscriptDaysAndLimits(logger as Test.Logger) as Boolean {
-        var parsed = LiftosaurLogic.parseDays(
-            "# Week 1\r\n## Upper\r\n// ignored\r\n## Lower\r\n# Week 2\r\n## Upper\r\n");
-        var weeks = parsed as Array;
+    function testOpaqueProgramIds(logger as Test.Logger) as Boolean {
         var opaqueIdReply = phase2ApiWorkout("Opaque", "1790752141000".toLong(),
             "Row", false, false, "opaque");
         var opaqueData = opaqueIdReply["data"] as Dictionary;
         var opaqueWorkout = opaqueData["workout"] as Dictionary;
         opaqueWorkout["programId"] = "Program_A1";
         var opaqueRoutine = Catalog.parseRoutine(opaqueIdReply, 1, 1);
-        var shape = parsed != null && weeks.size() == 2 && (weeks[0] as Array).size() == 2 &&
-            (weeks[1] as Array).size() == 1;
-        var names = shape && Model.sameString((weeks[0] as Array)[1], "Lower") &&
-            Model.sameString((weeks[1] as Array)[0], "Upper");
-        var implicitThenHeader = LiftosaurLogic.parseDays("## Upper\n# Week 1\n");
-        var noDays = LiftosaurLogic.parseDays("# Week 1\n");
-        return WorkoutTests.check(logger, names,
-                "Liftoscript headers parse CRLF, comments, repeated day names into weeks of names") &&
-            WorkoutTests.check(logger, implicitThenHeader == null && noDays == null,
-                "a week header after implicit days, and a program without days, are rejected") &&
-            WorkoutTests.check(logger, opaqueRoutine != null &&
-                Model.sameString((opaqueRoutine as Dictionary)["programId"], "Program_A1"),
-                "external Liftosaur program IDs remain opaque bounded text");
+        return WorkoutTests.check(logger, opaqueRoutine != null &&
+            Model.sameString((opaqueRoutine as Dictionary)["programId"], "Program_A1"),
+            "external Liftosaur program IDs remain opaque bounded text");
     }
 
     (:test)
@@ -92,10 +79,6 @@ module Phase2Tests {
         var beforeLoad = System.getSystemStats();
         var usedBeforeLoad = beforeLoad.usedMemory;
         var freeBeforeLoad = beforeLoad.freeMemory;
-        var program = WatchUi.loadResource(Rez.JsonData.LiftosaurProgram) as Dictionary;
-        var programData = program["data"] as Dictionary;
-        var days = LiftosaurLogic.parseDays(programData["text"] as String) as Array;
-        days = LiftosaurLogic.weekDayRows(days, 1) as Array;
         var upperReply = WatchUi.loadResource(Rez.JsonData.LiftosaurUpper) as Dictionary;
         var lowerReply = WatchUi.loadResource(Rez.JsonData.LiftosaurLower) as Dictionary;
         var afterLoad = System.getSystemStats();
@@ -184,7 +167,7 @@ module Phase2Tests {
         var repliesOk = Model.validLiftosaurWorkout(upperReply) &&
             Model.validLiftosaurWorkout(lowerReply);
         var routinesOk = Catalog.validRoutine(upperRoutine) && Catalog.validRoutine(lowerRoutine);
-        if (!WorkoutTests.check(logger, days.size() == 2 && startOk && millisOk && repliesOk && routinesOk,
+        if (!WorkoutTests.check(logger, startOk && millisOk && repliesOk && routinesOk,
                 "full-size sanitized API replies validate and convert to v4")) {
             return false;
         }

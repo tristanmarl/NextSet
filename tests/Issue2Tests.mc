@@ -5,13 +5,8 @@ import Toybox.WatchUi;
 module Issue2Tests {
 
     // GitHub issue #2: a public 12-week x 2-day program (custom progress blocks, a "used: none"
-    // template, AMRAP, supersets, a variation exercise, per-set rests) must sync. The fixture
-    // tests/resources/data/issue2.xml is the program text and a /programs/current reply for it.
-
-    function issue2Program() as Dictionary {
-        var reply = WatchUi.loadResource(Rez.JsonData.Issue2Program) as Dictionary;
-        return reply["data"] as Dictionary;
-    }
+    // template, AMRAP, supersets, a variation exercise, per-set rests) must sync. The day replies
+    // below are built from the shapes Liftosaur sends for it.
 
     function issue2Set(id as String, reps as Number, minReps as Number?, weight as String,
                        rest as Number, amrap as Boolean, unilateral as Boolean,
@@ -75,50 +70,6 @@ module Issue2Tests {
     }
 
     (:test)
-    function testIssue2ProgramDays(logger as Test.Logger) as Boolean {
-        var program = issue2Program();
-        var text = program["text"] as String;
-        var weeks = LiftosaurLogic.parseDays(text);
-        var parsed = weeks != null && LiftosaurLogic.parseProblem == null;
-        var shape = parsed && (weeks as Array).size() == 12;
-        var allTwo = shape;
-        var names = shape;
-        for (var w = 0; shape && w < 12; w++) {
-            var day = (weeks as Array)[w] as Array;
-            allTwo = allTwo && day.size() == 2;
-            names = names && allTwo && Model.sameString(day[0], "Day 1") &&
-                Model.sameString(day[1], "Day 2");
-        }
-        var rows = shape ? LiftosaurLogic.weekDayRows(weeks as Array, 1) : null;
-        var under = Model.byteLength(text) < LiftosaurLogic.MAX_PROGRAM_BYTES;
-        var ok = WorkoutTests.check(logger, parsed, "the program parses without a problem");
-        ok = WorkoutTests.check(logger, shape, "12 weeks") && ok;
-        ok = WorkoutTests.check(logger, allTwo && names, "2 days per week named Day 1 and Day 2") && ok;
-        ok = WorkoutTests.check(logger, rows != null && (rows as Array).size() == 2, "week 1 has two day rows") && ok;
-        return WorkoutTests.check(logger, under, "the text is under the 16 KiB cap") && ok;
-    }
-
-    (:test)
-    function testIssue2ProgramReplyStartsDaySync(logger as Test.Logger) as Boolean {
-        var program = issue2Program();
-        var store = new UploadStoreTests.UploadMemoryStore();
-        var first = Catalog.parseRoutine(issue2Day1(), 1, 1) as Dictionary;
-        var seeded = SyncTests.syncSeedStore(store, first);
-        var journal = {"sequence" => 2, "phase" => "program", "index" => 0, "routineIds" => []};
-        var saved = store.commitPair("rsync", journal);
-        var controller = new SessionController(store);
-        controller.handleApiResponse(Liftosaur.REQ_SYNC_PROGRAM, null, 200, {"data" => program});
-        SyncStageTests.syncSettle(controller);
-        var after = store.loadRoutineSync() as Dictionary;
-        var weeks = after["weeks"];
-        var phaseOk = Model.sameString(after["phase"], "next") && weeks instanceof Array &&
-            (weeks as Array).size() == 12;
-        var ok = WorkoutTests.check(logger, seeded && saved, "fixture store and journal are saved");
-        ok = WorkoutTests.check(logger, phaseOk, "the program reply moves the sync to the next phase with 12 weeks") && ok;
-        return WorkoutTests.check(logger, controller.errorCode() == Err.NONE, "no sync error is raised") && ok;
-    }
-
-    (:test)
     function testIssue2Week1RepliesParse(logger as Test.Logger) as Boolean {
         var day1 = Catalog.parseRoutine(issue2Day1(), 1, 1);
         var problem1 = Catalog.lastProblem;
@@ -142,25 +93,5 @@ module Issue2Tests {
                 ((adduct["setTargets"] as Array).size() == 3), "AMRAP last set stays a normal set") && ok;
         }
         return ok;
-    }
-
-    // The 0.6.0 report "W7 D1: day name differs from API": for this program Liftosaur's playground
-    // names the day "Week 7 - Day 1" (week header + " - " + day header), the text gives "Day 1".
-    (:test)
-    function testIssue2Week7NamesMatchApi(logger as Test.Logger) as Boolean {
-        var text = issue2Program()["text"] as String;
-        var weeks = LiftosaurLogic.parseDaysFor(text, 7);
-        var rows = weeks == null ? null : LiftosaurLogic.weekDayRows(weeks as Array, 7);
-        var found = WorkoutTests.check(logger, rows != null && (rows as Array).size() == 2, "week 7 has two days");
-        if (!found) {
-            return false;
-        }
-        var day1 = (rows as Array)[0] as Dictionary;
-        var day2 = (rows as Array)[1] as Dictionary;
-        var ok1 = WorkoutTests.check(logger, LiftosaurLogic.dayNameMatches("Week 7 - Day 1", day1["name"]), "W7 D1 matches");
-        var ok2 = WorkoutTests.check(logger, LiftosaurLogic.dayNameMatches("Week 7 - Day 2", day2["name"]), "W7 D2 matches");
-        var ok3 = WorkoutTests.check(logger, !LiftosaurLogic.dayNameMatches("Week 7 - Day 2", day1["name"]),
-            "days are not swapped");
-        return ok1 && ok2 && ok3;
     }
 }

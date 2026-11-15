@@ -361,8 +361,7 @@ module WorkoutTests {
             "programId" => routine["programId"], "programName" => "Test Program",
             "nextRoutineId" => routineId};
         var storedConfig = store.commitPair("config", config);
-        var replayJournal = {"sequence" => 5, "phase" => "days", "index" => 1,
-            "days" => [{"week" => 1, "dayInWeek" => 1, "name" => "DayAx"}],
+        var replayJournal = {"sequence" => 5, "phase" => "probe", "index" => 1,
             "routineIds" => [routineId], "programId" => routine["programId"],
             "programName" => "Test Program", "nextWeek" => 1, "nextDay" => 1};
         var storedJournal = store.commitPair("rsync", replayJournal);

@@ -73,19 +73,23 @@ module Catalog {
             }
             var firstSet = sets[0] as Dictionary;
             var timed = Model.timedSet(firstSet);
-            // kg or lb as Liftosaur sends it; one exercise never mixes units.
-            var unit = Model.weightUnit(firstSet["weight"]);
+            // kg or lb as Liftosaur sends it; one exercise never mixes units. A set without a
+            // weight (null) is a bodyweight set: load 0, no unit of its own, so it mixes with
+            // weighted sets (they decide the unit and the exercise is then a weight exercise).
+            var unit = null;
             var bodyweight = true;
             var isUnilateral = false;
             for (var s = 0; s < sets.size(); s++) {
                 var sourceSet = sets[s] as Dictionary;
-                if (Model.timedSet(sourceSet) != timed ||
-                    !Model.sameString(Model.weightUnit(sourceSet["weight"]), unit)) {
+                var setUnit = Model.weightUnit(sourceSet["weight"]);
+                var unitMix = unit != null && setUnit != null && !Model.sameString(setUnit, unit);
+                if (Model.timedSet(sourceSet) != timed || unitMix) {
                     return reject(workout, source, Model.timedSet(sourceSet) != timed ?
                         "mixes timed and normal sets" : "mixes kg and lb");
                 }
+                unit = unit == null ? setUnit : unit;
                 isUnilateral = isUnilateral || sourceSet["isUnilateral"] == true;
-                if (Model.weightLoad100(sourceSet["weight"]) != 0) {
+                if (Model.planLoad100(sourceSet["weight"]) != 0) {
                     bodyweight = false;
                 }
             }
@@ -100,7 +104,7 @@ module Catalog {
                 var sourceSet = sets[s] as Dictionary;
                 var reps = sourceSet["reps"] instanceof Number ?
                     sourceSet["reps"] : sourceSet["minReps"];
-                var load100 = Model.weightLoad100(sourceSet["weight"]);
+                var load100 = Model.planLoad100(sourceSet["weight"]);
                 // A range only when the API gives both bounds; nothing is inferred otherwise.
                 var lowReps = sourceSet["reps"] instanceof Number &&
                     sourceSet["minReps"] instanceof Number &&
@@ -126,15 +130,16 @@ module Catalog {
             if (sourceWarmups instanceof Array) {
                 for (var w = 0; w < (sourceWarmups as Array).size(); w++) {
                     var warmup = (sourceWarmups as Array)[w] as Dictionary;
-                    if (!Model.sameString(Model.weightUnit(warmup["weight"]), unit) &&
-                        Model.weightLoad100(warmup["weight"]) != 0) {
+                    var warmupUnit = Model.weightUnit(warmup["weight"]);
+                    if (warmupUnit != null && unit != null && !Model.sameString(warmupUnit, unit) &&
+                        Model.planLoad100(warmup["weight"]) != 0) {
                         return reject(workout, source, "warmup unit differs");
                     }
                     var warmupReps = warmup["reps"] instanceof Number ?
                         warmup["reps"] : warmup["minReps"];
                     warmups.add({
                         "reps" => warmupReps,
-                        "load100" => Model.weightLoad100(warmup["weight"]),
+                        "load100" => Model.planLoad100(warmup["weight"]),
                         "durationSec" => timed ? warmup["setTimer"] : null,
                         "restSec" => warmup["timer"] instanceof Number ? warmup["timer"] : null
                     });
@@ -168,7 +173,7 @@ module Catalog {
                 "targetDurationSec" => timed ? firstSet["setTimer"] : null,
                 "prompts" => promptsOf(source["promptedVars"]),
                 "startingLoad100" => Model.sameString(type, "weight") ?
-                    Model.weightLoad100(firstSet["weight"]) : null
+                    Model.planLoad100(firstSet["weight"]) : null
             });
         }
         var dayData = workout["dayData"] as Dictionary;
@@ -200,7 +205,8 @@ module Catalog {
             !Model.inRange((day as Dictionary)["dayInWeek"], 1, 1000, false)) {
             return null;
         }
-        return {"programId" => workout["programId"], "name" => workout["dayName"],
+        return {"programId" => workout["programId"], "programName" => workout["programName"],
+            "name" => workout["dayName"],
             "week" => (day as Dictionary)["week"], "dayInWeek" => (day as Dictionary)["dayInWeek"],
             "exercises" => (workout["entries"] as Array).size()};
     }

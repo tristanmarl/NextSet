@@ -11,10 +11,8 @@ module SyncStageTests {
     }
 
     function stageJournalFor(program as String) as Dictionary {
-        return {"sequence" => 2, "phase" => "days", "index" => 0, "programId" => program,
-            "programName" => "P", "nextWeek" => 1, "nextDay" => 1,
-            "days" => [{"week" => 1, "dayInWeek" => 1, "name" => "Day 1"},
-                {"week" => 1, "dayInWeek" => 2, "name" => "Day 2"}], "routineIds" => []};
+        return {"sequence" => 2, "phase" => "probe", "index" => 0, "programId" => program,
+            "programName" => "P", "nextWeek" => 1, "nextDay" => 1, "routineIds" => []};
     }
 
     // A store holding the seeded routine and config plus the given journal.
@@ -192,90 +190,38 @@ module SyncStageTests {
     }
 
     (:test)
-    function testNewFlowAsksNextBeforeProgram(logger as Test.Logger) as Boolean {
+    function testFirstReplyStartsTheProbe(logger as Test.Logger) as Boolean {
         var store = stageStore({"sequence" => 2, "phase" => "first", "index" => 0, "routineIds" => []});
         var controller = new SessionController(store);
         controller.handleApiResponse(Liftosaur.REQ_SYNC_NEXT, null, 200, Issue2Tests.issue2Day1());
         syncSettle(controller);
-        var week = store.loadRoutineSync() as Dictionary;
-        var weekOk = Model.sameString(week["phase"], "week") &&
-            Model.sameString(week["programId"], "1cc9198d") && week["nextWeek"] == 1 &&
-            week["nextDay"] == 1 && week["programName"] == null;
-        // A relaunch in this phase resumes by asking /programs/current.
-        var resumed = new SessionController(relaunch(store));
-        resumed.handleApiResponse(Liftosaur.REQ_SYNC_PROGRAM, null, 200, {"data" => Issue2Tests.issue2Program()});
-        syncSettle(resumed);
-        var days = relaunch(store).loadRoutineSync() as Dictionary;
-        var rows = days["days"] as Array;
-        var ok = WorkoutTests.check(logger, weekOk, "the first reply fixes program, week and day");
-        ok = WorkoutTests.check(logger, Model.sameString(days["phase"], "days") && days["weeks"] == null &&
-            rows.size() == 2 && Model.sameString(rows[1]["name"], "Day 2") &&
-            Model.sameString(days["programName"], "Fighter progressive overload"),
-            "the program reply keeps only the current week's days") && ok;
-        return WorkoutTests.check(logger, resumed.errorCode() == Err.NONE, "no sync error") && ok;
+        var probe = store.loadRoutineSync() as Dictionary;
+        var ok = WorkoutTests.check(logger, Model.sameString(probe["phase"], "probe") &&
+            Model.sameString(probe["programId"], "1cc9198d") && probe["nextWeek"] == 1 &&
+            probe["nextDay"] == 1 && probe["index"] == 0 && probe["days"] == null &&
+            Model.sameString(probe["programName"], "Fighter progressive overload"),
+            "the first reply fixes program, name, week and next day; the probe starts at day 1");
+        return WorkoutTests.check(logger, controller.errorCode() == Err.NONE, "no sync error") && ok;
     }
 
     (:test)
-    function testWeekPhaseRejectsOtherProgram(logger as Test.Logger) as Boolean {
-        var store = stageStore({"sequence" => 2, "phase" => "week", "index" => 0, "routineIds" => [],
-            "programId" => "othertxt", "nextWeek" => 1, "nextDay" => 1});
+    function testProbeRejectsOtherProgram(logger as Test.Logger) as Boolean {
+        var store = stageStore({"sequence" => 2, "phase" => "probe", "index" => 0, "routineIds" => [],
+            "programId" => "othertxt", "programName" => "P", "nextWeek" => 1, "nextDay" => 1});
         var controller = new SessionController(store);
-        controller.handleApiResponse(Liftosaur.REQ_SYNC_PROGRAM, null, 200, {"data" => Issue2Tests.issue2Program()});
+        controller.handleApiResponse(Liftosaur.REQ_SYNC_DAY, null, 200, Issue2Tests.issue2Day1());
         syncSettle(controller);
         var journal = store.loadRoutineSync() as Dictionary;
         var problem = LiftosaurLogic.loadSyncProblem();
-        var ok = WorkoutTests.check(logger, Model.sameString(journal["phase"], "week"), "the journal stays in the week phase");
+        var ok = WorkoutTests.check(logger, journal["index"] == 0, "the journal stays at day 1");
         return WorkoutTests.check(logger, controller.errorCode() == Err.ROUTINE_SYNC_INVALID_RESPONSE &&
-            problem != null && Model.sameString(problem, "Program changed during sync"),
-            "a program that differs from /workout/next is rejected with a reason") && ok;
-    }
-
-    (:test)
-    function testParseDaysForKeepsOneWeek(logger as Test.Logger) as Boolean {
-        var text = "# Week 1\n## A\n## B\n# Week 2\n## C\n# Week 3 - Deload\n## D\n## E\n";
-        var weeks = LiftosaurLogic.parseDaysFor(text, 3) as Array;
-        var ok = WorkoutTests.check(logger, weeks.size() == 3 && weeks[0] == null && weeks[1] == null,
-            "other weeks are not stored but still counted");
-        var names = weeks[2] as Array;
-        ok = WorkoutTests.check(logger, names.size() == 2 && Model.sameString(names[1], "E"), "the wanted week keeps its names") && ok;
-        var rows = LiftosaurLogic.weekDayRows(weeks, 3) as Array;
-        ok = WorkoutTests.check(logger, rows.size() == 2 && rows[1]["dayInWeek"] == 2, "weekDayRows reads it") && ok;
-        ok = WorkoutTests.check(logger, LiftosaurLogic.weekDayRows(weeks, 1) == null, "an unstored week has no rows") && ok;
-        // Validation still covers every header, also in weeks that are not kept.
-        var bad = LiftosaurLogic.parseDaysFor("# Week 1\n##Broken\n# Week 2\n## C\n", 2);
-        ok = WorkoutTests.check(logger, bad == null && LiftosaurLogic.parseProblem != null, "a bad header in another week is rejected") && ok;
-        var implicit = LiftosaurLogic.parseDaysFor("## A\n## B\n", 1) as Array;
-        ok = WorkoutTests.check(logger, (implicit[0] as Array).size() == 2, "days before a header are week 1") && ok;
-        var beyond = LiftosaurLogic.parseDaysFor("# Week 1\n## A\n", 4) as Array;
-        return WorkoutTests.check(logger, beyond.size() == 1 && LiftosaurLogic.weekDayRows(beyond, 4) == null,
-            "a week past the program is not found") && ok;
-    }
-
-    (:test)
-    function testOldJournalPhasesStillResume(logger as Test.Logger) as Boolean {
-        // Phase "program" and "next" (with weeks or a flat day list) validate and advance as before.
-        var program = {"sequence" => 1, "phase" => "program", "index" => 0, "routineIds" => []};
-        var next = {"sequence" => 1, "phase" => "next", "index" => 0, "programId" => "x0001xxx",
-            "programName" => "P", "routineIds" => [], "weeks" => [["A"], ["B", "C"]]};
-        var flat = {"sequence" => 1, "phase" => "next", "index" => 0, "programId" => "x0001xxx",
-            "programName" => "P", "routineIds" => [],
-            "days" => [{"week" => 1, "dayInWeek" => 1, "name" => "A"}]};
-        var store = new UploadStoreTests.UploadMemoryStore();
-        var ok = WorkoutTests.check(logger, store.commitPair("rsync", program), "program phase is accepted");
-        ok = WorkoutTests.check(logger, store.commitPair("rsync", next), "next phase with weeks is accepted") && ok;
-        ok = WorkoutTests.check(logger, store.commitPair("rsync", flat), "next phase with days is accepted") && ok;
-        var week = {"sequence" => 1, "phase" => "week", "index" => 0, "routineIds" => [],
-            "programId" => "x0001xxx", "nextWeek" => 1, "nextDay" => 1};
-        ok = WorkoutTests.check(logger, store.commitPair("rsync", week), "week phase is accepted") && ok;
-        week["programName"] = "P";
-        ok = WorkoutTests.check(logger, !store.commitPair("rsync", week), "week phase with a program name is rejected") && ok;
-        return ok;
+            problem != null && Model.sameString(problem, "W1 D1: program differs from API"),
+            "a day of another program is rejected with a reason") && ok;
     }
 
     (:test)
     function testSyncMemoryGuardRules(logger as Test.Logger) as Boolean {
         var ok = WorkoutTests.check(logger, LiftosaurLogic.syncMemoryNeed(Liftosaur.REQ_SYNC_DAY) > 0 &&
-            LiftosaurLogic.syncMemoryNeed(Liftosaur.REQ_SYNC_PROGRAM) > 0 &&
             LiftosaurLogic.syncMemoryNeed(Liftosaur.REQ_SYNC_NEXT) > 0, "sync requests need free memory");
         ok = WorkoutTests.check(logger, LiftosaurLogic.syncMemoryNeed(Liftosaur.REQ_UPLOAD_START) == 0 &&
             LiftosaurLogic.syncMemoryNeed(Liftosaur.REQ_KEY_TEST) == 0, "other requests are not guarded") && ok;

@@ -13,6 +13,8 @@ module Breadcrumb {
     const KEY = "crumb";
     const KEY_LAST = "crumb.last";
 
+    // Step 1 (program reply) is no longer written since the sync stopped reading /programs/current;
+    // the constant and its name stay so a crumb left by 0.6.x still reads in Diagnostics.
     const STEP_SYNC_PROGRAM = 1;
     const STEP_SYNC_NEXT = 2;
     const STEP_SYNC_DAY = 3;
@@ -57,9 +59,6 @@ module Breadcrumb {
         if (purpose == null) {
             return 0;
         }
-        if (purpose.equals(Liftosaur.REQ_SYNC_PROGRAM)) {
-            return STEP_SYNC_PROGRAM;
-        }
         if (purpose.equals(Liftosaur.REQ_SYNC_NEXT)) {
             return STEP_SYNC_NEXT;
         }
@@ -73,8 +72,7 @@ module Breadcrumb {
             return STEP_UPLOAD_FINISH;
         }
         if (purpose.equals(Liftosaur.REQ_UPLOAD_PREVIEW) || purpose.equals(Liftosaur.REQ_UPLOAD_START) ||
-            purpose.equals(Liftosaur.REQ_UPLOAD_RESUME_SETS) || purpose.equals(Liftosaur.REQ_UPLOAD_CURRENT) ||
-            purpose.equals(Liftosaur.REQ_UPLOAD_CURRENT_RESUME)) {
+            purpose.equals(Liftosaur.REQ_UPLOAD_RESUME_SETS)) {
             return STEP_UPLOAD_START;
         }
         return 0;

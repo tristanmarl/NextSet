@@ -52,6 +52,7 @@ module Err {
     const NO_RESPONSE_WILL_RETRY = 52;
     const NO_ACTIVE_WORKOUT = 53;
     const SYNC_LOW_MEMORY = 54;
+    const WORKOUT_UPLOAD_RESPONSE_TOO_LARGE = 55;
 
     function message(code as Number) as String? {
         switch (code) {
@@ -151,6 +152,8 @@ module Err {
                 return "No active workout";
             case SYNC_LOW_MEMORY:
                 return "Not enough free memory to sync; retry later";
+            case WORKOUT_UPLOAD_RESPONSE_TOO_LARGE:
+                return "Liftosaur reply too large for the watch; skip this upload";
         }
         return null;
     }
@@ -226,6 +229,8 @@ module Err {
                 return message(code);
             case SYNC_LOW_MEMORY:
                 return "Low memory · retry sync";
+            case WORKOUT_UPLOAD_RESPONSE_TOO_LARGE:
+                return "Reply too large · MENU skip upload";
         }
         return null;
     }
