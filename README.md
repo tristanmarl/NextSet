@@ -99,6 +99,8 @@ The small icons at the screen edge show what each button does. Every workout scr
 
 **I use [liftosaur2garmin](https://github.com/Zettt/liftosaur2garmin). Does that work?** It should from NextSet 0.3.6 on, but this has not been confirmed with a real upload yet. Up to 0.3.5 NextSet added a note to every workout, which made liftosaur2garmin's parser fail; since 0.3.6 it adds a note only for a replaced exercise or extra warmups. The same parser still fails on any Liftosaur workout that has a note, including notes you write in the Liftosaur app.
 
+**Test key or sync fails with a code. What does it mean?** "HTTP" codes come from Liftosaur, "CIQ" codes from the watch or the Garmin Connect app. [docs/ERROR_CODES.md](docs/ERROR_CODES.md) lists them all.
+
 **Why five buttons only?** Every action is mapped to UP, DOWN, START, BACK and hold UP, so it works with sweaty hands and gloves. Touch-only watches would need their own controls.
 
 ## Contributing
