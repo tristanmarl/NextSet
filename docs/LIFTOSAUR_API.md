@@ -4,7 +4,7 @@ How NextSet uses the [Liftosaur REST API](https://www.liftosaur.com/doc/api). Th
 
 ## Requests
 
-Base URL `https://www.liftosaur.com/api/v1`, header `Authorization: Bearer <key>`. Every write also sends `X-Liftosaur-Device-Id` (generated once per install, `nextset-` + 24 random characters, kept in app storage) and `X-Liftosaur-Client: nextset-watch/<version>`. Replies use the envelope `{"data": …}`; errors are `{"error": {code, message}}`. Only one request is in flight at a time.
+Base URL `https://www.liftosaur.com/api/v1`, header `Authorization: Bearer <key>`. Writes (POST) also send `Content-Type` as `Communications.REQUEST_CONTENT_TYPE_JSON` (GETs send none; the string "application/json" made fenix 7 / fenix 8 firmware fail every request with CIQ -200). Every write also sends `X-Liftosaur-Device-Id` (generated once per install, `nextset-` + 24 random characters, kept in app storage) and `X-Liftosaur-Client: nextset-watch/<version>`. Replies use the envelope `{"data": …}`; errors are `{"error": {code, message}}`. Only one request is in flight at a time.
 
 | Purpose | Request |
 | --- | --- |

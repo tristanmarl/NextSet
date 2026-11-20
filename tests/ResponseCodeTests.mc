@@ -1,4 +1,5 @@
 import Toybox.Lang;
+import Toybox.Communications;
 import Toybox.Test;
 
 // A failed Test key or sync names the response code, on screen and in Diagnostics, so a field
@@ -46,5 +47,21 @@ module ResponseCodeTests {
             WorkoutTests.check(logger, noticeOk && secondOk, "the Home notice names the response code") &&
             WorkoutTests.check(logger, problemOk && diagOk, "Diagnostics names the response code") &&
             WorkoutTests.check(logger, notSent, "a request that never went out says so");
+    }
+
+    (:test)
+    function testHeadersSetContentTypeOnlyOnWrites(logger as Test.Logger) as Boolean {
+        var read = LiftosaurLogic.requestHeaders("fixture-key", "nextset-watch/0", null);
+        var write = LiftosaurLogic.requestHeaders("fixture-key", "nextset-watch/0", "nextset-device");
+        var readOk = !read.hasKey("Content-Type") && !read.hasKey("X-Liftosaur-Device-Id") &&
+            Model.sameString(read["Authorization"], "Bearer fixture-key");
+        var writeType = write["Content-Type"];
+        var writeOk = writeType instanceof Number &&
+            writeType == Communications.REQUEST_CONTENT_TYPE_JSON &&
+            Model.sameString(write["X-Liftosaur-Device-Id"], "nextset-device");
+        var noStrings = !(writeType instanceof String);
+        return WorkoutTests.check(logger, readOk, "a GET sends no Content-Type and no device id") &&
+            WorkoutTests.check(logger, writeOk, "a POST sends the JSON content type constant and the device id") &&
+            WorkoutTests.check(logger, noStrings, "Content-Type is never the string form");
     }
 }

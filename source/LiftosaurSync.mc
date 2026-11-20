@@ -26,6 +26,10 @@ class LiftosaurSync {
     private var _asyncTimer as Timer.Timer? = null;
     private var _retryTimer as Timer.Timer? = null;
     private var _retryAttempt as Number = 0;
+    // Test key gives up waiting after KEY_TEST_TIMEOUT_MS (a request whose callback never came left
+    // "Testing" on screen for good). The request stays in flight; its late reply is dropped.
+    private var _keyTestTimer as Timer.Timer? = null;
+    private var _keyTestAbandoned as Boolean = false;
     // The journal while a sync runs (loaded once, then replaced by each committed step); only
     // trusted while _routineSyncRunning or a step is staged, else the store is read again.
     private var _journal as Dictionary? = null;
@@ -101,6 +105,15 @@ class LiftosaurSync {
         var started = makeApiRequest("/programs/current", Communications.HTTP_REQUEST_METHOD_GET,
             null, false, Liftosaur.REQ_KEY_TEST, null);
         var failure = _host.errorCode();
+        if (started) {
+            _keyTestAbandoned = false;
+            if (_keyTestTimer == null) {
+                _keyTestTimer = new Timer.Timer();
+            }
+            (_keyTestTimer as Timer.Timer).stop();
+            (_keyTestTimer as Timer.Timer).start(method(:keyTestTimedOut), LiftosaurLogic.KEY_TEST_TIMEOUT_MS,
+                false);
+        }
         var message = started ? null : (failure == Err.LIFTOSAUR_KEY_REQUIRED ?
             "Set Liftosaur key in Settings" : (failure == Err.PHONE_NOT_CONNECTED ?
                 "Phone not connected" : "No connection"));
@@ -108,7 +121,26 @@ class LiftosaurSync {
         return message;
     }
 
+    // Timer target (public for method()).
+    public function keyTestTimedOut() as Void {
+        if (_requestInFlight && Model.sameString(_responsePurpose, Liftosaur.REQ_KEY_TEST)) {
+            _keyTestAbandoned = true;
+            // Only while "Testing" is still shown; never push a screen over whatever came next.
+            if (WatchUi.getCurrentView()[0] instanceof FeedbackView) {
+                Navigator.replaceFeedback(LiftosaurLogic.KEY_TEST_TIMEOUT_TEXT);
+            }
+        }
+    }
+
     private function keyTestDone(responseCode as Number, data as Object?) as Void {
+        if (_keyTestTimer != null) {
+            (_keyTestTimer as Timer.Timer).stop();
+        }
+        if (_keyTestAbandoned) {
+            // The screen already says there was no response; do not open a new one now.
+            _keyTestAbandoned = false;
+            return;
+        }
         var message = "No connection";
         if (responseCode >= 200 && responseCode < 300) {
             var body = responseBody(data);
@@ -162,19 +194,14 @@ class LiftosaurSync {
             _host.setErrorCode(Err.LIFTOSAUR_KEY_REQUIRED);
             return null;
         }
-        var headers = {
-            "Authorization" => "Bearer " + (key as String),
-            "X-Liftosaur-Client" => clientHeader(),
-            "Content-Type" => "application/json"
-        };
+        var id = null;
         if (write) {
-            var id = deviceId();
+            id = deviceId();
             if (id == null) {
                 return null;
             }
-            headers["X-Liftosaur-Device-Id"] = id as String;
         }
-        return headers;
+        return LiftosaurLogic.requestHeaders(key as String, clientHeader(), id);
     }
 
     private function online() as Boolean {

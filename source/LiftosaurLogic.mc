@@ -1,4 +1,5 @@
 import Toybox.Application;
+import Toybox.Communications;
 import Toybox.Lang;
 
 module LiftosaurLogic {
@@ -82,6 +83,26 @@ module LiftosaurLogic {
         }
         return retryable(responseCode) ? Err.NO_RESPONSE_WILL_RETRY : Err.NONE;
     }
+
+    // Request headers. deviceId != null marks a write (POST): only then is Content-Type set, and as
+    // the REQUEST_CONTENT_TYPE_* number the API documents. A GET has no body; fenix 7 / fenix 8
+    // firmware rejected the former string value "application/json" with -200 before sending
+    // anything (the FR965 accepted it).
+    function requestHeaders(key as String, client as String, deviceId as String?) as Dictionary {
+        var headers = {
+            "Authorization" => "Bearer " + key,
+            "X-Liftosaur-Client" => client
+        };
+        if (deviceId != null) {
+            headers["Content-Type"] = Communications.REQUEST_CONTENT_TYPE_JSON;
+            headers["X-Liftosaur-Device-Id"] = deviceId;
+        }
+        return headers;
+    }
+
+    // Test key stops waiting for a reply after this long.
+    const KEY_TEST_TIMEOUT_MS = 60000;
+    const KEY_TEST_TIMEOUT_TEXT = "No response after 60 s";
 
     // Response code as shown to the user: "HTTP 404" for a server reply, "CIQ -400" for a
     // Connect IQ / Garmin Connect error (0 and below).
