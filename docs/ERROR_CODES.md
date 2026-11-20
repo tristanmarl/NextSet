@@ -26,7 +26,7 @@ Did the request get there and back?
 | -102 | `BLE_REQUEST_TOO_LARGE` | NextSet sent too much. A NextSet bug. |
 | -103 | `BLE_UNKNOWN_SEND_ERROR` | Sending over Bluetooth failed. Retried. |
 | -104 | `BLE_CONNECTION_UNAVAILABLE` | No phone connection ("Phone not connected"). |
-| -200, -201, -202 | `INVALID_HTTP_HEADER_FIELDS_IN_REQUEST`, `INVALID_HTTP_BODY_IN_REQUEST`, `INVALID_HTTP_METHOD_IN_REQUEST` | NextSet built a bad request. A NextSet bug. Up to 0.6.5, every request on the fenix 7 and fenix 8 failed with -200 (a header those watches reject); fixed in the next version. |
+| -200, -201, -202 | `INVALID_HTTP_HEADER_FIELDS_IN_REQUEST`, `INVALID_HTTP_BODY_IN_REQUEST`, `INVALID_HTTP_METHOD_IN_REQUEST` | NextSet built a bad request. A NextSet bug. Up to 0.6.5, every request on the fenix 7 and fenix 8 failed with -200 (a header those watches reject); fixed in 0.6.6. |
 | -300 | `NETWORK_REQUEST_TIMED_OUT` | The phone got no answer from Liftosaur in time: slow network or server, or Garmin Connect has no internet access. Retried. |
 | -400 | `INVALID_HTTP_BODY_IN_NETWORK_RESPONSE` | The answer arrived but could not be read as JSON: something in the account's data, the phone app's parser, or an HTML page instead of JSON. |
 | -401 | `INVALID_HTTP_HEADER_FIELDS_IN_NETWORK_RESPONSE` | The answer's headers could not be read. |

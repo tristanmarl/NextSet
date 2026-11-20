@@ -2,6 +2,10 @@
 
 NextSet is an unofficial companion for Liftosaur. It is not made or endorsed by Liftosaur and needs Liftosaur Premium for API access.
 
+## 0.6.6
+- **Fixes Test key and sync on the fenix 7 and fenix 8.** Every request failed with "Request failed · CIQ -200" because NextSet sent a header these watches reject. GET requests no longer send it, and uploads send it in the form Garmin documents.
+- **Test key no longer waits forever.** Without an answer it shows "No response after 60 s" instead of "Testing".
+
 ## 0.6.5
 - **Connection errors name their cause.** "No connection" (Test key) and "Could not reach Liftosaur" (sync) were catch-all messages that hid what went wrong. Test key now shows "No response · CIQ -300" or "Request failed · HTTP 404", the Home screen shows "Sync failed · CIQ -400", and Settings → Diagnostics keeps it ("Last sync: Request failed: CIQ -400"). A wrong key or missing Premium still reads "Key rejected".
 
