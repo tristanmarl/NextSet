@@ -451,6 +451,10 @@ class SessionController {
         return _sync.activityLabel();
     }
 
+    public function syncFailedNotice() as String {
+        return _sync.syncFailedNotice();
+    }
+
     public function infoNotice() as String? {
         return _sync.infoNotice();
     }

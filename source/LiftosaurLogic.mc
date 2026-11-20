@@ -83,6 +83,26 @@ module LiftosaurLogic {
         return retryable(responseCode) ? Err.NO_RESPONSE_WILL_RETRY : Err.NONE;
     }
 
+    // Response code as shown to the user: "HTTP 404" for a server reply, "CIQ -400" for a
+    // Connect IQ / Garmin Connect error (0 and below).
+    function codeLabel(responseCode as Number) as String {
+        return (responseCode > 0 ? "HTTP " : "CIQ ") + responseCode.toString();
+    }
+
+    // Settings → Test key text for a reply that is neither a success nor 401 / 403.
+    function keyTestFailure(responseCode as Number) as String {
+        if (responseCode == -104) {
+            return "Phone not connected";
+        }
+        return (retryable(responseCode) ? "No response · " : "Request failed · ") +
+            codeLabel(responseCode);
+    }
+
+    // Home notice for Err.ROUTINE_SYNC_REQUEST_FAILED; label null = the request was never sent.
+    function syncFailedNotice(label as String?) as String {
+        return label == null ? "Sync request not sent" : "Sync failed · " + (label as String);
+    }
+
     // Auto-retry backoff: 2, 5, then 10 minutes.
     function retryDelayMinutes(attempt as Number) as Number {
         return attempt <= 0 ? 2 : (attempt == 1 ? 5 : 10);

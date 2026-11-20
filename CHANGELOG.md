@@ -2,6 +2,9 @@
 
 NextSet is an unofficial companion for Liftosaur. It is not made or endorsed by Liftosaur and needs Liftosaur Premium for API access.
 
+## 0.6.5
+- **Connection errors name their cause.** "No connection" (Test key) and "Could not reach Liftosaur" (sync) were catch-all messages that hid what went wrong. Test key now shows "No response · CIQ -300" or "Request failed · HTTP 404", the Home screen shows "Sync failed · CIQ -400", and Settings → Diagnostics keeps it ("Last sync: Request failed: CIQ -400"). A wrong key or missing Premium still reads "Key rejected".
+
 ## 0.6.4
 - **An exercise with no sets no longer hides the whole day.** A program line without a set count (for example `Back Extension / 35s+|60s` instead of `1x1 35s+|60s`) reaches NextSet as an exercise with no sets. NextSet skipped the whole day ("no sets"); it now leaves only that exercise out, syncs the rest of the day, and notes it under Settings → Diagnostics ("W1 D2 Back Extension: no sets, left out").
 

@@ -118,8 +118,8 @@ class LiftosaurSync {
             message = "Key OK" + (name instanceof String ? " · " + (name as String) : "");
         } else if (responseCode == 401 || responseCode == 403) {
             message = "Key rejected";
-        } else if (LiftosaurLogic.transportError(responseCode) == Err.PHONE_NOT_CONNECTED) {
-            message = "Phone not connected";
+        } else {
+            message = LiftosaurLogic.keyTestFailure(responseCode);
         }
         Navigator.replaceFeedback(message);
     }
@@ -246,10 +246,14 @@ class LiftosaurSync {
             _requestInFlight = false;
             _responsePurpose = null;
             _responseUploadId = null;
-            _host.setErrorCode(Model.sameString(purpose, Liftosaur.REQ_UPLOAD_START) ||
+            var upload = Model.sameString(purpose, Liftosaur.REQ_UPLOAD_START) ||
                 Model.sameString(purpose, Liftosaur.REQ_UPLOAD_SETS) ||
-                Model.sameString(purpose, Liftosaur.REQ_UPLOAD_FINISH) ? Err.WORKOUT_UPLOAD_FAILED :
-                Err.ROUTINE_SYNC_REQUEST_FAILED);
+                Model.sameString(purpose, Liftosaur.REQ_UPLOAD_FINISH);
+            _failLabel = null;
+            if (!upload && !Model.sameString(purpose, Liftosaur.REQ_KEY_TEST)) {
+                LiftosaurLogic.saveSyncProblem("Request not sent");
+            }
+            _host.setErrorCode(upload ? Err.WORKOUT_UPLOAD_FAILED : Err.ROUTINE_SYNC_REQUEST_FAILED);
             WatchUi.requestUpdate();
             return false;
         }
@@ -714,6 +718,8 @@ class LiftosaurSync {
         _routineSyncRunning = false;
         _journal = null;
         var transport = LiftosaurLogic.transportError(responseCode);
+        _failLabel = LiftosaurLogic.codeLabel(responseCode);
+        LiftosaurLogic.saveSyncProblem("Request failed: " + (_failLabel as String));
         _host.setErrorCode((responseCode == -402 || responseCode == -403) ?
             Err.ROUTINE_SYNC_RESPONSE_TOO_LARGE :
             ((responseCode == 401 || responseCode == 403) ? Err.LIFTOSAUR_UNAUTHORIZED :
@@ -727,6 +733,14 @@ class LiftosaurSync {
 
     // Short reason of the rejection being reported; saved by handleApiResponse.
     private var _problem as String? = null;
+
+    // Response code of the last failed sync request ("HTTP 404" / "CIQ -400"); null when the
+    // request was never sent. Read only while the error code is ROUTINE_SYNC_REQUEST_FAILED.
+    private var _failLabel as String? = null;
+
+    public function syncFailedNotice() as String {
+        return LiftosaurLogic.syncFailedNotice(_failLabel);
+    }
 
     private function reject(text as String) as Boolean {
         _problem = Model.fit(text, 60);

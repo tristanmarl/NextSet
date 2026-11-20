@@ -117,7 +117,8 @@ class HomeView extends WatchUi.View {
         if (activity != null) {
             return activity;
         }
-        var short = Err.shortMessage(code);
+        var short = code == Err.ROUTINE_SYNC_REQUEST_FAILED ? controller.syncFailedNotice() :
+            Err.shortMessage(code);
         if (short != null) {
             return short;
         }
