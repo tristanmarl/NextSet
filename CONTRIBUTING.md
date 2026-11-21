@@ -70,7 +70,57 @@ The demo clears the simulator's app storage on every start. README images are in
 
 ## Tests
 
-Tests live in `tests/*.mc` as free functions marked `(:test)` that take a `Test.Logger` and return a `Boolean`; `check()` is in `tests/WorkoutTests.mc`. Combine check results (`ok1 && ok2 && check(...)`): a `check` whose result is dropped does not fail the test. Keep long conditions split into named variables; one huge expression ran the compiler out of memory. Fixtures under `tests/resources/` must be sanitized: no real API keys, names or account data.
+Each file in `tests/` is one module named after the file (`tests/RestRingTests.mc` → `module RestRingTests`). Tests are functions in that module marked `(:test)` that take a `Test.Logger` and return a `Boolean`; the runner finds them inside modules and reports them as `RestRingTests.testRestRingFraction`.
+
+```monkeyc
+import Toybox.Lang;
+import Toybox.Test;
+
+module RestRingTests {
+
+    (:test)
+    function testRestRingFraction(logger as Test.Logger) as Boolean {
+        var full = ...;
+        var half = ...;
+        var running = full == 1.0 && half == 0.5;
+        return WorkoutTests.check(logger, running, "ring goes from 1 to 0");
+    }
+}
+```
+
+- **No top-level functions or classes in `tests/`.** Connect IQ 3.4 allows only 253 members in the global module, and `TEST_DEVICE=fenix6xpro scripts/test.sh` stops compiling above that. Put helpers inside your module and call other files' helpers qualified (`WorkoutTests.check`, `UploadStoreTests.UploadMemoryStore`).
+- **Combine check results.** `check()` (in `WorkoutTests`) logs and returns a `Boolean`; return `ok1 && ok2 && WorkoutTests.check(...)`. A `check` whose result is dropped does not fail the test.
+- **Keep conditions short.** Split long boolean chains into named variables and several `check` calls: one huge expression ran the compiler out of memory.
+- **Run one test** with `monkeydo bin/NextSet-tests.prg fr965 -t RestRingTests.testRestRingFraction`.
+- **Fixtures** under `tests/resources/` must be sanitized: no real API keys (nothing starting with `lftsk_`, which the release check rejects), names or account data.
+- **Fuzz tests** (`tests/FuzzTests.mc`, helpers in `module FuzzKit`) feed mutated Liftosaur replies and stored records to every parser. A validator (`Model.valid*`, `Store` loads) must never throw on any input. A fatal error such as "Symbol Not Found" aborts the run; the last `fz <label> seed=N` line before the stack trace names the case.
+- Logic changes also run on a CIQ 3.4 watch: `TEST_DEVICE=fenix6xpro scripts/test.sh`.
+
+## Watchdog and memory
+
+A Connect IQ app is killed without warning when one callback runs too many bytecodes ("Watchdog Tripped Error - Code Executed Too Long") or when it runs out of memory. Neither can be caught. Both have happened on real Forerunner 255s, and the simulator enforces neither, so a change can pass every test and still crash on a watch. These decisions keep NextSet under the limits; please keep them when you change sync, upload or storage code.
+
+**Watchdog: little work per callback**
+
+- **A reply is handled in steps.** The web callback for a sync reply only checks that the reply is for the expected program, week and day, and reads it once. Converting it into a routine, validating and saving it, and saving the sync progress each run in their own 150 ms timer callback (`LiftosaurSync.runPendingStep`). A real FR255 tripped the watchdog when one callback did all of this.
+- **Never walk a large reply twice** in one callback, and avoid Monkey C loops over every character of a long string: use native calls such as `String.find`. An earlier per-character scan of the program text tripped the FR255 watchdog (its budget is about 120 000 bytecodes per callback).
+- **Keep the alert tick light.** No storage writes, FIT laps or requests in the timer tick that vibrates or redraws for a rest alert. Edits during a set stay in memory and are saved by a 2 s timer (`SessionController.updateDraft` / `flushDraft`). A firmware crash happened in that second.
+- **Validate stored data once per launch.** `Store` remembers the revision of every record it has checked or written and does not read or check it again.
+
+**Memory: hold as little as possible**
+
+- **Convert replies immediately and drop them.** A day reply becomes a compact routine and the raw reply is released before the next step. NextSet never keeps a raw Liftosaur reply.
+- **One request at a time**, and one reply in memory at a time.
+- **Check free memory before each sync request** (`LiftosaurLogic.syncMemoryNeed`). Below the need, NextSet first drops the cached routines (`SessionController.releaseConfigCache`), then stops with "Low memory" and a reason in Diagnostics instead of crashing.
+- **Load routines one at a time.** Each routine is stored separately and loaded when needed. The step that switches to newly synced routines checks them one by one.
+- **A reply too large for the watch** (CIQ -402 / -403) is a normal, recoverable error.
+- **Create timers on first use.** Watches allow only a few.
+
+**Finding out what happened**
+
+Because these crashes cannot be caught, heavy steps write a small breadcrumb to storage before they start and delete it when they finish (`source/Breadcrumb.mc`). After a crash, the next launch finds it and Settings → Diagnostics shows "Stopped in: day reply W1 D3, 38 KB free". Add a breadcrumb around new heavy work, but never in the per-second tick, alert code or the set-logging press. Store crash reports (`era` in the SDK) give the file and line.
+
+**Measure on small watches.** Build and test on `fr255s` (MIP) and `fenix6xpro` (CIQ 3.4). For memory, temporary `System.getSystemStats().usedMemory` prints around the step give the peak; the simulator reports more total memory than a watch has, so compare differences, not totals.
 
 ## Liftosaur and secrets
 
