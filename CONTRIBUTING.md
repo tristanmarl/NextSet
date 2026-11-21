@@ -6,7 +6,7 @@ Thanks for helping. NextSet is a small hobby project, so short, focused changes 
 
 - **Watch reports.** Only the Forerunner 965 has been used on real hardware. If you run NextSet on another watch, open an issue with the model, firmware version, NextSet version, and what worked or looked wrong (a photo of the screen helps).
 - **Bug reports.** Say what you did, what you expected and what happened. If NextSet crashed, connect the watch by USB and attach `GARMIN/APPS/LOGS/CIQ_LOG.YML`. If the whole watch restarted, also attach `GARMIN/DEBUG/err_log.bak`. **Never post your Liftosaur API key**; check logs and screenshots for it before attaching them.
-- **Pull requests.** For larger changes, open an issue first so we can agree on the approach.
+- **Pull requests.** Bug fixes can go straight to a pull request. For a feature, either open an issue first to check the approach fits, or open a draft pull request with a prototype and we discuss it there.
 
 ## Development setup
 
