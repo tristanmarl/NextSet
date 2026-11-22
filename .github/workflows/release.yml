@@ -1,5 +1,5 @@
-# Builds and checks NextSet on GitHub's Linux runners (store .iq and one .prg per watch, scanned for
-# API keys) and, for a version tag, publishes a GitHub release with notes only. No build files are
+# Builds and checks NextSet on GitHub's Linux runners (the store .iq, which holds every watch's
+# binary, unpacked and scanned for API keys) and, for a version tag, publishes a GitHub release with notes only. No build files are
 # published or kept as artifacts (artifacts of a public repository can be downloaded by anyone):
 # NextSet is installed from the Connect IQ Store, and the store .iq is built locally with the key.
 # The unit tests are not run here: they need the simulator GUI, so run scripts/test.sh on the Mac
@@ -48,17 +48,13 @@ jobs:
         run: |
           v="${{ steps.ver.outputs.version }}"
           mkdir -p dist
+          # The store package compiles every manifest product and fails if any of them fails, so a
+          # separate .prg per watch would only compile everything a second time.
           monkeyc -e -r -f monkey.jungle -o "dist/NextSet-$v.iq" -y "$CIQ_KEY"
-          # One .prg per watch: every product must build.
-          mkdir -p "$RUNNER_TEMP/prg"
-          for d in $(grep -o '<iq:product id="[^"]*"' manifest.xml | sed -E 's/.*id="([^"]*)"/\1/'); do
-            monkeyc -r -f monkey.jungle -d "$d" -o "$RUNNER_TEMP/prg/NextSet-$v-$d.prg" -y "$CIQ_KEY"
-          done
           ls -l dist
       - name: Scan for API keys
         run: |
           mkdir -p "$RUNNER_TEMP/scan"
-          cp "$RUNNER_TEMP"/prg/*.prg "$RUNNER_TEMP/scan/"
           # .iq packages are 7z archives, not zip.
           for f in dist/*.iq; do 7z x -y -bd -o"$RUNNER_TEMP/scan/$(basename "$f")" "$f" > /dev/null; done
           if grep -rqa 'lftsk_' "$RUNNER_TEMP/scan"; then
